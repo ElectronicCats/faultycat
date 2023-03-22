@@ -1061,6 +1061,11 @@
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 0))
     )
+    (model ":KICAD7_3DMODEL_DIR:Package_DFN_QFN.3dshapes/QFN-56-1EP_7x7mm_P0.4mm_EP5.6x5.6mm.step"
+      (offset (xyz 0 0 0))
+      (scale (xyz 1 1 1))
+      (rotate (xyz 0 0 0))
+    )
   )
 
   (footprint "Resistor_SMD:R_0603_1608Metric" (layer "F.Cu")
@@ -1372,8 +1377,8 @@
     (pad "3" thru_hole circle (at 2 0) (size 1.3 1.3) (drill 0.8) (layers "*.Cu" "*.Mask") (tstamp 5557f745-78c8-4768-8c03-188688923038))
     (pad "4" thru_hole circle (at -4.1 0) (size 2.25 2.25) (drill 1.5) (layers "*.Cu" "*.Mask") (tstamp db79496e-3fdf-45c9-b04b-a76e77583b10))
     (pad "5" thru_hole circle (at 4.1 0) (size 2.25 2.25) (drill 1.5) (layers "*.Cu" "*.Mask") (tstamp 49ee53e4-e00a-4acc-8840-e3ad03997663))
-    (model "OS102011MS2QN1.stp"
-      (offset (xyz 19.52000016 -9.739999625 -20.27000015))
+    (model "${KIPRJMOD}/Library/3D/OS102011MS2QN1--3DModel-STEP-1.STEP"
+      (offset (xyz 0 0 4.5))
       (scale (xyz 1 1 1))
       (rotate (xyz -90 0 0))
     )
@@ -1426,7 +1431,7 @@
       (net 48 "Net-(J2-Pin_2)") (pintype "passive") (tstamp df5d0d1e-dca1-4acf-8ba1-17e8cf652c9c))
     (pad "2" smd rect (at 2.4 0) (size 2.4 3.4) (layers "F.Cu" "F.Paste" "F.Mask")
       (net 3 "Net-(D4-K)") (pintype "passive") (tstamp 87ec4d0d-0d70-4705-bccc-b7df8333b787))
-    (model "3522300KFT.stp"
+    (model "${KIPRJMOD}/Library/3D/3522300KFT.step"
       (offset (xyz 0 0 0))
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 0))
@@ -1564,7 +1569,7 @@
       (net 78 "Net-(T1-SA)") (pinfunction "SA") (pintype "passive") (tstamp ff9de19b-1abc-46ac-b902-541a64fef38b))
     (pad "4" smd rect (at 1.5 0.875 270) (size 0.55 1) (layers "F.Cu" "F.Paste" "F.Mask")
       (net 27 "Net-(T1-SB)") (pinfunction "SB") (pintype "passive") (tstamp fb0bb92e-42b9-4d03-bdeb-9b2c3b397405))
-    (model "ATB322524-0110-T000.stp"
+    (model "${KIPRJMOD}/Library/3D/ATB322524-0110-T000.step"
       (offset (xyz 0 0 0))
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 0))
@@ -3190,7 +3195,7 @@
       (net 4 "Net-(D5-A)") (pinfunction "Pin_1") (pintype "passive") (tstamp 0da5b300-ec8c-4948-90e6-ed179e9e401c))
     (pad "2" smd rect (at 1.27 -1.65) (size 1.02 1.9) (layers "F.Cu" "F.Paste" "F.Mask")
       (net 48 "Net-(J2-Pin_2)") (pinfunction "Pin_2") (pintype "passive") (tstamp d0bca660-388f-412e-add6-606a0eced229))
-    (model "BG306-02-A-2-0400-L-G.stp"
+    (model "${KIPRJMOD}/Library/3D/BG306-02-A-2-0400-L-G.step"
       (offset (xyz 0 0 0))
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 0))
@@ -3865,7 +3870,7 @@
       (net 4 "Net-(D5-A)") (pinfunction "SA") (pintype "passive") (tstamp 7290893d-b190-4abd-8ee9-d64172ff5260))
     (pad "4" smd rect (at 1.5 0.875 180) (size 0.55 1) (layers "F.Cu" "F.Paste" "F.Mask")
       (net 1 "Net-(T2-SB)") (pinfunction "SB") (pintype "passive") (tstamp 00367220-8170-497a-9265-642b56c3a18c))
-    (model "ATB322524-0110-T000.stp"
+    (model "${KIPRJMOD}/Library/3D/ATB322524-0110-T000.step"
       (offset (xyz 0 0 0))
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 0))
@@ -4084,11 +4089,11 @@
     (path "/d0f1870e-e1a9-4556-83d8-6156341bc49d")
     (attr through_hole)
     (fp_text reference "J6" (at -1.776 -2.6398 90) (layer "F.SilkS")
-        (effects (font (size 0.48 0.48) (thickness 0.15)))
+        (effects (font (size 0.48 0.48) (thickness 0.12)))
       (tstamp 47f75169-5c13-4c5d-9c13-6e53b1ecdf3e)
     )
     (fp_text value "Input Power:2x AA Battery" (at 3.4056 6.8952 90) (layer "F.Fab")
-        (effects (font (size 0.48 0.48) (thickness 0.15)))
+        (effects (font (size 0.48 0.48) (thickness 0.12)))
       (tstamp 6c3a6c49-4060-412e-96e2-999e6d0ee571)
     )
     (fp_line (start -2.95 -1.35) (end 2.95 -1.35)
@@ -4123,6 +4128,11 @@
       (net 46 "Net-(D10-A)") (pinfunction "Pin_1") (pintype "passive") (tstamp cb5be5f8-6a04-48c6-9069-f8855aab9b31))
     (pad "2" thru_hole circle (at 1 0 90) (size 1.308 1.308) (drill 0.8) (layers "*.Cu" "*.Mask")
       (net 2 "GND") (pinfunction "Pin_2") (pintype "passive") (tstamp 45921efb-71ea-4675-a8eb-448016d2316c))
+    (model "${KIPRJMOD}/Library/3D/S2B-PH-K-S_LF__SN_.step"
+      (offset (xyz 0 1.6 0))
+      (scale (xyz 1 1 1))
+      (rotate (xyz -90 0 0))
+    )
   )
 
   (footprint "Resistor_SMD:R_0603_1608Metric" (layer "F.Cu")
@@ -4300,7 +4310,7 @@
       (net 22 "/CHARGED") (pinfunction "C") (pintype "passive") (tstamp 4e0f18ff-905c-4b3b-a241-c7cf20567270))
     (pad "6" smd rect (at 4.425 -2.54 180) (size 0.7 1.9) (layers "F.Cu" "F.Paste" "F.Mask")
       (net 51 "unconnected-(Q3-B-Pad6)") (pinfunction "B") (pintype "passive+no_connect") (tstamp 3c480119-1f24-4920-a122-5544bc6b35f1))
-    (model "LDA111STR.stp"
+    (model "${KIPRJMOD}/Library/3D/LDA111STR.step"
       (offset (xyz 0 0 0))
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 0))
@@ -4699,6 +4709,11 @@
       (net 47 "Net-(J1-Ext)") (pinfunction "Ext") (pintype "passive") (tstamp d9526678-04a7-4f75-a137-6a1e8a7d56bb))
     (pad "2" smd rect (at 4.3815 1.1684 180) (size 2.413 5.842) (layers "B.Cu" "F.Paste" "F.Mask")
       (net 47 "Net-(J1-Ext)") (pinfunction "Ext") (pintype "passive") (tstamp 2b047ab6-466b-4cfe-8464-4317d9b265df))
+    (model "${KIPRJMOD}/Library/3D/73251-1150.step"
+      (offset (xyz 0 10.5 0.4))
+      (scale (xyz 1 1 1))
+      (rotate (xyz 0 0 90))
+    )
   )
 
   (footprint "Capacitor_SMD:C_0402_1005Metric" (layer "F.Cu")
@@ -4960,8 +4975,8 @@
       (net 2 "GND") (pinfunction "SHIELD") (pintype "passive") (tstamp ac1e1cff-ced7-4878-a98c-d174d57fa83c))
     (pad "S1" thru_hole oval (at 4.32 4.15 180) (size 1 1.8) (drill oval 0.6 1.4) (layers "*.Cu" "*.Mask")
       (net 2 "GND") (pinfunction "SHIELD") (pintype "passive") (tstamp fa84bc53-1db3-452a-8c34-846bd4d54bb2))
-    (model "${KICAD_EC_PCB}/Connectors.pretty/3D/HRO  TYPE-C-31-M-12.step"
-      (offset (xyz -4.5 -6.8 0))
+    (model "${KIPRJMOD}/Library/3D/USB4105-GF-A.step"
+      (offset (xyz 0 -6.5 0))
       (scale (xyz 1 1 1))
       (rotate (xyz -90 0 0))
     )
@@ -5138,7 +5153,7 @@
       (net 3 "Net-(D4-K)") (pintype "passive") (tstamp dd2182c7-cecc-4d5f-901c-79f40d48219c))
     (pad "2" smd rect (at 2.53 0 90) (size 1.86 5.52) (layers "F.Cu" "F.Paste" "F.Mask")
       (net 4 "Net-(D5-A)") (pintype "passive") (tstamp ce3126fb-c6b7-45fb-9001-b276186be10a))
-    (model "KRM55TR72J474MH01K.stp"
+    (model "${KIPRJMOD}/Library/3D/KRM55TR72J474MH01K.step"
       (offset (xyz 0 0 0))
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 0))
