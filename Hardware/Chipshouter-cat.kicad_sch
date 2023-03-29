@@ -5857,10 +5857,10 @@
     (property "Proveedor" "MOUSER" (at 94.742 76.327 0)
       (effects (font (size 1.27 1.27)) hide)
     )
-    (pin "4" (uuid a7432210-2392-4312-b5fd-77a671013221))
     (pin "1" (uuid a8aa4b99-0b12-4ceb-a62c-d2a9e9d3b299))
     (pin "2" (uuid d1aa4f8d-3657-48b7-acc5-350a4d054c38))
     (pin "3" (uuid 88db6c15-3409-4ad0-b94e-20b04baf5e97))
+    (pin "4" (uuid a7432210-2392-4312-b5fd-77a671013221))
     (instances
       (project "Chipshouter-cat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
