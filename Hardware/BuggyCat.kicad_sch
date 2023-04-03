@@ -4163,7 +4163,7 @@
     (pin "1" (uuid 783d9714-35d9-45b8-9faf-4f11669a87a5))
     (pin "2" (uuid f633f378-f7ab-47ca-850c-6fc04348b1d1))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R17") (unit 1)
         )
@@ -4203,7 +4203,7 @@
           (reference "D4") (unit 1)
         )
       )
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "D6") (unit 1)
         )
@@ -4228,7 +4228,7 @@
     )
     (pin "1" (uuid 5179c06f-44fd-4297-bba0-6aae762cc31b))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR08") (unit 1)
         )
@@ -4253,7 +4253,7 @@
     )
     (pin "1" (uuid 0c190730-a9e0-4c4a-8e33-74ee97fb990f))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR050") (unit 1)
         )
@@ -4278,7 +4278,7 @@
     )
     (pin "1" (uuid 05d1ea43-79de-475a-8136-b86b6cd31b68))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR010") (unit 1)
         )
@@ -4303,7 +4303,7 @@
     )
     (pin "1" (uuid 23944ecc-ed0d-4a57-b73d-0601f1114516))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR020") (unit 1)
         )
@@ -4328,7 +4328,7 @@
     )
     (pin "1" (uuid c1688a27-64e2-4e9c-b240-fac8b1b35862))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR07") (unit 1)
         )
@@ -4353,7 +4353,7 @@
     )
     (pin "1" (uuid 4cfa277c-b6f4-4575-8b74-ea83242e8813))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR043") (unit 1)
         )
@@ -4388,7 +4388,7 @@
     (pin "1" (uuid d2d5f057-3d3f-4824-ba53-bea972f61938))
     (pin "2" (uuid 97db2584-9d07-47ab-a55c-f2cbce602789))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C14") (unit 1)
         )
@@ -4405,7 +4405,7 @@
     (property "Value" "RP2040" (at 383.286 211.582 0)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "chipshouter:RP2040-QFN-56" (at 339.09 161.29 0)
+    (property "Footprint" "BuggyCat:RP2040-QFN-56" (at 339.09 161.29 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "https://www.mouser.mx/datasheet/2/630/hardware_design_with_rp2040-2904726.pdf" (at 339.09 161.29 0)
@@ -4475,7 +4475,7 @@
     (pin "8" (uuid ddcc8852-5683-4366-8128-1d6ff0a98b06))
     (pin "9" (uuid 4f0ad253-6758-4fab-a304-5619bb190326))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "U3") (unit 1)
         )
@@ -4507,7 +4507,7 @@
     (pin "1" (uuid 83f117a5-46f4-44ab-b2f2-b8e1000a8880))
     (pin "2" (uuid 6aebff6a-fb44-46a2-b12e-0aee1ac2c281))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R1") (unit 1)
         )
@@ -4539,7 +4539,7 @@
     (pin "1" (uuid f93c8e95-cfdf-4ade-9962-89ac9e9dc3f3))
     (pin "2" (uuid a933b710-6af7-4a3e-8695-163836e466c7))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R2") (unit 1)
         )
@@ -4574,7 +4574,7 @@
     (pin "1" (uuid 1c08a62f-4388-4a72-a5c0-7eb050521a80))
     (pin "2" (uuid 73c00358-6409-444d-854c-4c9d06918baf))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C5") (unit 1)
         )
@@ -4606,7 +4606,7 @@
     (pin "1" (uuid 348ccde2-0a1d-4469-9bfa-bdb722d99626))
     (pin "2" (uuid 75c3b919-d7fd-4957-9931-feba2882bb38))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "SW1") (unit 1)
         )
@@ -4637,7 +4637,7 @@
     (pin "6" (uuid 9dd4b4dc-d54a-495b-a723-bf280398017d))
     (pin "7" (uuid acd9e0e1-5987-46a4-8a40-d6317a48aa6a))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "J3") (unit 1)
         )
@@ -4662,7 +4662,7 @@
     )
     (pin "1" (uuid fa18dae7-2fb1-4387-a3c1-308ca16c5c1d))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR033") (unit 1)
         )
@@ -4687,7 +4687,7 @@
     )
     (pin "1" (uuid c9b833b8-f561-4a06-956f-10cea60e6458))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR02") (unit 1)
         )
@@ -4722,7 +4722,7 @@
     (pin "1" (uuid 6e2892c4-1588-4a98-b79d-e557072efea0))
     (pin "2" (uuid 5a78296f-7870-47c5-add0-59f0fb6502fc))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "SW5") (unit 1)
         )
@@ -4754,7 +4754,7 @@
     (pin "1" (uuid 26930aff-a10e-4647-af70-992e922454fa))
     (pin "2" (uuid 73fe8a60-b297-407b-80c7-95808a24d665))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R4") (unit 1)
         )
@@ -4786,7 +4786,7 @@
     (pin "1" (uuid c58d68b1-1edc-4745-ad18-d6ad0904ec5f))
     (pin "2" (uuid 852bfe97-57b5-446b-9bed-2ec7104204b5))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R10") (unit 1)
         )
@@ -4811,7 +4811,7 @@
     )
     (pin "1" (uuid 120c621b-82bb-48ae-a406-22141cb5b620))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR016") (unit 1)
         )
@@ -4836,7 +4836,7 @@
     )
     (pin "1" (uuid 979784e6-6813-4ec3-b827-3fde402e007b))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR038") (unit 1)
         )
@@ -4868,7 +4868,7 @@
     (pin "1" (uuid c41712b2-e92c-47b0-8502-cc6f5a05f1cd))
     (pin "2" (uuid 452ce7bc-11c8-431c-a300-4cefcfa76338))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C2") (unit 1)
         )
@@ -4893,7 +4893,7 @@
     )
     (pin "1" (uuid 21938958-b988-4bb1-9c72-e5b6396068bc))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR023") (unit 1)
         )
@@ -4928,7 +4928,7 @@
     (pin "1" (uuid 18918f47-bbcf-470e-91e3-9d9829868ca1))
     (pin "2" (uuid 064a14d4-7625-4c17-9926-3bc8bef61c95))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R20") (unit 1)
         )
@@ -4960,7 +4960,7 @@
     (pin "1" (uuid 3c85355f-6ce9-4d48-b1a2-672aba6956f0))
     (pin "2" (uuid 91c01516-b08d-4d2e-af00-15c315187ed7))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R8") (unit 1)
         )
@@ -4985,7 +4985,7 @@
     )
     (pin "1" (uuid 35679895-5890-4e37-96bb-46a1aadc962e))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR011") (unit 1)
         )
@@ -5010,7 +5010,7 @@
     )
     (pin "1" (uuid 279cd597-6735-4af4-af86-33cfd2693447))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR034") (unit 1)
         )
@@ -5035,7 +5035,7 @@
     )
     (pin "1" (uuid 23425788-63fb-4cea-b473-b3344ca4dcbb))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR015") (unit 1)
         )
@@ -5060,7 +5060,7 @@
     )
     (pin "1" (uuid 7279a0ce-75b5-4d17-adea-e5e9949407a6))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR053") (unit 1)
         )
@@ -5077,7 +5077,7 @@
     (property "Value" "300K" (at 137.795 55.8799 0)
       (effects (font (size 1.27 1.27)) (justify left))
     )
-    (property "Footprint" "chipshouter:RESC6432X120N" (at 134.112 54.61 90)
+    (property "Footprint" "BuggyCat:RESC6432X120N" (at 134.112 54.61 90)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "https://www.mouser.mx/datasheet/2/418/5/ENG_DS_9_1773463_7_G-1113509.pdf" (at 135.89 54.61 0)
@@ -5092,7 +5092,7 @@
     (pin "1" (uuid e457dace-37a6-43c8-af37-484a56996c72))
     (pin "2" (uuid 2fa02f93-2018-48a8-9ce5-7e5881ce7e89))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R11") (unit 1)
         )
@@ -5117,7 +5117,7 @@
     )
     (pin "1" (uuid 43c045c8-111e-420d-aa7d-903a1493cb40))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR01") (unit 1)
         )
@@ -5149,7 +5149,7 @@
     (pin "1" (uuid 70a8919a-84cb-4478-a44a-cf044febbfcc))
     (pin "2" (uuid df3cff8a-0d87-41e1-8ead-c2d3e21dc1bd))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "D7") (unit 1)
         )
@@ -5184,7 +5184,7 @@
     (pin "1" (uuid 5b92d5cd-0ecb-4318-ba61-89800a04eee6))
     (pin "2" (uuid 935bc5b2-8d09-4473-9d73-0941b25ccd80))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "F1") (unit 1)
         )
@@ -5217,7 +5217,7 @@
     (pin "2" (uuid 04a8febc-a72d-4d6c-9db5-ae67701dd894))
     (pin "3" (uuid 57365f0e-c178-4734-82a7-9b89593c1c40))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "Q1") (unit 1)
         )
@@ -5242,7 +5242,7 @@
     )
     (pin "1" (uuid 62d8595b-b635-49c5-9976-8cb5cab396b3))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR09") (unit 1)
         )
@@ -5277,7 +5277,7 @@
     (pin "1" (uuid 4d8a27f3-5994-4c02-859b-09c0a8d34a6d))
     (pin "2" (uuid fb070305-7327-4d47-aaa2-52c1d26471d3))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C9") (unit 1)
         )
@@ -5309,7 +5309,7 @@
     (pin "1" (uuid 3f600906-6618-4d50-bdc3-dae872ef27fb))
     (pin "2" (uuid 21523995-3b6d-473a-b880-40a34535dae9))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R14") (unit 1)
         )
@@ -5334,7 +5334,7 @@
     )
     (pin "1" (uuid cb23e2e7-de0c-4a6a-9419-1c472c13f509))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR060") (unit 1)
         )
@@ -5359,7 +5359,7 @@
     )
     (pin "1" (uuid 9daf85d4-3199-418e-b1b4-3677f696c616))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR028") (unit 1)
         )
@@ -5391,7 +5391,7 @@
     (pin "1" (uuid 3173837d-be8d-4d60-b6fa-9b275793fb20))
     (pin "2" (uuid 980ba3cb-bb41-43a3-b2be-3bb002d469cc))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R5") (unit 1)
         )
@@ -5423,7 +5423,7 @@
     (pin "1" (uuid 5f21f370-6df6-4c6e-901a-0e0c8b77eb25))
     (pin "2" (uuid 2065b204-b19c-49f2-a063-8e7487a14c25))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "D8") (unit 1)
         )
@@ -5448,7 +5448,7 @@
     )
     (pin "1" (uuid 123487af-dbbd-4770-a449-79160a8f1857))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR017") (unit 1)
         )
@@ -5473,7 +5473,7 @@
     )
     (pin "1" (uuid b3d79b21-e9ec-46a6-9b4b-229c9984a42a))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR057") (unit 1)
         )
@@ -5498,7 +5498,7 @@
     )
     (pin "1" (uuid df923ba6-7d0a-4190-825d-d3699b43e689))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR022") (unit 1)
         )
@@ -5523,7 +5523,7 @@
     )
     (pin "1" (uuid 43d04a94-8b7c-4ae1-a86f-b543dda4b67c))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR012") (unit 1)
         )
@@ -5548,7 +5548,7 @@
     )
     (pin "1" (uuid e0c493ec-d4a1-42a2-9d32-6efc5916ca66))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR031") (unit 1)
         )
@@ -5573,7 +5573,7 @@
     )
     (pin "1" (uuid 8ce025a1-9853-4cfa-8a57-0f90476397e9))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR044") (unit 1)
         )
@@ -5598,7 +5598,7 @@
     )
     (pin "1" (uuid 4ae6cfe8-21d2-4692-8817-477e672829bf))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR049") (unit 1)
         )
@@ -5623,7 +5623,7 @@
     )
     (pin "1" (uuid 5939629d-2bb5-4863-83b9-27abfaf3eac4))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR041") (unit 1)
         )
@@ -5648,7 +5648,7 @@
     )
     (pin "1" (uuid c92ed306-89e5-432e-9a6e-eb8c5772ee7a))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR039") (unit 1)
         )
@@ -5673,7 +5673,7 @@
     )
     (pin "1" (uuid a9344d98-e443-40f5-a052-3a6dfade182a))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR032") (unit 1)
         )
@@ -5708,7 +5708,7 @@
     (pin "1" (uuid c6f64293-5e29-4afa-8644-d8f9ea3d34e8))
     (pin "2" (uuid 9d460f71-ca89-4f90-b952-20c79bec7158))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C13") (unit 1)
         )
@@ -5743,7 +5743,7 @@
     (pin "1" (uuid 61dc775a-14c7-4cce-be48-c5d6e8045697))
     (pin "2" (uuid 7a6f4622-4213-4c81-84d2-b9b224d2a864))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C11") (unit 1)
         )
@@ -5778,7 +5778,7 @@
     (pin "1" (uuid 093c99d2-6e87-428b-a172-e8573afe4705))
     (pin "2" (uuid 40f2d922-dc77-4165-a4ba-77aa54d0f1fa))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C8") (unit 1)
         )
@@ -5803,7 +5803,7 @@
     )
     (pin "1" (uuid 0de56762-ce56-43f6-b2d4-e1179688ff91))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR055") (unit 1)
         )
@@ -5828,7 +5828,7 @@
     )
     (pin "1" (uuid 6dd57c7a-1a0d-4f35-a76f-24663270c58d))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR014") (unit 1)
         )
@@ -5845,7 +5845,7 @@
     (property "Value" "ATB322524" (at 96.012 93.472 90)
       (effects (font (size 1.27 1.27)) (justify left))
     )
-    (property "Footprint" "chipshouter:ATB3225240110T000" (at 94.742 76.327 0)
+    (property "Footprint" "BuggyCat:ATB3225240110T000" (at 94.742 76.327 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (at 94.742 76.327 0)
@@ -5862,7 +5862,7 @@
     (pin "3" (uuid 88db6c15-3409-4ad0-b94e-20b04baf5e97))
     (pin "4" (uuid a7432210-2392-4312-b5fd-77a671013221))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "T2") (unit 1)
         )
@@ -5895,7 +5895,7 @@
     (pin "2" (uuid e7be84d2-ce88-4ba0-a02f-73ed986f4835))
     (pin "3" (uuid 1cad4829-fedc-48f6-9f51-5b49d611f0da))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "Q4") (unit 1)
         )
@@ -5920,7 +5920,7 @@
     )
     (pin "1" (uuid a8561ac5-384c-4564-8de3-2b62b4ac3cf6))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR024") (unit 1)
         )
@@ -5945,7 +5945,7 @@
     )
     (pin "1" (uuid 83547378-7ae7-4c32-9c6f-3d8cbab87b79))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR019") (unit 1)
         )
@@ -5980,7 +5980,7 @@
     (pin "1" (uuid 0432af54-cd35-4c3c-88e6-bbc1a7d2c6b4))
     (pin "2" (uuid a28887cd-2bdd-4ab6-b51e-99cd821ad1c9))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C19") (unit 1)
         )
@@ -6015,7 +6015,7 @@
     (pin "1" (uuid 4f5c185a-e11b-4d82-a8bc-b9689c9c633b))
     (pin "2" (uuid 7f093f1d-323b-4b4e-b33a-3f6815b22768))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C15") (unit 1)
         )
@@ -6050,7 +6050,7 @@
     (pin "1" (uuid fa5d9c89-54e0-49e6-a404-29eddf2326d4))
     (pin "2" (uuid 4660c6bf-e69d-4a4d-bdfe-d125b039e05b))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C20") (unit 1)
         )
@@ -6075,7 +6075,7 @@
     )
     (pin "1" (uuid 726f3993-1ad7-489e-890c-16a1e3ccf616))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR05") (unit 1)
         )
@@ -6092,7 +6092,7 @@
     (property "Value" "0.47uF" (at 125.095 76.835 0)
       (effects (font (size 1.27 1.27)) (justify left))
     )
-    (property "Footprint" "chipshouter:CAPC6153X500N" (at 124.7902 78.105 0)
+    (property "Footprint" "BuggyCat:CAPC6153X500N" (at 124.7902 78.105 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "https://product.tdk.com/system/files/dam/doc/product/capacitor/ceramic/mlcc/catalog/mlcc_automotive_soft_en.pdf" (at 123.825 74.295 0)
@@ -6107,7 +6107,7 @@
     (pin "1" (uuid 1900c140-57e5-408d-9c8b-5b47c781ec62))
     (pin "2" (uuid 7515e354-0a93-421d-bc0b-1c2b7a933617))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C4") (unit 1)
         )
@@ -6132,7 +6132,7 @@
     )
     (pin "1" (uuid 21de29f1-55e6-491f-9b72-2d0cf15d30d9))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR056") (unit 1)
         )
@@ -6157,7 +6157,7 @@
     )
     (pin "1" (uuid 0a3cbae7-b160-4bf5-bc29-b843867e2bbd))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR040") (unit 1)
         )
@@ -6192,7 +6192,7 @@
     (pin "1" (uuid eb15020f-39fa-457e-8bb2-2cd2948845ca))
     (pin "2" (uuid 582bf52d-f931-4c83-b941-f1087e1fcfee))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C16") (unit 1)
         )
@@ -6218,7 +6218,7 @@
     (pin "1" (uuid 4e81342c-252d-42a6-82f7-da128e6cf77c))
     (pin "2" (uuid 6d9aaebe-d290-4dba-a718-053a0179b75f))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "J4") (unit 1)
         )
@@ -6253,7 +6253,7 @@
     (pin "1" (uuid d9995dd7-4a06-4a52-9152-cf099c9e9707))
     (pin "2" (uuid a3f3a018-6a6b-4914-95d4-b6f25692820f))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C10") (unit 1)
         )
@@ -6285,7 +6285,7 @@
     (pin "1" (uuid 4f0c3650-5197-4dc5-912d-df94fd6eab44))
     (pin "2" (uuid 45f4b724-82df-49b9-b61f-725e230bb023))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "D10") (unit 1)
         )
@@ -6310,7 +6310,7 @@
     )
     (pin "1" (uuid abaf0800-b23b-4bb1-9bdf-6551a3604128))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR037") (unit 1)
         )
@@ -6335,7 +6335,7 @@
     )
     (pin "1" (uuid a382881d-447e-4c02-8a48-4f80e0b390fe))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR035") (unit 1)
         )
@@ -6370,7 +6370,7 @@
     (pin "1" (uuid cdf16225-865b-428c-89bd-8853cabfea19))
     (pin "2" (uuid af865e07-b961-449a-8717-ceb1273ebf79))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R19") (unit 1)
         )
@@ -6402,7 +6402,7 @@
     (pin "1" (uuid 1462bdc5-bf07-4fa7-bead-4a8bd97e2fa3))
     (pin "2" (uuid 8e5748fb-eb33-427b-8a66-911564b190ce))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "SW6") (unit 1)
         )
@@ -6434,7 +6434,7 @@
     (pin "1" (uuid e8718be3-5a5b-4664-aedb-2722b37083a4))
     (pin "2" (uuid 05a5eb0e-02be-4f8b-9880-2b5c1694f79e))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "D4") (unit 1)
         )
@@ -6459,7 +6459,7 @@
     )
     (pin "1" (uuid 1d052412-811d-4384-b62d-b10970534fb5))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR058") (unit 1)
         )
@@ -6484,7 +6484,7 @@
     )
     (pin "1" (uuid a889c295-2d25-4852-8cf9-7f4cc11f3612))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR054") (unit 1)
         )
@@ -6509,7 +6509,7 @@
     )
     (pin "1" (uuid bce92480-8c10-430c-8c44-8f5531a37e92))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR021") (unit 1)
         )
@@ -6534,7 +6534,7 @@
     )
     (pin "1" (uuid 2adf9a42-71f2-422d-9815-628bfa0df6ad))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR048") (unit 1)
         )
@@ -6569,7 +6569,7 @@
     (pin "1" (uuid ccf8ec35-bf77-4453-a4d1-8a3097a3a3a3))
     (pin "2" (uuid 0a2b5435-df6f-448f-96cd-9db62b5b9e70))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C12") (unit 1)
         )
@@ -6601,7 +6601,7 @@
     (pin "1" (uuid 0a828075-2672-4a17-82d1-67934faa18df))
     (pin "2" (uuid 5ccdf06b-5de2-4e0c-9947-70d37d359b1b))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "D3") (unit 1)
         )
@@ -6636,7 +6636,7 @@
     (pin "1" (uuid b10dfd5a-5d78-45f7-bb38-39704568a3b6))
     (pin "2" (uuid d4afa5e8-9757-447e-9a26-66d5df023d71))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C18") (unit 1)
         )
@@ -6661,7 +6661,7 @@
     )
     (pin "1" (uuid 135dc062-d77d-4089-9b0c-b888ac79f63d))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR051") (unit 1)
         )
@@ -6686,7 +6686,7 @@
     )
     (pin "1" (uuid 3a43f2ef-4839-435a-bede-c90252339a51))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR046") (unit 1)
         )
@@ -6718,7 +6718,7 @@
     (pin "1" (uuid 40451c49-5a6c-4f8a-9423-5d83ab5a32eb))
     (pin "2" (uuid 8b6dd0fd-52bc-45f7-8735-72006d02d6f7))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "D1") (unit 1)
         )
@@ -6743,7 +6743,7 @@
     )
     (pin "1" (uuid e55436e4-8a64-4926-ae1e-8b99c7a426e0))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR018") (unit 1)
         )
@@ -6778,7 +6778,7 @@
     (pin "1" (uuid ebfd0f46-bd41-4656-8a10-b25e3531a141))
     (pin "2" (uuid acb0c780-560c-4f88-a5a7-77aea618f33f))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "SW2") (unit 1)
         )
@@ -6813,7 +6813,7 @@
     (pin "1" (uuid cff54156-db30-4d34-a469-76470820a537))
     (pin "2" (uuid 2640aecc-3f14-4f59-9c2e-b16a0cb93f44))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "SW4") (unit 1)
         )
@@ -6838,7 +6838,7 @@
     )
     (pin "1" (uuid 3a04ac0e-2ee8-4210-b45b-490cd2425450))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR045") (unit 1)
         )
@@ -6870,7 +6870,7 @@
     (pin "1" (uuid fa0e1f71-b228-46e2-96a7-f7c5a4af4f03))
     (pin "2" (uuid 4dd2ddf7-10ad-4259-bcc9-5d2f67c5e18d))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R7") (unit 1)
         )
@@ -6895,7 +6895,7 @@
     )
     (pin "1" (uuid 2aaa6498-6688-485d-bcff-26b6b1b25368))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR013") (unit 1)
         )
@@ -6936,7 +6936,7 @@
           (reference "Q1") (unit 1)
         )
       )
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "Q5") (unit 1)
         )
@@ -6976,7 +6976,7 @@
           (reference "R14") (unit 1)
         )
       )
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R12") (unit 1)
         )
@@ -6993,7 +6993,7 @@
     (property "Value" "Antenna" (at 149.1996 64.516 0)
       (effects (font (size 1.27 1.27)) (justify left))
     )
-    (property "Footprint" "chipshouter:732511150" (at 146.685 61.595 0)
+    (property "Footprint" "BuggyCat:732511150" (at 146.685 61.595 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "https://www.mouser.mx/datasheet/2/276/3/0732511150_RF_COAX_CONNECTORS-2847622.pdf" (at 146.685 61.595 0)
@@ -7011,7 +7011,7 @@
     (pin "1" (uuid 69d1ad6e-a6a7-4ec9-b668-7ffd03a25a73))
     (pin "2" (uuid 40e2ec76-7b16-4a32-be61-181f58f90709))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "J1") (unit 1)
         )
@@ -7036,7 +7036,7 @@
     )
     (pin "1" (uuid e7b3c24e-d3a6-4f97-a11c-e5114b50290f))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR04") (unit 1)
         )
@@ -7053,7 +7053,7 @@
     (property "Value" "LDA111STR" (at 93.98 41.91 0)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "chipshouter:SOP254P952X470-6N" (at 86.36 43.18 0)
+    (property "Footprint" "BuggyCat:SOP254P952X470-6N" (at 86.36 43.18 0)
       (effects (font (size 1.27 1.27)) (justify left) hide)
     )
     (property "Datasheet" "https://www.mouser.mx/datasheet/2/240/LDA111-1547747.pdf" (at 86.36 45.72 0)
@@ -7072,7 +7072,7 @@
     (pin "5" (uuid 250869c2-2377-42a3-b6f1-4d6a6a1ea9c7))
     (pin "6" (uuid 42e0068a-6109-435c-87f9-c2ac2694f828))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "Q3") (unit 1)
         )
@@ -7097,7 +7097,7 @@
     )
     (pin "1" (uuid 651c91fd-ec54-4600-b738-56cbf235205c))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR036") (unit 1)
         )
@@ -7132,7 +7132,7 @@
     (pin "1" (uuid 7131ee3d-de36-4b6f-a391-6695d97d81c2))
     (pin "2" (uuid 91d0ac33-7c52-4428-ba83-8720a383522c))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C17") (unit 1)
         )
@@ -7167,7 +7167,7 @@
     (pin "1" (uuid 0aa3beed-33f5-4121-ac3c-bfca1445c8a8))
     (pin "2" (uuid 006921c7-2a96-4d98-ae7e-64cce641d5e2))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C7") (unit 1)
         )
@@ -7192,7 +7192,7 @@
     )
     (pin "1" (uuid 4d8bd456-2c86-42a4-87b8-9a037f868fe3))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR025") (unit 1)
         )
@@ -7224,7 +7224,7 @@
     (pin "1" (uuid 9b92e559-20de-45d7-aedd-7c0c5f57c3ef))
     (pin "2" (uuid 869c8394-a376-4413-8fe3-544a51b85634))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "D5") (unit 1)
         )
@@ -7249,7 +7249,7 @@
     )
     (pin "1" (uuid 882d921a-31cb-494f-8098-92216f1caa69))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR06") (unit 1)
         )
@@ -7266,7 +7266,7 @@
     (property "Value" "W25Q16JV" (at 279.146 256.794 0)
       (effects (font (size 1.27 1.27)))
     )
-    (property "Footprint" "chipshouter:W25Q16JVUUIQ" (at 271.78 266.192 0)
+    (property "Footprint" "BuggyCat:W25Q16JVUUIQ" (at 271.78 266.192 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "https://www.mouser.mx/datasheet/2/949/w25q16jv_spi_revg_03222018_plus-1489727.pdf" (at 271.78 266.192 0)
@@ -7291,7 +7291,7 @@
     (pin "8" (uuid 008a590c-a485-4884-9974-ba5a4616cbf5))
     (pin "9" (uuid b3070676-e9d8-4dcd-9bf0-d10afce044ce))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "U2") (unit 1)
         )
@@ -7323,7 +7323,7 @@
     (pin "1" (uuid 2eb44e1a-4042-4ea6-aca2-4836a6ec84e9))
     (pin "2" (uuid 056f9cb3-715f-434f-b47c-815c372d9a5b))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R18") (unit 1)
         )
@@ -7355,7 +7355,7 @@
     (pin "1" (uuid a6887055-5fae-44cf-a176-e2779a1e90bc))
     (pin "2" (uuid 109cadb4-f3f7-46af-9942-e5d58920b0d6))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R9") (unit 1)
         )
@@ -7380,7 +7380,7 @@
     )
     (pin "1" (uuid 31fb150b-1634-44a3-bbf0-4f27407886b5))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR042") (unit 1)
         )
@@ -7405,7 +7405,7 @@
     )
     (pin "1" (uuid fe89fa3d-583b-4e66-8995-402b3a63baad))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR03") (unit 1)
         )
@@ -7430,7 +7430,7 @@
     )
     (pin "1" (uuid a846c853-5c09-4ef4-9039-bb42a1d4eb5e))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR026") (unit 1)
         )
@@ -7458,7 +7458,7 @@
     (pin "3" (uuid 91eb40f6-33da-48b3-859b-512087065f70))
     (pin "4" (uuid 83047a8e-060d-4a00-8718-1f3d22808d0c))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "J5") (unit 1)
         )
@@ -7493,7 +7493,7 @@
     (pin "1" (uuid af6d9064-35ec-4961-8173-fda55c90ca59))
     (pin "2" (uuid a9dd285a-7367-484d-b1e1-bdbd84d27298))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C6") (unit 1)
         )
@@ -7525,7 +7525,7 @@
     (pin "1" (uuid 15011819-75ad-4051-b38a-c4c93137797c))
     (pin "2" (uuid ec71663d-bfc1-43d9-9bcf-ce4f68e2b331))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R13") (unit 1)
         )
@@ -7542,7 +7542,7 @@
     (property "Value" "Input Power:2x AA Battery" (at 372.11 50.1649 0)
       (effects (font (size 1.27 1.27)) (justify left))
     )
-    (property "Footprint" "chipshouter:JST_S2B-PH-K-S(LF)(SN)" (at 368.3 47.625 0)
+    (property "Footprint" "BuggyCat:JST_S2B-PH-K-S(LF)(SN)" (at 368.3 47.625 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (at 368.3 47.625 0)
@@ -7557,7 +7557,7 @@
     (pin "1" (uuid 4b0edec2-cbd8-44d6-8889-dc02b5b9d52b))
     (pin "2" (uuid 9f09e036-3b39-490d-9d96-62d5f6adea29))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "J6") (unit 1)
         )
@@ -7582,7 +7582,7 @@
     )
     (pin "1" (uuid 4e9a87a3-418a-43a4-a902-c2e3103424a6))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR052") (unit 1)
         )
@@ -7620,7 +7620,7 @@
     (pin "4" (uuid 54ea449f-f3b4-49e2-a466-affe2cf4f28e))
     (pin "5" (uuid fb50b220-ec94-429e-afd9-f2cc880e1efd))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "U1") (unit 1)
         )
@@ -7637,7 +7637,7 @@
     (property "Value" "BG306-02-A-2-0400-L-G" (at 139.7 26.035 0)
       (effects (font (size 1.27 1.27)) (justify left))
     )
-    (property "Footprint" "chipshouter:BG30602A20400LG" (at 149.86 20.32 0)
+    (property "Footprint" "BuggyCat:BG30602A20400LG" (at 149.86 20.32 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "https://www.mouser.mx/datasheet/2/837/BG306-1948788.pdf" (at 149.86 20.32 0)
@@ -7652,7 +7652,7 @@
     (pin "1" (uuid eadd1c70-7592-4704-b00c-ce2dbf2d7138))
     (pin "2" (uuid 4ad10ff1-32b5-418c-9b5d-76258d020bc0))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "J2") (unit 1)
         )
@@ -7684,7 +7684,7 @@
     (pin "1" (uuid 188e3131-b39e-4e98-a805-30d1d35040e0))
     (pin "2" (uuid f772f283-434f-499f-b8fa-924fb5b4168c))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "SW3") (unit 1)
         )
@@ -7716,7 +7716,7 @@
     (pin "1" (uuid 1e491a8b-a0b5-40fd-84ed-f4267c9c9f36))
     (pin "2" (uuid 9114f43e-a8cf-4d61-95d8-2c890cd79174))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C3") (unit 1)
         )
@@ -7748,7 +7748,7 @@
     (pin "1" (uuid e5ec7026-73a1-411f-9038-e821e236aa12))
     (pin "2" (uuid df0bda01-5ecb-4445-87e9-3dfbd1c23127))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R3") (unit 1)
         )
@@ -7773,7 +7773,7 @@
     )
     (pin "1" (uuid 24b42847-745f-4b13-9d2d-3ca8b56bc9de))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR059") (unit 1)
         )
@@ -7798,7 +7798,7 @@
     )
     (pin "1" (uuid 8cefc275-d47d-48cf-ad82-3fa4e4dce49f))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR030") (unit 1)
         )
@@ -7830,7 +7830,7 @@
     (pin "1" (uuid 80215c98-408c-4508-93c7-1e56cf06a8a8))
     (pin "2" (uuid 211ba5f5-6627-4b10-b9d4-2b719a124b05))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "Y1") (unit 1)
         )
@@ -7863,7 +7863,7 @@
     (pin "2" (uuid 1be57cee-9843-43f2-b029-ce77e4d23583))
     (pin "3" (uuid 12a70400-b291-4d8b-93c0-ccb9a5f9af47))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "Q2") (unit 1)
         )
@@ -7888,7 +7888,7 @@
     )
     (pin "1" (uuid a64c5a76-a982-41b2-9706-f5e1455f077b))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR027") (unit 1)
         )
@@ -7934,7 +7934,7 @@
     (pin "B9" (uuid 9cc770d7-d3ea-4e39-94f0-5f75124434c2))
     (pin "S1" (uuid d8969149-0bb3-4957-a92b-162d925da54a))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "P1") (unit 1)
         )
@@ -7966,7 +7966,7 @@
     (pin "1" (uuid b11e6e83-5957-418d-9c22-20256823697a))
     (pin "2" (uuid 7553b3dc-3e75-48c7-bafc-74a41e5741e9))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "D2") (unit 1)
         )
@@ -7998,7 +7998,7 @@
     (pin "1" (uuid 872cd9ea-063b-4d8e-aa3b-f8c6273c5ec8))
     (pin "2" (uuid 5ac243a2-cd57-46a8-b59c-37557c0b387b))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "C1") (unit 1)
         )
@@ -8030,7 +8030,7 @@
     (pin "1" (uuid bf7c34be-83d1-4cff-84a7-46aac18be48b))
     (pin "2" (uuid f1edc013-549b-48f8-8955-2bfd7f616839))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R6") (unit 1)
         )
@@ -8047,7 +8047,7 @@
     (property "Value" "ATB322524" (at 93.98 131.445 90)
       (effects (font (size 1.27 1.27)) (justify left))
     )
-    (property "Footprint" "chipshouter:ATB3225240110T000" (at 82.55 125.73 0)
+    (property "Footprint" "BuggyCat:ATB3225240110T000" (at 82.55 125.73 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (at 82.55 125.73 0)
@@ -8064,7 +8064,7 @@
     (pin "3" (uuid 68ba3686-54f3-42b1-847b-d7576a207bac))
     (pin "4" (uuid 17a37dc2-1fc7-4198-bc2d-40147f9021f4))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "T1") (unit 1)
         )
@@ -8096,7 +8096,7 @@
     (pin "1" (uuid 68af23fe-54c5-4e85-bc40-36609b901432))
     (pin "2" (uuid 6caf8810-a072-402e-a510-5c757a07b690))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "D9") (unit 1)
         )
@@ -8128,7 +8128,7 @@
     (pin "1" (uuid 90a1573b-6c27-4eab-acf1-8afdf52afba6))
     (pin "2" (uuid c439e6ae-9625-4adf-85bb-287b20013e35))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "R16") (unit 1)
         )
@@ -8153,7 +8153,7 @@
     )
     (pin "1" (uuid 45005e12-36a9-4853-a83d-a87ffad800b4))
     (instances
-      (project "Chipshouter-cat"
+      (project "BuggyCat"
         (path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
           (reference "#PWR047") (unit 1)
         )

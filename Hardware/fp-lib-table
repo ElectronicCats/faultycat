@@ -1,3 +1,4 @@
 (fp_lib_table
-  (lib (name "chipshouter")(type "KiCad")(uri "${KIPRJMOD}/Library/chipshouter.pretty")(options "")(descr ""))
+  (version 7)
+  (lib (name "BuggyCat")(type "KiCad")(uri "${KIPRJMOD}/Library/BuggyCat.pretty")(options "")(descr ""))
 )
