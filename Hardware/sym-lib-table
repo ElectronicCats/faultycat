@@ -1,5 +1,0 @@
-(sym_lib_table
-  (lib (name "ATB322524-0110-T000")(type "Legacy")(uri "${KIPRJMOD}/Library/ATB322524-0110-T000.lib")(options "")(descr ""))
-  (lib (name "IRLML0060TRPBF")(type "Legacy")(uri "${KIPRJMOD}/Library/IRLML0060TRPBF.lib")(options "")(descr ""))
-  (lib (name "LDA111STR")(type "Legacy")(uri "${KIPRJMOD}/Library/LDA111STR.lib")(options "")(descr ""))
-)
