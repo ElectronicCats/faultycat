@@ -21,6 +21,6 @@
     (stroke (width 0.1) (type default)) (layer "Dwgs.User") (tstamp ba8affce-2083-4339-84af-d30d7ba79872))
   (fp_line (start 23.75 -29.25) (end 23.75 29.25)
     (stroke (width 0.1) (type default)) (layer "Dwgs.User") (tstamp b6eeea6d-b126-4cac-b19f-de9caa8b5461))
-  (pad "1" thru_hole circle (at -15.1 0) (size 2.6 2.6) (drill 2) (layers "*.Cu" "*.Mask") (tstamp 6c509ad3-9184-4e60-9d5d-edb7e7f98c6f))
-  (pad "1" thru_hole circle (at 15.1 0) (size 2.6 2.6) (drill 2) (layers "*.Cu" "*.Mask") (tstamp 2e262690-fbcd-4817-a9d7-c9c4ddc6a7ae))
+  (pad "1" thru_hole circle (at -15.1 0) (size 2.6 2.6) (drill 2.4) (layers "*.Cu" "*.Mask") (tstamp 6c509ad3-9184-4e60-9d5d-edb7e7f98c6f))
+  (pad "1" thru_hole circle (at 15.1 0) (size 2.6 2.6) (drill 2.4) (layers "*.Cu" "*.Mask") (tstamp 2e262690-fbcd-4817-a9d7-c9c4ddc6a7ae))
 )
