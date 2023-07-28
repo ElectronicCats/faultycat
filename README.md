@@ -39,7 +39,7 @@ For more information about Faulty Cat's background, the difference between Fault
 
 ### Useful References
 
-If you don't know where to start with FaultyCat, you may find a couple of chapters of the [Hardware Hacking Handbook](https://nostarch.com/hardwarehacking) useful.
+If you don't know where to start with Electromagnetic Fault Injection (EMFI), you may find a couple of chapters of the [Hardware Hacking Handbook](https://nostarch.com/hardwarehacking) useful.
 
 You can see a demo of PicoEMP being used on a real attack in this [TI CC SimpleLink attack demo](https://github.com/KULeuven-COSIC/SimpleLink-FI/blob/main/notebooks/5_ChipSHOUTER-PicoEMP.ipynb).
 
