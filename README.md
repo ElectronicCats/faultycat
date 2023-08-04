@@ -1,5 +1,4 @@
 # Faulty Cat
-[![CC BY-SA 3.0][cc-by-sa-shield]][cc-by-sa]
 
 Faulty Cat is a low-cost Electromagnetic Fault Injection (EMFI) tool, designed specifically for self-study and hobbiest research.
 
