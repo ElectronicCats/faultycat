@@ -11,7 +11,15 @@ It currently supports:
 
 ## Changes required for FaultyCat
 
--SPI Frecuency
+- SPI Frecuency
+
+In Pico SDK change
+
+`#define PICO_FLASH_SPI_CLKDIV 2`
+
+to
+
+`#define PICO_FLASH_SPI_CLKDIV 8`
 
 ## Building
 
