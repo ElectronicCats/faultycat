@@ -1030,6 +1030,11 @@
       (stroke (width 0.1) (type default)) (layer "Dwgs.User") (tstamp 0c6315aa-41e5-4860-aa62-70025db8becf))
     (pad "1" thru_hole circle (at -15.1 0) (size 2.6 2.6) (drill 2.4) (layers "*.Cu" "*.Mask") (tstamp 556f66d2-d663-4107-9fca-5600a3675a09))
     (pad "1" thru_hole circle (at 15.1 0) (size 2.6 2.6) (drill 2.4) (layers "*.Cu" "*.Mask") (tstamp 0490fbef-44c3-4439-9315-54a258c9d225))
+    (model "${KIPRJMOD}/Library/3D/2465--3DModel-STEP-630548.STEP"
+      (offset (xyz -0.6 -3.5 -7.5))
+      (scale (xyz 1 1 1))
+      (rotate (xyz 90 0 90))
+    )
   )
 
   (footprint "kibuzzard-6475468D" (layer "F.Cu")
@@ -3336,6 +3341,11 @@
       (offset (xyz 0 0 0))
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 0))
+    )
+    (model "${KIPRJMOD}/Library/3D/1551BTRD.stp"
+      (opacity 0.6300)      (offset (xyz -5 11.5 -1))
+      (scale (xyz 1 1.1 1))
+      (rotate (xyz -90 0 -90))
     )
   )
 

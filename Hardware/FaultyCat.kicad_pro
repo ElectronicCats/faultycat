@@ -412,7 +412,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "BuggyCat.kicad_pro",
+    "filename": "FaultyCat.kicad_pro",
     "version": 1
   },
   "net_settings": {
@@ -448,7 +448,7 @@
       "idf": "",
       "netlist": "",
       "specctra_dsn": "",
-      "step": "",
+      "step": "FaultyCat.step",
       "vrml": ""
     },
     "page_layout_descr_file": ""

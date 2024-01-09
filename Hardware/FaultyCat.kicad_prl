@@ -64,11 +64,11 @@
       35,
       36
     ],
-    "visible_layers": "ff9ffff_ffffffff",
+    "visible_layers": "fffffff_ffffffff",
     "zone_display_mode": 0
   },
   "meta": {
-    "filename": "BuggyCat.kicad_prl",
+    "filename": "FaultyCat.kicad_prl",
     "version": 3
   },
   "project": {
