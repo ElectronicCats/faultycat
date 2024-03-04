@@ -4,6 +4,11 @@ from rich.console import Console
 from rich.table import Table
 
 
+def is_valid_number(number):
+    if number < 0:
+        raise typer.BadParameter("Number must be positive.")
+    return number
+
 class CMDInterface(cmd.Cmd):
     intro = "Type help or ? to list commands.\n"
     prompt = "?> "
@@ -43,7 +48,6 @@ class CMDInterface(cmd.Cmd):
         if args == "help" or args == "?":
             print("Available parameters:")
             print("\t[time] pulse_time")
-            print("\t[power] pulse_power")
             print("\t[count] pulse_count")
             print("\tport")
             return
@@ -53,13 +57,10 @@ class CMDInterface(cmd.Cmd):
             return
 
         if args_list[0] == "pulse_time" or args_list[0] == "time":
-            self.faulty_worker.set_pulse_time(float(args_list[1]))
-
-        if args_list[0] == "pulse_power" or args_list[0] == "power":
-            self.faulty_worker.set_pulse_power(args_list[1])
+            self.faulty_worker.set_pulse_time(is_valid_number(float(args_list[1])))
 
         if args_list[0] == "pulse_count" or args_list[0] == "count":
-            self.faulty_worker.set_pulse_count(int(args_list[1]))
+            self.faulty_worker.set_pulse_count(is_valid_number(int(args_list[1])))
 
         if args_list[0] == "port":
             self.faulty_worker.set_serial_port(args_list[1])

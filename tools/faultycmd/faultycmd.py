@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.table import Table
 
 from Modules import CmdInterface
+from Modules.CmdInterface import is_valid_number
 from Modules import Worker
 
 if platform.system() == "Windows":
@@ -99,11 +100,11 @@ def faulty(
 
     Console().print(table_config)
 
+    faulty_worker.set_serial_port(comport)
+    
     if cmd:
         CmdInterface.CMDInterface(faulty_worker).cmdloop()
         return
-
-    faulty_worker.set_serial_port(comport)
 
     if not faulty_worker.validate_serial_connection():
         typer.secho(
@@ -112,8 +113,8 @@ def faulty(
         )
         return
 
-    faulty_worker.set_pulse_count(pulse_count)
-    faulty_worker.set_pulse_time(pulse_timeout)
+    faulty_worker.set_pulse_count(is_valid_number(pulse_count))
+    faulty_worker.set_pulse_time(is_valid_number(pulse_timeout))
 
     faulty_worker.start_faulty_attack()
 
