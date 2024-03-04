@@ -24,3 +24,7 @@ fp-info-cache
 # Exported BOM files
 *.xml
 *.zip
+
+__pycache__
+./venv/*
+.venv/
