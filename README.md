@@ -2,6 +2,12 @@
 
 Faulty Cat is a low-cost Electromagnetic Fault Injection (EMFI) tool, designed specifically for self-study and hobbiest research.
 
+<a href="https://github.com/ElectronicCats/FaultyCat/wiki">
+  <p align="center">
+  <img src="https://github.com/ElectronicCats/FaultyCat/assets/40640735/bd1966a8-1dd1-4355-b788-5885f66f081d" height="400" />
+    </p>
+</a>
+
 <p align=center>
 <a href="https://electroniccats.com/store/faulty-cat/">
   <img src="https://electroniccats.com/wp-content/uploads/badge_store.png" width="200" height="104" />
@@ -10,6 +16,15 @@ Faulty Cat is a low-cost Electromagnetic Fault Injection (EMFI) tool, designed s
 <a href="https://github.com/ElectronicCats/faultycat/wiki">
   <img src="https://github.com/ElectronicCats/flipper-shields/assets/44976441/6aa7f319-3256-442e-a00d-33c8126833ec" width="200" height="104" />
 </a>
+
+<p align=center>
+  Also available at distributors:
+</p>
+<p align=center>
+  <a href="https://labs.ksec.co.uk/product-category/electronic-cat/">
+    <img src="https://cdn.ksec.co.uk/ksec-solutions/ksec-W-BW-MV-small-clipped.png" width="200" />
+  </a>
+</p>
 
 Faulty Cat is a high-end Electromagnetic Fault Injection (EMFI) tool a remix of the project [ChipSHOUTER PicoEMP](https://github.com/newaetech/chipshouter-picoemp) design optimization focused in rough order on (1) safe operation, (2) high performance, (3) usability, and finally (4) cost. This results in a tool that covers many use-cases, but may be overkill (and too costly) for many. 
 
@@ -36,14 +51,6 @@ Faulty Cat based in PicoEMP is a community-focused project, with major contribut
 Follow the [first steps section](https://github.com/ElectronicCats/FaultyCat/wiki/3.-First-Steps) of the Faulty Cat wiki in order to program it.  You can run other tasks on the microcontroller
 as well.
 
-##  Wiki and Getting Started
-For more information about Faulty Cat's background, the difference between Faulty Cat to other products, and how it works please visit: [**Getting Started in our Wiki**](https://github.com/ElectronicCats/FaultyCat/wiki)
-
-<a href="https://github.com/ElectronicCats/FaultyCat/wiki">
-  <p align="center">
-  <img src="https://github.com/ElectronicCats/FaultyCat/assets/40640735/bd1966a8-1dd1-4355-b788-5885f66f081d" height="400" />
-    </p>
-</a>
 
 ### Useful References
 
