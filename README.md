@@ -18,6 +18,9 @@ Faulty Cat is a low-cost Electromagnetic Fault Injection (EMFI) tool, designed s
 </a>
 
 <p align=center>
+  Also available at distributors:
+</p>
+<p align=center>
   <a href="https://labs.ksec.co.uk/product-category/electronic-cat/">
     <img src="https://cdn.ksec.co.uk/ksec-solutions/ksec-W-BW-MV-small-clipped.png" width="200" />
   </a>
