@@ -10,12 +10,13 @@ Faulty Cat is a low-cost Electromagnetic Fault Injection (EMFI) tool, designed s
 
 <p align=center>
 <a href="https://electroniccats.com/store/faulty-cat/">
-  <img src="https://electroniccats.com/wp-content/uploads/badge_store.png" width="200" height="104" />
+  <img src="https://github.com/user-attachments/assets/f6414773-c8fa-4c99-9c8b-05a1dc297fb3" width="200" height="104" />
 </a>
 
 <a href="https://github.com/ElectronicCats/faultycat/wiki">
   <img src="https://github.com/ElectronicCats/flipper-shields/assets/44976441/6aa7f319-3256-442e-a00d-33c8126833ec" width="200" height="104" />
 </a>
+</p>
 
 <p align=center>
   Also available at distributors:
