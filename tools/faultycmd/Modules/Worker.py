@@ -13,9 +13,11 @@ class FaultyWorker(threading.Thread):
         #self.daemon = True
         self.workers = []
         self.board_uart = UART()
+        self.victim_board = UART()
         self.board_configurator = ConfigBoard()
         self.pulse_count = self.board_configurator.BOARD_CONFIG["pulse_count"]   
         self.pulse_time = self.board_configurator.BOARD_CONFIG["pulse_time"]
+        self.recv_cancel = False
     
     def add_worker(self, worker):
         self.workers.append(worker)
@@ -23,6 +25,7 @@ class FaultyWorker(threading.Thread):
     def stop_workers(self):
         for worker in self.workers:
             worker.join()
+        self.victim_board.close()
     
     def run_workers(self):
         for worker in self.workers:
@@ -41,6 +44,15 @@ class FaultyWorker(threading.Thread):
     def set_pulse_time(self, pulse_time):
         self.pulse_time = pulse_time
         self.board_configurator.BOARD_CONFIG["pulse_time"] = pulse_time
+    
+    def start_monitor(self):
+        typer.secho("Victim board connected.", fg=typer.colors.GREEN)
+        while not self.recv_cancel:
+            data = self.victim_board.recv_victim()
+            if data:
+                typer.secho(f"Data received: {data.decode('utf-8')}", fg=typer.colors.BRIGHT_GREEN)
+        self.victim_board.close()
+            
     
     def start_faulty_attack(self):
         try:

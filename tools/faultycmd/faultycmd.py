@@ -101,9 +101,13 @@ def faulty(
     Console().print(table_config)
 
     faulty_worker.set_serial_port(comport)
-    
+    faulty_worker.victim_board.set_serial_port("/dev/tty.usbmodem133401")
+    faulty_worker.victim_board.set_serial_baudrate(115200)
     if cmd:
+        victim_worker = threading.Thread(target=faulty_worker.start_monitor, daemon=True)
+        victim_worker.start()
         CmdInterface.CMDInterface(faulty_worker).cmdloop()
+        victim_worker.join()
         return
 
     if not faulty_worker.validate_serial_connection():
@@ -117,6 +121,7 @@ def faulty(
     faulty_worker.set_pulse_time(is_valid_number(pulse_timeout))
 
     faulty_worker.start_faulty_attack()
+    
 
 
 if __name__ == "__main__":

@@ -67,6 +67,19 @@ class UART(threading.Thread):
         self.serial_worker.write(b"\n\r")
         self.serial_worker.flush()
     
+    def recv_victim(self):
+        if not self.is_connected():
+            self.open()
+        
+        try:
+            bytestream = self.serial_worker.readline()
+            if bytestream:
+                return bytestream
+            return None
+        except serial.SerialException as e:
+            print(e)
+            return None
+
     def recv(self):
         if not self.is_connected():
             self.open()
