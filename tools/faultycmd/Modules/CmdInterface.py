@@ -75,6 +75,41 @@ class CMDInterface(cmd.Cmd):
         print("Starting the FaultyCat...")
         self.faulty_worker.start_faulty_attack()
 
+    def do_smonitor(self, args):
+        """Stop the monitor."""
+        if self.faulty_worker.recv_cancel:
+            self.faulty_worker.recv_cancel = False
+            self.faulty_worker.start_monitor()
+        else:
+            self.faulty_worker.set_recv_cancel(True)
+
+    def do_u(self, args):
+        """Update the configuration."""
+        sleep_time = self.faulty_worker.get_sleep_time() + 0.1
+        self.faulty_worker.set_sleep_time(sleep_time)
+    def do_i(self, args):
+        """Increase the configuration."""
+        sleep_time = self.faulty_worker.get_sleep_time() + 0.01
+        self.faulty_worker.set_sleep_time(sleep_time)
+    
+    def do_d(self, args):
+        """Decrease the configuration."""
+        sleep_time = self.faulty_worker.get_sleep_time() - 0.1
+        self.faulty_worker.set_sleep_time(sleep_time)
+    
+    def do_f(self, args):
+        """Reset the configuration."""
+        sleep_time = self.faulty_worker.get_sleep_time() - 0.02
+        self.faulty_worker.set_sleep_time(sleep_time)
+    
+    def do_s(self, args):
+        """Show the configuration."""
+        self.faulty_worker.attack_cancel = False
+    
+    def do_show(self, args):
+        """Show the configuration."""
+        print(f"Sleep time: {self.faulty_worker.get_sleep_time()}")
+
     def do_exit(self, line):
         """Exit the CLI."""
         return True

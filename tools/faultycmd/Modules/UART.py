@@ -56,8 +56,8 @@ class UART(threading.Thread):
         self.reset_buffer()
     
     def close(self):
-        self.reset_buffer()
-        self.serial_worker.close()
+        if self.serial_worker.is_open:
+            self.serial_worker.close()
 
     def is_connected(self):
         return self.serial_worker.is_open

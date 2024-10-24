@@ -3,6 +3,7 @@ import platform
 import signal
 import threading
 import sys
+import curses
 from rich.console import Console
 from rich.table import Table
 
@@ -29,9 +30,11 @@ workers = []
 
 def signal_handler(sig, frame):
     print("You pressed Ctrl+C!")
+    faulty_worker.recv_cancel = True
     faulty_worker.stop_workers()
     for work in workers:
         work.join()
+    
     sys.exit(0)
 
 
@@ -101,13 +104,19 @@ def faulty(
     Console().print(table_config)
 
     faulty_worker.set_serial_port(comport)
-    faulty_worker.victim_board.set_serial_port("/dev/tty.usbmodem133401")
+    faulty_worker.victim_board.set_serial_port("/dev/tty.usbserial-0001")
     faulty_worker.victim_board.set_serial_baudrate(115200)
     if cmd:
+        faulty_worker.board_uart.open()
+        faulty_worker.board_uart.send(
+            faulty_worker.board_configurator.board_commands.COMMAND_ARM.value.encode("utf-8")
+        )
         victim_worker = threading.Thread(target=faulty_worker.start_monitor, daemon=True)
         victim_worker.start()
+        attack_worker = threading.Thread(target=faulty_worker.start_attack_thread, daemon=True).start()
         CmdInterface.CMDInterface(faulty_worker).cmdloop()
         victim_worker.join()
+        attack_worker.join()
         return
 
     if not faulty_worker.validate_serial_connection():
