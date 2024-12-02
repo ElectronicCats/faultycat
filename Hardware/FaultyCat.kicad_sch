@@ -8917,6 +8917,12 @@
 		(uuid "3b04e9a8-ca01-4dcd-ba82-7e3507d0a857")
 	)
 	(junction
+		(at 130.81 190.5)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "41bc7dd7-02da-4ebd-b60d-39e5f854d59c")
+	)
+	(junction
 		(at 66.04 95.885)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -9231,10 +9237,6 @@
 		(uuid "b1a880ef-be48-40aa-afdf-833ff3ab1449")
 	)
 	(no_connect
-		(at 389.89 204.47)
-		(uuid "c7be701c-9216-4cb9-8801-c25be26f3b5f")
-	)
-	(no_connect
 		(at 389.89 161.29)
 		(uuid "d73ddeff-9ba7-4874-abf2-d0cefc25b140")
 	)
@@ -9335,6 +9337,16 @@
 			(type default)
 		)
 		(uuid "09347bef-db2d-4b5b-b046-a4b64de41126")
+	)
+	(wire
+		(pts
+			(xy 130.81 184.15) (xy 130.81 190.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0979b6c6-bb74-467e-a841-7d6aac49a98a")
 	)
 	(wire
 		(pts
@@ -10208,6 +10220,16 @@
 	)
 	(wire
 		(pts
+			(xy 134.62 193.04) (xy 129.54 193.04)
+		)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(uuid "4e9492ef-57ed-437a-bbdb-05e14d628326")
+	)
+	(wire
+		(pts
 			(xy 217.17 142.24) (xy 224.79 142.24)
 		)
 		(stroke
@@ -10745,6 +10767,16 @@
 			(type default)
 		)
 		(uuid "764e45ae-dab3-40df-971a-85986a676c59")
+	)
+	(wire
+		(pts
+			(xy 393.7 204.47) (xy 389.89 204.47)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "76dc50a2-5331-4d0c-97f6-ca107e0e25ce")
 	)
 	(wire
 		(pts
@@ -11808,6 +11840,16 @@
 	)
 	(wire
 		(pts
+			(xy 130.81 190.5) (xy 124.46 190.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c73f5386-4c61-43cc-9852-4435facc3a82")
+	)
+	(wire
+		(pts
 			(xy 364.49 108.712) (xy 367.03 108.712)
 		)
 		(stroke
@@ -11905,6 +11947,16 @@
 			(type default)
 		)
 		(uuid "d0de953b-1a5b-4f75-b8ef-20ef6d734d16")
+	)
+	(wire
+		(pts
+			(xy 134.62 190.5) (xy 130.81 190.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d19063db-55e3-48bc-ae13-76db20f195d1")
 	)
 	(wire
 		(pts
@@ -12578,6 +12630,16 @@
 	)
 	(wire
 		(pts
+			(xy 129.54 193.04) (xy 129.54 198.12)
+		)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(uuid "fe299011-ba91-4215-a17a-bf36d4a05e70")
+	)
+	(wire
+		(pts
 			(xy 328.549 232.537) (xy 328.549 231.521)
 		)
 		(stroke
@@ -12770,6 +12832,17 @@
 		)
 		(uuid "1fe95bf8-31f5-4501-bfb9-09329323aeea")
 	)
+	(label "ANALOG"
+		(at 393.7 204.47 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "20be15bf-b3c4-45ae-bbcf-fa13a7adb21f")
+	)
 	(label "QSPI_DATA1"
 		(at 287.528 263.652 0)
 		(fields_autoplaced yes)
@@ -12879,6 +12952,17 @@
 			(justify left bottom)
 		)
 		(uuid "480bd971-e3e8-4353-8169-b45bd066a42d")
+	)
+	(label "ANALOG"
+		(at 124.46 190.5 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "4a6a8952-b20d-494e-ad11-7c4d373a4e04")
 	)
 	(label "RST"
 		(at 217.805 264.922 0)
@@ -15124,6 +15208,121 @@
 			(project "BuggyCat"
 				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
 					(reference "SW1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "pico-glitcher:BU-SMA-V")
+		(at 137.16 190.5 0)
+		(mirror y)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "1add8807-b3e3-4929-896f-2f4b005a556b")
+		(property "Reference" "X2"
+			(at 139.7 187.198 0)
+			(effects
+				(font
+					(size 1.778 1.5113)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Value" "BU-SMA"
+			(at 139.7 195.58 0)
+			(effects
+				(font
+					(size 1.778 1.5113)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Footprint" "BuggyCat:SMA-KE901"
+			(at 137.16 190.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 137.16 190.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "FEMALE SMA CONNECTOR\n\nRadiall\n\ndistributor RS 112-3794"
+			(at 137.16 190.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Device" ""
+			(at 137.16 190.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Pins" ""
+			(at 137.16 190.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Type" ""
+			(at 137.16 190.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC#" "C914559"
+			(at 137.16 190.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "1ec3530e-a16d-44c3-9875-4b7482ebec3a")
+		)
+		(pin "2"
+			(uuid "4e31561d-a33b-4854-924f-14b517c01422")
+		)
+		(pin "3"
+			(uuid "180c0fae-9810-4f3a-bf64-40c7cbbc1c03")
+		)
+		(pin "4"
+			(uuid "2fd92c24-01c8-4d72-bd03-b05a0f34fd3e")
+		)
+		(pin "5"
+			(uuid "91289ab4-7bb3-49c0-805a-3ad728507e11")
+		)
+		(instances
+			(project "FaultyCat"
+				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
+					(reference "X2")
 					(unit 1)
 				)
 			)
@@ -18719,6 +18918,72 @@
 			(project "BuggyCat"
 				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
 					(reference "#PWR039")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 129.54 198.12 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "5b22fbdb-6662-4f91-b62a-d17fe5054241")
+		(property "Reference" "#GND06"
+			(at 129.54 198.12 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 129.54 203.2 0)
+			(effects
+				(font
+					(size 1.778 1.5113)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Footprint" ""
+			(at 129.54 198.12 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 129.54 198.12 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 129.54 198.12 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "bdac6122-c8e1-453e-856e-e14dd26f1551")
+		)
+		(instances
+			(project "FaultyCat"
+				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
+					(reference "#GND06")
 					(unit 1)
 				)
 			)
@@ -24928,6 +25193,99 @@
 			(project "BuggyCat"
 				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
 					(reference "J5")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Connector:Conn_01x01_Pin")
+		(at 130.81 179.07 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "c7b625ce-bcd0-4204-80d4-f462a605075c")
+		(property "Reference" "ANALOG1"
+			(at 134.112 176.53 0)
+			(effects
+				(font
+					(size 1.778 1.5113)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Value" "ANALOG"
+			(at 125.73 176.53 0)
+			(effects
+				(font
+					(size 1.778 1.5113)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x01_P2.54mm_Vertical"
+			(at 130.81 179.07 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 130.81 179.07 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Generic connector, single row, 01x01, script generated"
+			(at 130.81 179.07 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Device" ""
+			(at 130.81 179.07 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Pins" ""
+			(at 130.81 179.07 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Type" ""
+			(at 130.81 179.07 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "71037360-c53d-42bb-9916-43d1d70b2766")
+		)
+		(instances
+			(project "FaultyCat"
+				(path "/e63e39d7-6ac0-4ffd-8aa3-1841a4541b55"
+					(reference "ANALOG1")
 					(unit 1)
 				)
 			)
