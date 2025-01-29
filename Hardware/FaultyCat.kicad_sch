@@ -30766,7 +30766,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Button_Switch_SMD:SW_SP3T_PCM13"
 			(at 193.675 216.535 0)
 			(effects
 				(font
