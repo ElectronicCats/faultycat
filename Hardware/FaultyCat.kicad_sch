@@ -6,11 +6,12 @@
 	(paper "A3")
 	(title_block
 		(title "FaultyCat")
-		(date "2024-10-27")
+		(date "2025-02-10")
 		(rev "v2.0")
 		(company "Electronic Cats")
 		(comment 1 "Andres Sabas")
 		(comment 2 "Lizeth Gallegos Mtz")
+		(comment 3 "Adonaí Diaz")
 	)
 	(lib_symbols
 		(symbol "+3V3_1"
