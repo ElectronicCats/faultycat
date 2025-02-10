@@ -16760,6 +16760,15 @@
 				(hide yes)
 			)
 		)
+		(property "Proveedor" "LCSC"
+			(at 212.09 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "68133de2-2d76-41fb-9858-70ac3c31d024")
 		)
@@ -17056,7 +17065,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1uF"
+		(property "Value" "100nF"
 			(at 354.711 237.109 0)
 			(effects
 				(font
@@ -17110,7 +17119,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 353.695 235.331 0)
 			(effects
 				(font
@@ -17222,7 +17231,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 358.14 161.29 0)
 			(effects
 				(font
@@ -17508,7 +17517,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 41.275 136.525 0)
 			(effects
 				(font
@@ -17629,7 +17638,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 45.085 244.475 0)
 			(effects
 				(font
@@ -17761,7 +17770,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 103.378 272.542 0)
 			(effects
 				(font
@@ -17894,6 +17903,15 @@
 			)
 		)
 		(property "LCSC#" "C103199"
+			(at 218.44 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Proveedor" "LCSC"
 			(at 218.44 110.49 0)
 			(effects
 				(font
@@ -18114,6 +18132,15 @@
 			)
 		)
 		(property "Sim.Type" ""
+			(at 217.17 213.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manf#" "10-PIN"
 			(at 217.17 213.36 0)
 			(effects
 				(font
@@ -18606,7 +18633,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 50.8 247.015 0)
 			(effects
 				(font
@@ -18974,7 +19001,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 75.565 154.305 0)
 			(effects
 				(font
@@ -19284,7 +19311,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 108.585 127 0)
 			(effects
 				(font
@@ -19663,6 +19690,15 @@
 				(hide yes)
 			)
 		)
+		(property "Manf#" "2-PIN"
+			(at 36.83 201.93 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "2ea99416-8ab1-47f0-8a35-65d73179d984")
 		)
@@ -19829,7 +19865,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1uF"
+		(property "Value" "100nF"
 			(at 239.776 194.056 90)
 			(effects
 				(font
@@ -19865,7 +19901,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C26413"
+		(property "LCSC#" "C66501"
 			(at 241.3 190.5 0)
 			(effects
 				(font
@@ -19874,7 +19910,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "CL10A105KP8NNNC"
+		(property "Manf#" ""
 			(at 241.3 190.5 0)
 			(effects
 				(font
@@ -19883,7 +19919,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 241.3 190.5 0)
 			(effects
 				(font
@@ -20307,7 +20343,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 328.295 62.23 0)
 			(effects
 				(font
@@ -20437,7 +20473,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 44.45 239.395 0)
 			(effects
 				(font
@@ -20820,7 +20856,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 313.309 235.077 0)
 			(effects
 				(font
@@ -20932,7 +20968,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 339.09 69.85 0)
 			(effects
 				(font
@@ -21186,7 +21222,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 52.07 154.305 0)
 			(effects
 				(font
@@ -21307,7 +21343,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 328.295 69.85 0)
 			(effects
 				(font
@@ -21611,6 +21647,15 @@
 			)
 		)
 		(property "Description" "Generic connector, single row, 01x02, script generated"
+			(at 36.83 196.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manf#" "2-PIN"
 			(at 36.83 196.85 0)
 			(effects
 				(font
@@ -22296,7 +22341,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 346.075 235.331 0)
 			(effects
 				(font
@@ -22365,7 +22410,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1uF"
+		(property "Value" "100nF"
 			(at 322.199 236.855 0)
 			(effects
 				(font
@@ -22419,7 +22464,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 321.437 235.077 0)
 			(effects
 				(font
@@ -22540,7 +22585,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 299.085 178.054 0)
 			(effects
 				(font
@@ -23185,7 +23230,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1uF"
+		(property "Value" "100nF"
 			(at 392.811 237.109 0)
 			(effects
 				(font
@@ -23239,7 +23284,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 391.795 235.331 0)
 			(effects
 				(font
@@ -23375,7 +23420,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1uF"
+		(property "Value" "100nF"
 			(at 361.823 237.109 0)
 			(effects
 				(font
@@ -23429,7 +23474,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 361.061 235.331 0)
 			(effects
 				(font
@@ -23565,7 +23610,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1uF"
+		(property "Value" "100nF"
 			(at 400.685 236.855 0)
 			(effects
 				(font
@@ -23619,7 +23664,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 399.415 235.077 0)
 			(effects
 				(font
@@ -24069,6 +24114,15 @@
 				(hide yes)
 			)
 		)
+		(property "Proveedor" "LCSC"
+			(at 207.01 100.33 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "a82a3756-87ba-49b4-902b-897d191c8726")
 		)
@@ -24102,7 +24156,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1uF"
+		(property "Value" "100nF"
 			(at 369.697 237.109 0)
 			(effects
 				(font
@@ -24156,7 +24210,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 368.681 235.331 0)
 			(effects
 				(font
@@ -24254,6 +24308,15 @@
 			)
 		)
 		(property "Description" "Generic connector, single row, 01x02, script generated"
+			(at 36.83 207.01 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manf#" "2-PIN"
 			(at 36.83 207.01 0)
 			(effects
 				(font
@@ -24444,7 +24507,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 311.785 178.689 0)
 			(effects
 				(font
@@ -24690,6 +24753,15 @@
 			)
 		)
 		(property "LCSC#" "C140111"
+			(at 199.39 64.77 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Proveedor" "LCSC"
 			(at 199.39 64.77 0)
 			(effects
 				(font
@@ -25486,7 +25558,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1uF"
+		(property "Value" "100nF"
 			(at 330.8858 236.22 0)
 			(effects
 				(font
@@ -25540,7 +25612,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 328.549 235.077 0)
 			(effects
 				(font
@@ -25789,7 +25861,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1uF"
+		(property "Value" "100nF"
 			(at 385.445 236.855 0)
 			(effects
 				(font
@@ -25843,7 +25915,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 384.175 235.331 0)
 			(effects
 				(font
@@ -26008,6 +26080,15 @@
 			)
 		)
 		(property "Description" "Generic connector, single row, 01x02, script generated"
+			(at 36.83 191.77 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manf#" "2-PIN"
 			(at 36.83 191.77 0)
 			(effects
 				(font
@@ -26216,7 +26297,16 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C17206"
+		(property "LCSC#" "C1021790"
+			(at 250.19 213.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Proveedor" "LCSC"
 			(at 250.19 213.36 0)
 			(effects
 				(font
@@ -26842,7 +26932,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 66.675 40.64 0)
 			(effects
 				(font
@@ -26956,6 +27046,15 @@
 			)
 		)
 		(property "LCSC#" "C7843"
+			(at 99.06 210.82 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Proveedor" "LCSC"
 			(at 99.06 210.82 0)
 			(effects
 				(font
@@ -27716,7 +27815,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1uF"
+		(property "Value" "100nF"
 			(at 377.571 236.855 0)
 			(effects
 				(font
@@ -27770,7 +27869,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 376.301 235.331 0)
 			(effects
 				(font
@@ -27906,7 +28005,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1uF"
+		(property "Value" "100nF"
 			(at 236.855 274.955 0)
 			(effects
 				(font
@@ -27960,7 +28059,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 235.585 273.177 0)
 			(effects
 				(font
@@ -28283,6 +28382,15 @@
 			)
 		)
 		(property "LCSC#" "C142600"
+			(at 238.76 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Proveedor" "LCSC"
 			(at 238.76 95.25 0)
 			(effects
 				(font
@@ -28706,7 +28814,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 117.475 120.65 0)
 			(effects
 				(font
@@ -29127,6 +29235,15 @@
 				(hide yes)
 			)
 		)
+		(property "Proveedor" "LCSC"
+			(at 170.18 265.43 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "2027bc96-1914-4ac4-99fa-bde92f23442e")
 		)
@@ -29223,7 +29340,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 128.27 272.415 0)
 			(effects
 				(font
@@ -29326,6 +29443,24 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC#" "C116697"
+			(at 233.68 203.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Proveedor" "LCSC"
+			(at 233.68 203.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "27ebb77e-feb1-4a7a-a45e-3f885c55fb20")
 		)
@@ -29403,7 +29538,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 339.09 62.23 0)
 			(effects
 				(font
@@ -29794,7 +29929,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.1uF"
+		(property "Value" "100nF"
 			(at 257.556 194.056 90)
 			(effects
 				(font
@@ -29830,7 +29965,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C26413"
+		(property "LCSC#" "C66501"
 			(at 259.08 190.5 0)
 			(effects
 				(font
@@ -29839,7 +29974,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "CL10A105KP8NNNC"
+		(property "Manf#" ""
 			(at 259.08 190.5 0)
 			(effects
 				(font
@@ -29848,7 +29983,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 259.08 190.5 0)
 			(effects
 				(font
@@ -30328,7 +30463,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 82.677 98.425 0)
 			(effects
 				(font
@@ -30450,7 +30585,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 49.53 86.995 0)
 			(effects
 				(font
@@ -31076,7 +31211,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C2987386"
+		(property "LCSC#" "C393939"
 			(at 25.4 254.635 0)
 			(effects
 				(font
@@ -31354,7 +31489,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 73.152 98.425 0)
 			(effects
 				(font
@@ -31478,7 +31613,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 52.705 106.045 0)
 			(effects
 				(font
@@ -31731,6 +31866,15 @@
 				(hide yes)
 			)
 		)
+		(property "Proveedor" "LCSC"
+			(at 177.8 204.47 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "32f74bb0-cc50-4ab1-8277-e2766f45fdad")
 		)
@@ -31814,7 +31958,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 332.105 40.005 0)
 			(effects
 				(font
@@ -31964,6 +32108,15 @@
 				(hide yes)
 			)
 		)
+		(property "Proveedor" "LCSC"
+			(at 222.25 62.23 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "61334780-6672-43ad-97bb-978bf6ca7605")
 		)
@@ -32044,7 +32197,7 @@
 				(hide yes)
 			)
 		)
-		(property "Proveedor" "MOUSER"
+		(property "Proveedor" "LCSC"
 			(at 320.675 40.005 0)
 			(effects
 				(font
