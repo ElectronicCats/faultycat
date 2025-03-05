@@ -8,6 +8,8 @@
 #include "pico/multicore.h"
 #include "hardware/watchdog.h"
 
+#include "blueTag.h"
+
 static char serial_buffer[256];
 static char last_command[256];
 
@@ -306,6 +308,11 @@ void serial_console() {
             printf("- [t]oggle_gp1\n");
             printf("- [s]tatus\n");
             printf("- [r]eset\n");
+            printf("\n");
+            printf("New commands:\n");
+            printf("- [1] JTAG Scan\n");
+            printf("- [2] SWD Scan\n");
+            printf("- [3] Enable/disable pin pulsing\n");
         }
         printf("\n");
         
