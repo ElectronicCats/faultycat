@@ -1,0 +1,7 @@
+build/
+
+# Visual Studio config files
+.vscode/
+
+# macOS folder attributes
+/**/.DS_Store
