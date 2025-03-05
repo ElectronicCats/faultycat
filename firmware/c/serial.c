@@ -275,6 +275,26 @@ bool handle_command(char *command) {
         while(1);
     }
 
+    if(strcmp(command, "1") == 0) {
+        jtagScan();
+        return true;
+    }
+
+    if(strcmp(command, "2") == 0) {
+        swdScan();
+        return true;
+    }
+
+    if(strcmp(command, "3") == 0) {
+        jPulsePins = !jPulsePins;
+        if (jPulsePins) {
+          printf("     Pin pulsing activated.\n\n");
+        } else {
+          printf("     Pin pulsing deactivated.\n\n");
+        }
+        return true;
+    }
+
     return false;
 }
 
