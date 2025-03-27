@@ -1,0 +1,4 @@
+[submodule "firmware/c/blueTag"]
+	path = firmware/c/blueTag
+	url = https://github.com/Aodrulez/blueTag.git
+	branch = main
