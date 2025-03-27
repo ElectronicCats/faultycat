@@ -28,3 +28,12 @@ fp-info-cache
 __pycache__
 ./venv/*
 .venv/
+
+# Firmware binaries
+/**/build/
+
+# Visual Studio config files
+.vscode/
+
+# macOS folder attributes
+/**/.DS_Store
