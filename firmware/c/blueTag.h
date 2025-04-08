@@ -34,10 +34,10 @@ char* version = "1.0.2";
 #define CR 13
 #define LF 10
 
-const uint onboardLED = 25;
+const uint onboardLED = 10;
 const uint unusedGPIO = 28;  // Pins on Pico are accessed using GPIO names
 const uint MAX_NUM_JTAG = 32;
-const uint maxChannels = 16;  // Max number of channels supported by Pico
+const uint maxChannels = 8;  // Max number of channels supported by Faulty Cat
 uint progressCount = 0;
 uint maxPermutations = 0;
 char cmd;

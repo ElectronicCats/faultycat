@@ -275,17 +275,17 @@ bool handle_command(char *command) {
         while(1);
     }
 
-    if(strcmp(command, "1") == 0) {
+    if(strcmp(command, "j") == 0 || strcmp(command, "jtag_scan") == 0) {
         jtagScan();
         return true;
     }
 
-    if(strcmp(command, "2") == 0) {
+    if(strcmp(command, "sw") == 0 || strcmp(command, "swd_scan") == 0) {
         swdScan();
         return true;
     }
 
-    if(strcmp(command, "3") == 0) {
+    if(strcmp(command, "pp") == 0) {
         jPulsePins = !jPulsePins;
         if (jPulsePins) {
           printf("     Pin pulsing activated.\n\n");
@@ -330,9 +330,9 @@ void serial_console() {
             printf("- [r]eset\n");
             printf("\n");
             printf("New commands:\n");
-            printf("- [1] JTAG Scan\n");
-            printf("- [2] SWD Scan\n");
-            printf("- [3] Enable/disable pin pulsing\n");
+            printf("- [j]tag_scan\n");
+            printf("- [sw]d_scan\n");
+            printf("- [pp] Enable/disable pin pulsing\n");
         }
         printf("\n");
         
