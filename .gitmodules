@@ -2,3 +2,6 @@
 	path = firmware/c/blueTag
 	url = https://github.com/Aodrulez/blueTag.git
 	branch = main
+[submodule "firmware/c/faultier"]
+	path = firmware/c/faultier
+	url = https://github.com/hextreeio/faultier.git
