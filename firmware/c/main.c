@@ -8,6 +8,7 @@
 #include "serial.h"
 
 #include "trigger_basic.pio.h"
+#include "faultier_test.h"
 
 static bool armed = false;
 static bool timeout_active = true;
@@ -80,6 +81,7 @@ void fast_trigger() {
 }
 
 int main() {
+    faultier();
     // Initialize USB-UART as STDIO
     stdio_init_all();
 
