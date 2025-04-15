@@ -18,7 +18,7 @@ cmake_minimum_required(VERSION 3.13)
 # initialize the SDK based on PICO_SDK_PATH
 # note: this must happen before project()
 include(pico_sdk_import.cmake)
-project(picoemp)
+project(faultycat)
 
 pico_sdk_init()
 
@@ -26,19 +26,19 @@ pico_sdk_init()
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/faultier/nanopb/extra)
 find_package(Nanopb REQUIRED)
 
-add_executable(picoemp)
+add_executable(faultycat)
 
 # Generate PIO headers
-pico_generate_pio_header(picoemp ${CMAKE_CURRENT_LIST_DIR}/trigger_basic.pio)
+pico_generate_pio_header(faultycat ${CMAKE_CURRENT_LIST_DIR}/trigger_basic.pio)
 
 # Add additional PIO headers from faultier
-pico_generate_pio_header(picoemp ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier/pio/spi.pio)
-pico_generate_pio_header(picoemp ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier/pio/i2c.pio)
-pico_generate_pio_header(picoemp ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier/pio/uart_rx.pio)
-pico_generate_pio_header(picoemp ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier/pio/uart_tx.pio)
-pico_generate_pio_header(picoemp ${CMAKE_CURRENT_LIST_DIR}/faultier/swd/probe.pio)
+pico_generate_pio_header(faultycat ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier/pio/spi.pio)
+pico_generate_pio_header(faultycat ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier/pio/i2c.pio)
+pico_generate_pio_header(faultycat ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier/pio/uart_rx.pio)
+pico_generate_pio_header(faultycat ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier/pio/uart_tx.pio)
+pico_generate_pio_header(faultycat ${CMAKE_CURRENT_LIST_DIR}/faultier/swd/probe.pio)
 
-target_sources(picoemp PRIVATE
+target_sources(faultycat PRIVATE
         main.c
         # faultier/main.c
         picoemp.c
@@ -71,10 +71,10 @@ target_sources(picoemp PRIVATE
         )
 
 # Add include directory for tusb_config.h
-target_include_directories(picoemp PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-pico_set_binary_type(picoemp copy_to_ram)
+target_include_directories(faultycat PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+pico_set_binary_type(faultycat copy_to_ram)
 
-target_link_libraries(picoemp PRIVATE 
+target_link_libraries(faultycat PRIVATE 
         pico_stdlib
         hardware_pwm
         hardware_pio
@@ -87,7 +87,7 @@ target_link_libraries(picoemp PRIVATE
         nanopb
         )
 
-target_include_directories(picoemp PRIVATE
+target_include_directories(faultycat PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/glitcher
         # From faultier repo
@@ -96,8 +96,8 @@ target_include_directories(picoemp PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/faultier/proto
         ${CMAKE_CURRENT_LIST_DIR}/faultier/glitcher)
 
-pico_add_extra_outputs(picoemp)
+pico_add_extra_outputs(faultycat)
 
 # enable usb output, disable uart output
-pico_enable_stdio_usb(picoemp 1)
-pico_enable_stdio_uart(picoemp 0)
+pico_enable_stdio_usb(faultycat 1)
+pico_enable_stdio_uart(faultycat 0)
