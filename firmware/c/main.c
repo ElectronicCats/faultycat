@@ -81,7 +81,6 @@ void fast_trigger() {
 }
 
 int main() {
-    faultier();
     // Initialize USB-UART as STDIO
     stdio_init_all();
 
@@ -94,6 +93,12 @@ int main() {
 
     // Run serial-console on second core
     multicore_launch_core1(serial_console);
+
+    // bool success = simple_glitch_run(0, 0, PIN_IN_TRIGGER, PIN_OUT_HVPULSE);
+    // if(!success) {
+    //     printf("Failed to initialize glitcher\n");
+    //     return 1;
+    // }
 
     pulse_time = PULSE_TIME_US_DEFAULT;
     pulse_power.f = PULSE_POWER_DEFAULT;

@@ -40,47 +40,50 @@ pico_generate_pio_header(picoemp ${CMAKE_CURRENT_LIST_DIR}/faultier/swd/probe.pi
 
 target_sources(picoemp PRIVATE
         main.c
+        # faultier/main.c
         picoemp.c
         serial.c
+        faultier_test.c
         # Add faultier sources
-        faultier/faultier/pio/pio_spi.c
-        faultier/faultier/pio/pio_i2c.c
-        faultier/faultier/faultier.c
-        faultier/faultier/pdnd.c
-        faultier/faultier/pdnd_spi.c
-        faultier/faultier/pdnd_display.c
-        faultier/faultier/display/FreeSans5pt7b.c
-        faultier/faultier/display/FreeSans9pt7b.c
-        faultier/faultier/display/font_renderer.c
-        faultier/faultier/display/ssd1306.c
-        faultier/proto/faultier.pb.c
-        faultier/bootup.c
-        faultier/bootup2.c
+        # faultier/faultier/pio/pio_spi.c
+        # faultier/faultier/pio/pio_i2c.c
+        # faultier/faultier/faultier.c
+        # faultier/faultier/pdnd.c
+        # faultier/faultier/pdnd_spi.c
+        # faultier/faultier/pdnd_display.c
+        # faultier/faultier/display/FreeSans5pt7b.c
+        # faultier/faultier/display/FreeSans9pt7b.c
+        # faultier/faultier/display/font_renderer.c
+        # faultier/faultier/display/ssd1306.c
+        # faultier/proto/faultier.pb.c
+        # faultier/bootup.c
+        # faultier/bootup2.c
         faultier/glitcher/ft_pio.c
         faultier/glitcher/power_cycler.c
         faultier/glitcher/trigger_compiler.c
         faultier/glitcher/delay_compiler.c
         faultier/glitcher/glitch_compiler.c
-        faultier/protocol.c
-        faultier/usb_descriptors.c
-        faultier/swd/tamarin_probe.c
-        faultier/swd/swdchecker.c
+        # faultier/protocol.c
+        # faultier/usb_descriptors.c
+        # faultier/swd/tamarin_probe.c
+        # faultier/swd/swdchecker.c
         )
 
 # Add include directory for tusb_config.h
 target_include_directories(picoemp PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+pico_set_binary_type(picoemp copy_to_ram)
 
 target_link_libraries(picoemp PRIVATE 
         pico_stdlib
         hardware_pwm
         hardware_pio
         pico_multicore
-        tinyusb_device
-        tinyusb_board
-        hardware_i2c
+        # tinyusb_device
+        # tinyusb_board
+        # hardware_i2c
         hardware_adc
         hardware_dma
-        nanopb
+        # nanopb
         )
 
 target_include_directories(picoemp PRIVATE 
