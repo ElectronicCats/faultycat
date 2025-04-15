@@ -44,6 +44,7 @@ target_sources(picoemp PRIVATE
         picoemp.c
         serial.c
         faultier_test.c
+        glitcher/glitcher.c
         # Add faultier sources
         # faultier/faultier/pio/pio_spi.c
         # faultier/faultier/pio/pio_i2c.c
@@ -83,13 +84,17 @@ target_link_libraries(picoemp PRIVATE
         # hardware_i2c
         hardware_adc
         hardware_dma
-        # nanopb
+        nanopb
         )
 
-target_include_directories(picoemp PRIVATE 
+target_include_directories(picoemp PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_CURRENT_LIST_DIR}/glitcher
+        # From faultier repo
         ${CMAKE_CURRENT_LIST_DIR}/faultier
-        ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier)
+        ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier
+        ${CMAKE_CURRENT_LIST_DIR}/faultier/proto
+        ${CMAKE_CURRENT_LIST_DIR}/faultier/glitcher)
 
 pico_add_extra_outputs(picoemp)
 

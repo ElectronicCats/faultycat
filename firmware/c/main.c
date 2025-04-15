@@ -8,7 +8,8 @@
 #include "serial.h"
 
 #include "trigger_basic.pio.h"
-#include "faultier_test.h"
+// #include "faultier_test.h"
+#include "glitcher.h"
 
 static bool armed = false;
 static bool timeout_active = true;
@@ -104,6 +105,11 @@ int main() {
     pulse_power.f = PULSE_POWER_DEFAULT;
     pulse_delay_cycles = PULSE_DELAY_CYCLES_DEFAULT;
     pulse_time_cycles = PULSE_TIME_CYCLES_DEFAULT;
+
+    sleep_ms(1000);
+    printf("Configuring glitcher...\n");
+    glitcher_test_configure();
+    glitcher_simple_setup();
 
     while(1) {
         gpio_put(PIN_LED_HV, gpio_get(PIN_IN_CHARGED));
