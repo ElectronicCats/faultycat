@@ -1,12 +1,13 @@
 #pragma once
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "pico/time.h"
 
+void glitcher_init();
 void glitcher_test_configure();
 bool glitcher_simple_setup();
 void glitcher_loop();

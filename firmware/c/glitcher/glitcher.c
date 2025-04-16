@@ -1,7 +1,6 @@
 #include "glitcher.h"
 
 #include "delay_compiler.h"
-#include "faultier.h"
 #include "faultier.pb.h"
 #include "ft_pio.h"
 #include "glitch_compiler.h"
@@ -12,6 +11,20 @@
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "pico/time.h"
+
+#define PIN_LED1 10
+#define PIN_LED2 9
+
+// ADC channels
+#define ADC_MUX_PIN 26
+#define ADC_EXT_PIN 27
+#define ADC_CB_PIN 28
+#define ADC_MUX 0
+#define ADC_EXT 1
+#define ADC_CB 2
+
+#define PIO_IRQ_TRIGGERED 0
+#define PIO_IRQ_GLITCHED 1
 
 #define GLITCHER_TRIGGER_PIN 8
 #define GLITCHER_LP_GLITCH_PIN 16
@@ -39,6 +52,27 @@ struct glitcher_configuration glitcher = {
     .delay = 0,
     .pulse = 0,
     .trigger_pull_configuration = TriggerPullConfiguration_TRIGGER_PULL_NONE};
+
+void glitcher_init() {
+  // Initialize GPIO pins
+  gpio_init(PIN_LED1);
+  gpio_set_dir(PIN_LED1, GPIO_OUT);
+  gpio_put(PIN_LED1, 0);
+
+  gpio_init(PIN_LED2);
+  gpio_set_dir(PIN_LED2, GPIO_OUT);
+  gpio_put(PIN_LED2, 0);
+
+  // Initialize ADC pins
+  // gpio_init(ADC_MUX_PIN);
+  // gpio_set_dir(ADC_MUX_PIN, GPIO_IN);
+
+  // gpio_init(ADC_EXT_PIN);
+  // gpio_set_dir(ADC_EXT_PIN, GPIO_IN);
+
+  // gpio_init(ADC_CB_PIN);
+  // gpio_set_dir(ADC_CB_PIN, GPIO_IN);
+}
 
 /**
  * @brief Configure the glitcher with default params for testing

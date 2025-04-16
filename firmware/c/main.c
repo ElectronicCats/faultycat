@@ -108,6 +108,7 @@ int main() {
 
     sleep_ms(1000);
     printf("Configuring glitcher...\n");
+    glitcher_init();
     glitcher_test_configure();
     glitcher_simple_setup();
 
