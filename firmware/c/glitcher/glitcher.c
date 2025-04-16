@@ -1,23 +1,17 @@
 #include "glitcher.h"
 
 #include "delay_compiler.h"
-#include "ft_pio.h"
-#include "glitch_compiler.h"
-#include "power_cycler.h"
-#include "trigger_compiler.h"
-
-#include "delay_compiler.h"
-#include "ft_pio.h"
-#include "glitch_compiler.h"
-#include "power_cycler.h"
-#include "trigger_compiler.h"
-#include "faultier.pb.h"
 #include "faultier.h"
+#include "faultier.pb.h"
+#include "ft_pio.h"
+#include "glitch_compiler.h"
+#include "power_cycler.h"
+#include "trigger_compiler.h"
 
+#include <stdio.h>
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "pico/time.h"
-#include <stdio.h>
 
 #define GLITCHER_TRIGGER_PIN 8
 #define GLITCHER_LP_GLITCH_PIN 16
@@ -206,6 +200,81 @@ bool glitcher_simple_setup() {
 
   printf("Glitcher configured successfully\n");
   return true;
+}
+
+void prepare_adc() {
+}
+
+void capture_adc() {
+}
+
+void glitcher_loop() {
+  pio_clear_instruction_memory(pio0);
+  glitcher_simple_setup();
+
+  // Ready LED
+  gpio_put(PIN_LED1, 1);
+  // push power cycle length if enabled
+  if (glitcher.power_cycle_output != GlitchOutput_OUT_NONE) {
+    pio_sm_put_blocking(pio0, 0, glitcher.power_cycle_length);
+  }
+
+  // delay
+  pio_sm_put_blocking(pio0, 0, glitcher.delay);
+
+  prepare_adc();
+  // pulse
+  if (glitcher.glitch_output != GlitchOutput_OUT_NONE) {
+    pio_sm_put_blocking(pio0, 0, glitcher.pulse);
+  }
+
+  // Trigger timeout. Ca. 1 second currently.
+  uint trigger_start_millis = to_ms_since_boot(get_absolute_time());
+  bool trigger_timed_out = false;
+  while (!pio_interrupt_get(pio0, PIO_IRQ_TRIGGERED) && !trigger_timed_out) {
+    // Make sure UART bridge keeps working while glitching
+    // uart_task();
+    if ((to_ms_since_boot(get_absolute_time()) - trigger_start_millis) > 1000) {
+      trigger_timed_out = true;
+      break;
+    }
+  }
+  if (trigger_timed_out) {
+    pio_sm_set_enabled(pio0, 0, false);
+    // There is a tiny chance of a race condition here that we check:
+    // Even though the trigger timed out we might - in that microsecond -
+    // had a successful trigger. So we quickly check whether the IRQ is set.
+    if (!pio_interrupt_get(pio0, PIO_IRQ_TRIGGERED)) {
+      pio_interrupt_clear(pio0, PIO_IRQ_TRIGGERED);
+      pio_interrupt_clear(pio0, PIO_IRQ_GLITCHED);
+
+      // TODO: implement something similar
+      // protocol_trigger_timeout();
+      pio_clear_instruction_memory(pio0);
+      // TODO: Ensure all pins are back to default
+      gpio_put(PIN_LED1, 0);
+      gpio_put(PIN_LED2, 0);
+      printf("Error: Trigger timed out\n");
+      return;
+    }
+  }
+
+  capture_adc();
+
+  pio_interrupt_clear(pio0, PIO_IRQ_TRIGGERED);
+  // MISC LED
+  gpio_put(PIN_LED2, 1);
+  // TODO: Fix this area:
+  //       - add error reporting for "glitch timeout"
+  //       - run uart_task while glitching
+
+  // Hardcoded 3 second timeout for glitcher, no error reporting
+  pio_interrupt_get_timeout_us(pio0, PIO_IRQ_GLITCHED, 3000000);
+  pio_interrupt_clear(pio0, PIO_IRQ_GLITCHED);
+  pio_sm_set_enabled(pio0, 0, false);
+  pio_clear_instruction_memory(pio0);
+  gpio_put(PIN_LED1, 0);
+  gpio_put(PIN_LED2, 0);
 }
 
 /**
