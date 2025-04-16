@@ -269,7 +269,7 @@ void glitcher_loop() {
   //       - run uart_task while glitching
 
   // Hardcoded 3 second timeout for glitcher, no error reporting
-  pio_interrupt_get_timeout_us(pio0, PIO_IRQ_GLITCHED, 3000000);
+  // pio_interrupt_get_timeout_us(pio0, PIO_IRQ_GLITCHED, 3000000);  // TODO: should it be here?
   pio_interrupt_clear(pio0, PIO_IRQ_GLITCHED);
   pio_sm_set_enabled(pio0, 0, false);
   pio_clear_instruction_memory(pio0);

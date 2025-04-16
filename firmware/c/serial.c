@@ -9,6 +9,7 @@
 #include "hardware/watchdog.h"
 
 #include "blueTag.h"
+#include "glitcher.h"
 
 static char serial_buffer[256];
 static char last_command[256];
@@ -295,6 +296,11 @@ bool handle_command(char *command) {
         return true;
     }
 
+    if (strcmp(command, "g") == 0 || strcmp(command, "glitch") == 0) {
+        glitcher_loop();
+        return true;
+    }
+
     return false;
 }
 
@@ -333,6 +339,7 @@ void serial_console() {
             printf("- [j]tag_scan\n");
             printf("- [sw]d_scan\n");
             printf("- [pp] Enable/disable pin pulsing\n");
+            printf("- [g]litch\n");
         }
         printf("\n");
         
