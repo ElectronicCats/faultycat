@@ -82,6 +82,9 @@ void fast_trigger() {
 }
 
 int main() {
+    // Overclock to 250MHz
+    set_sys_clock_khz(250000, true);
+
     // Initialize USB-UART as STDIO
     stdio_init_all();
 
@@ -108,6 +111,9 @@ int main() {
 
     sleep_ms(1000);
     printf("Configuring glitcher...\n");
+
+    // glitch_test(16, 100);
+
     glitcher_init();
     glitcher_test_configure();
     glitcher_simple_setup();

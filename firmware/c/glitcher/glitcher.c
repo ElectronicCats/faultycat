@@ -85,8 +85,9 @@ void glitcher_test_configure() {
   glitcher.trigger_type = TriggersType_TRIGGER_RISING_EDGE;
   glitcher.glitch_output = GlitchOutput_OUT_EXT1;
   glitcher.delay = 1000;  // 1000 cycles
-  glitcher.pulse = 100;   // 100 cycles
-  glitcher.trigger_pull_configuration = TriggerPullConfiguration_TRIGGER_PULL_NONE;
+  // glitcher.pulse = 100;   // 100 cycles
+  glitcher.pulse = 2500;  // 10 us (2500 cycles at 250MHz)
+  glitcher.trigger_pull_configuration = TriggerPullConfiguration_TRIGGER_PULL_DOWN;
 }
 
 bool glitcher_simple_setup() {
@@ -202,7 +203,7 @@ bool glitcher_simple_setup() {
 
   if (glitcher.glitch_output != GlitchOutput_OUT_NONE) {
     // int glitch_pin = PIN_GATE;
-    int glitch_pin = GLITCHER_HP_GLITCH_PIN;
+    int glitch_pin = GLITCHER_LP_GLITCH_PIN;
     // switch (glitcher.glitch_output) {
     //   case GlitchOutput_OUT_EXT0:
     //     glitch_pin = PIN_EXT0;
@@ -224,7 +225,7 @@ bool glitcher_simple_setup() {
     //     break;
     // }
 
-    sm_config_set_set_pins(&c, glitch_pin, 1);
+    sm_config_set_set_pins(&c, glitch_pin, GPIO_OUT);
     pio_gpio_init(pio0, glitch_pin);
     pio_sm_set_consecutive_pindirs(pio0, 0, glitch_pin, 1, true);
   }
@@ -240,6 +241,24 @@ void prepare_adc() {
 }
 
 void capture_adc() {
+}
+
+/**
+ * @brief Create a square wave on the glitch pin
+ * 
+ * @param glitch_pin Pin to use for the glitch
+ * @param glitch_width Width of the glitch in cycles
+ */
+void glitch_test(int glitch_pin, int glitch_width) {
+  gpio_init(glitch_pin);
+  gpio_set_dir(glitch_pin, GPIO_OUT);
+  
+  while (1) {
+    gpio_put(glitch_pin, 1);
+    sleep_us(glitch_width);
+    gpio_put(glitch_pin, 0);
+    sleep_us(glitch_width);
+  }
 }
 
 void glitcher_loop() {
@@ -268,7 +287,7 @@ void glitcher_loop() {
   while (!pio_interrupt_get(pio0, PIO_IRQ_TRIGGERED) && !trigger_timed_out) {
     // Make sure UART bridge keeps working while glitching
     // uart_task();
-    if ((to_ms_since_boot(get_absolute_time()) - trigger_start_millis) > 1000) {
+    if ((to_ms_since_boot(get_absolute_time()) - trigger_start_millis) > 10000) {
       trigger_timed_out = true;
       break;
     }
@@ -288,9 +307,11 @@ void glitcher_loop() {
       // TODO: Ensure all pins are back to default
       gpio_put(PIN_LED1, 0);
       gpio_put(PIN_LED2, 0);
-      printf("Error: Trigger timed out\n");
-      return;
+      printf("Trigger timed out\n");
+      // return;
     }
+  } else {
+    printf("Trigger successful\n");
   }
 
   capture_adc();
