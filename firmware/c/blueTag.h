@@ -11,8 +11,8 @@
         Yusufss4 (https://gist.github.com/amullins83/24b5ef48657c08c4005a8fab837b7499?permalink_comment_id=4554839#gistcomment-4554839)
         Arm Debug Interface Architecture Specification (debug_interface_v5_2_architecture_specification_IHI0031F.pdf)
 */
+#include "serial_utils.h"
 
-#include <stdio.h>
 #include "pico/stdlib.h"
 
 const char* banner = R"banner(
@@ -31,8 +31,6 @@ char* version = "1.0.2";
 #define MAX_IR_CHAIN_LEN MAX_DEVICES_LEN* MAX_IR_LEN  // Maximum total length of JTAG chain w/ IR selected
 #define MAX_DR_LEN 4096                               // Maximum length of data register
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(*array))
-#define CR 13
-#define LF 10
 
 const uint onboardLED = 10;
 const uint unusedGPIO = 28;  // Pins on Pico are accessed using GPIO names
@@ -104,48 +102,6 @@ void printProgress(size_t count, size_t max) {
   printf("] %.2f%%", progress * 100);
 
   fflush(stdout);
-}
-
-int stringToInt(char* str) {
-  char* endptr;
-  long int num;
-  int res = 0;
-  num = strtol(str, &endptr, 10);
-  if (endptr == str) {
-    return 0;
-  } else if (*endptr != '\0') {
-    return 0;
-  } else {
-    return ((int)num);
-  }
-  return 0;
-}
-
-int getIntFromSerial(void) {
-  char strg[3] = {0, 0, 0};
-  char chr;
-  int lp = 0;
-  int value = 0;
-  chr = getc(stdin);
-  printf("%c", chr);
-  if (chr == CR || chr == LF || chr < 48 || chr > 57) {
-    value = 0;
-  } else if (chr > 49) {
-    strg[0] = chr;
-    value = stringToInt(strg);
-  } else {
-    strg[0] = chr;
-    chr = getc(stdin);
-    printf("%c", chr);
-    if (chr == CR || chr == LF || chr < 48 || chr > 57) {
-      strg[1] = 0;
-    } else {
-      strg[1] = chr;
-    }
-    value = stringToInt(strg);
-  }
-  printf("\n");
-  return (value);
 }
 
 int getChannels(void) {

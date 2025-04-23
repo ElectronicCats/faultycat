@@ -42,8 +42,9 @@ target_sources(faultycat PRIVATE
         main.c
         # faultier/main.c
         picoemp.c
-        serial.c
         faultier_test.c
+        serial/serial.c
+        serial/serial_utils.c
         glitcher/glitcher.c
         # Add faultier sources
         # faultier/faultier/pio/pio_spi.c
@@ -90,6 +91,7 @@ target_link_libraries(faultycat PRIVATE
 target_include_directories(faultycat PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/glitcher
+        ${CMAKE_CURRENT_LIST_DIR}/serial
         # From faultier repo
         ${CMAKE_CURRENT_LIST_DIR}/faultier
         ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier
