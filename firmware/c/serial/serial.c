@@ -306,8 +306,13 @@ bool handle_command(char* command) {
     return true;
   }
 
-  if (strcmp(command, "cg") == 0 || strcmp(command, "configure_glitcher") == 0) {
+  if (strcmp(command, "cg") == 0) {
     glitcher_commands_configure();
+    return true;
+  }
+
+  if (strcmp(command, "gs") == 0) {
+    glitcher_commands_get_config();
     return true;
   }
 
@@ -351,6 +356,7 @@ void serial_console() {
       printf("- [pp] Enable/disable pin pulsing\n");
       printf("- [g]litch\n");
       printf("- [cg] Configure glitcher\n");
+      printf("- [gs] Show glitcher configuration\n");
     }
     printf("\n");
 

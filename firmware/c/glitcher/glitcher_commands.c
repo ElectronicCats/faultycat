@@ -1,7 +1,6 @@
 #include <stdio.h>
 
 #include "glitcher_commands.h"
-#include "glitcher.h"
 #include "serial_utils.h"
 
 void print_trigger_type(TriggersType trigger_type) {
@@ -26,6 +25,22 @@ void print_trigger_type(TriggersType trigger_type) {
       break;
     case TriggersType_TRIGGER_PULSE_NEGATIVE:
       printf("Pulse Negative\n");
+      break;
+    default:
+      printf("Unknown\n");
+  }
+}
+
+void print_trigger_pull_configuration(TriggerPullConfiguration trigger_pull_configuration) {
+  switch (trigger_pull_configuration) {
+    case TriggerPullConfiguration_TRIGGER_PULL_NONE:
+      printf("None\n");
+      break;
+    case TriggerPullConfiguration_TRIGGER_PULL_UP:
+      printf("Pull Up\n");
+      break;
+    case TriggerPullConfiguration_TRIGGER_PULL_DOWN:
+      printf("Pull Down\n");
       break;
     default:
       printf("Unknown\n");
@@ -67,6 +82,20 @@ void glitcher_commands_configure() {
   printf("     Trigger type set to: ", trigger_type_int);
   print_trigger_type(trigger_type);
 
+  printf("     Enter trigger pull configuration (0-2):\n");
+  printf("     0: None\n");
+  printf("     1: Pull Up\n");
+  printf("     2: Pull Down\n");
+  printf("     > ");
+  int trigger_pull_configuration_int = getIntFromSerial(1);
+  while (trigger_pull_configuration_int < 0 || trigger_pull_configuration_int > 2) {
+    printf("     Enter a valid value: ");
+    trigger_pull_configuration_int = getIntFromSerial(1);
+  }
+  TriggerPullConfiguration trigger_pull_configuration = (TriggerPullConfiguration)trigger_pull_configuration_int;
+  printf("     Trigger pull configuration set to: ", trigger_pull_configuration_int);
+  print_trigger_pull_configuration(trigger_pull_configuration);
+
   printf("     Enter glitch output (0-2):\n");
   printf("     0: None\n");
   printf("     1: LP\n");
@@ -97,6 +126,20 @@ void glitcher_commands_configure() {
   }
   printf("     Pulse width set to: %d cycles\n", pulse_width);
   printf("     Configuring glitcher...\n");
-  glitcher_configure(trigger_type, glitch_output, delay_before_pulse, pulse_width);
+  glitcher_set_config(trigger_type, glitch_output, delay_before_pulse, pulse_width);
   printf("     Glitcher configured successfully\n");
+}
+
+void glitcher_commands_get_config() {
+  struct glitcher_configuration config;
+  glitcher_get_config(&config);
+  printf("     Glitcher configuration:\n");
+  printf("     Trigger type: ");
+  print_trigger_type(config.trigger_type);
+  printf("     Trigger pull configuration: ");
+  print_trigger_pull_configuration(config.trigger_pull_configuration);
+  printf("     Glitch output: ");
+  print_glitch_output(config.glitch_output);
+  printf("     Delay before pulse: %d cycles\n", config.delay_before_pulse);
+  printf("     Pulse width: %d cycles\n", config.pulse_width);
 }

@@ -24,10 +24,14 @@
 #define PIO_IRQ_TRIGGERED 0
 #define PIO_IRQ_GLITCHED 1
 
+#define GLITCHER_TRIGGER_PIN 8
+#define GLITCHER_LP_GLITCH_PIN 16
+#define GLITCHER_HP_GLITCH_PIN 17
+
 struct glitcher_configuration glitcher = {
-    .configured = false,
     .trigger_type = TriggersType_TRIGGER_NONE,
-    .glitch_output = GlitchOutput_LP,
+    .trigger_pull_configuration = TriggerPullConfiguration_TRIGGER_PULL_NONE,
+    .glitch_output = GlitchOutput_None,
     .delay_before_pulse = 0,
     .pulse_width = 0};
 
@@ -50,28 +54,30 @@ void glitcher_init() {
 
   // gpio_init(ADC_CB_PIN);
   // gpio_set_dir(ADC_CB_PIN, GPIO_IN);
+
+  glitcher_set_default_config();
 }
 
-/**
- * @brief Configure the glitcher with default params for testing
- */
-void glitcher_test_configure() {
-  glitcher.configured = true;
-  glitcher.trigger_type = TriggersType_TRIGGER_RISING_EDGE;
-  glitcher.glitch_output = GlitchOutput_OUT_EXT1;
-  glitcher.delay_before_pulse = 1000;  // 1000 cycles
-  glitcher.pulse_width = 2500;  // 10 us (2500 cycles at 250MHz)
+void glitcher_set_default_config() {
+  glitcher_set_config(TriggersType_TRIGGER_RISING_EDGE, GlitchOutput_LP, 1000, 2500);
 }
 
-void glitcher_configure(TriggersType trigger_type, GlitchOutput_t glitch_output, uint32_t delay, uint32_t pulse) {
-  glitcher.configured = true;
+void glitcher_set_config(TriggersType trigger_type, GlitchOutput_t glitch_output, uint32_t delay, uint32_t pulse) {
   glitcher.trigger_type = trigger_type;
   glitcher.glitch_output = glitch_output;
   glitcher.delay_before_pulse = delay;
   glitcher.pulse_width = pulse;
 }
 
-bool glitcher_simple_setup() {
+void glitcher_get_config(struct glitcher_configuration* config) {
+  config->trigger_type = glitcher.trigger_type;
+  config->trigger_pull_configuration = glitcher.trigger_pull_configuration;
+  config->glitch_output = glitcher.glitch_output;
+  config->delay_before_pulse = glitcher.delay_before_pulse;
+  config->pulse_width = glitcher.pulse_width;
+}
+
+bool glitcher_configure() {
   struct ft_pio_program program = {0};
   ft_pio_program_init(&program);
   pio_sm_config c = pio_get_default_sm_config();
@@ -124,11 +130,25 @@ bool glitcher_simple_setup() {
   ft_pio_add_program(&program);
 
   // Configure trigger input
-  gpio_init(GLITCHER_TRIGGER_PIN);
-  gpio_pull_down(GLITCHER_TRIGGER_PIN);
-  sm_config_set_in_pins(&c, GLITCHER_TRIGGER_PIN);
-  pio_gpio_init(pio0, GLITCHER_TRIGGER_PIN);
-  pio_sm_set_consecutive_pindirs(pio0, 0, GLITCHER_TRIGGER_PIN, 1, false);
+  if (glitcher.trigger_type != TriggersType_TRIGGER_NONE) {
+    int trigger_pin = GLITCHER_TRIGGER_PIN;
+
+    switch (glitcher.trigger_pull_configuration) {
+      case TriggerPullConfiguration_TRIGGER_PULL_NONE:
+        gpio_disable_pulls(trigger_pin);
+        break;
+      case TriggerPullConfiguration_TRIGGER_PULL_UP:
+        gpio_pull_up(trigger_pin);
+        break;
+      case TriggerPullConfiguration_TRIGGER_PULL_DOWN:
+        gpio_pull_down(trigger_pin);
+        break;
+    }
+
+    sm_config_set_in_pins(&c, trigger_pin);
+    pio_gpio_init(pio0, trigger_pin);
+    pio_sm_set_consecutive_pindirs(pio0, 0, trigger_pin, 1, false);
+  }
 
   if (glitcher.glitch_output != GlitchOutput_None) {
     sm_config_set_set_pins(&c, GLITCHER_LP_GLITCH_PIN, GPIO_OUT);
@@ -151,7 +171,7 @@ void capture_adc() {
 
 void glitcher_run() {
   pio_clear_instruction_memory(pio0);
-  glitcher_simple_setup();
+  glitcher_configure();
 
   // Ready LED
   gpio_put(PIN_LED1, 1);

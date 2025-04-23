@@ -9,26 +9,50 @@
 
 #include "faultier.pb.h"
 
-#define GLITCHER_TRIGGER_PIN 8
-#define GLITCHER_LP_GLITCH_PIN 16
-#define GLITCHER_HP_GLITCH_PIN 17
-
 typedef enum _GlitchOutput_t {
-  GlitchOutput_LP = GLITCHER_LP_GLITCH_PIN,
-  GlitchOutput_HP = GLITCHER_HP_GLITCH_PIN,
   GlitchOutput_None = 0,
+  GlitchOutput_LP,
+  GlitchOutput_HP,
 } GlitchOutput_t;
 
 struct glitcher_configuration {
-  bool configured;
   TriggersType trigger_type;
+  TriggerPullConfiguration trigger_pull_configuration;
   GlitchOutput_t glitch_output;
   uint32_t delay_before_pulse;
   uint32_t pulse_width;
 };
 
 void glitcher_init();
-void glitcher_test_configure();
-void glitcher_configure(TriggersType trigger_type, GlitchOutput_t glitch_output, uint32_t delay, uint32_t pulse);
-bool glitcher_simple_setup();
+
+/**
+ * @brief Configure the glitcher with default params
+ */
+void glitcher_set_default_config();
+
+/**
+ * @brief Configure the glitcher with custom params
+ * @param trigger_type The trigger type
+ * @param glitch_output The glitch output
+ * @param delay The delay before the pulse
+ * @param pulse The pulse width
+ */
+void glitcher_set_config(TriggersType trigger_type, GlitchOutput_t glitch_output, uint32_t delay, uint32_t pulse);
+
+/**
+ * @brief Get the current glitcher configuration
+ * @param config The configuration struct to fill
+ */
+void glitcher_get_config(struct glitcher_configuration* config);
+
+bool glitcher_configure();
+
+/**
+ * @brief Execute the glitcher
+ * @details This function will setup the glitcher and execute it
+ *
+ * @note This function will block until the glitch is done or timed out
+ *
+ * @return void
+ */
 void glitcher_run();
