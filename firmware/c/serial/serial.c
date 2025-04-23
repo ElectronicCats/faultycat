@@ -10,6 +10,7 @@
 
 #include "blueTag.h"
 #include "glitcher.h"
+#include "glitcher_commands.h"
 
 static char serial_buffer[256];
 static char last_command[256];
@@ -305,6 +306,11 @@ bool handle_command(char* command) {
     return true;
   }
 
+  if (strcmp(command, "cg") == 0 || strcmp(command, "configure_glitcher") == 0) {
+    glitcher_commands_configure();
+    return true;
+  }
+
   return false;
 }
 
@@ -344,6 +350,7 @@ void serial_console() {
       printf("- [sw]d_scan\n");
       printf("- [pp] Enable/disable pin pulsing\n");
       printf("- [g]litch\n");
+      printf("- [cg] Configure glitcher\n");
     }
     printf("\n");
 

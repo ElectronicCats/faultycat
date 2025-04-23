@@ -45,6 +45,7 @@ target_sources(faultycat PRIVATE
         serial/serial.c
         serial/serial_utils.c
         glitcher/glitcher.c
+        glitcher/glitcher_commands.c
         # Add faultier sources
         # faultier/faultier/pio/pio_spi.c
         # faultier/faultier/pio/pio_i2c.c

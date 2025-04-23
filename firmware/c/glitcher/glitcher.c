@@ -1,10 +1,8 @@
 #include "glitcher.h"
 
 #include "delay_compiler.h"
-#include "faultier.pb.h"
 #include "ft_pio.h"
 #include "glitch_compiler.h"
-#include "power_cycler.h"
 #include "trigger_compiler.h"
 
 #include <stdio.h>
@@ -26,32 +24,12 @@
 #define PIO_IRQ_TRIGGERED 0
 #define PIO_IRQ_GLITCHED 1
 
-#define GLITCHER_TRIGGER_PIN 8
-#define GLITCHER_LP_GLITCH_PIN 16
-#define GLITCHER_HP_GLITCH_PIN 17
-
-typedef enum _GlitchOutput_t {
-  GlitchOutput_LP = GLITCHER_LP_GLITCH_PIN,
-  GlitchOutput_HP = GLITCHER_HP_GLITCH_PIN,
-  GlitchOutput_None = 0,
-} GlitchOutput_t;
-
-struct glitcher_configuration {
-  bool configured;
-  TriggersType trigger_type;
-  GlitchOutput_t glitch_output;
-  uint32_t delay;
-  uint32_t pulse;
-  TriggerPullConfiguration trigger_pull_configuration;
-};
-
 struct glitcher_configuration glitcher = {
     .configured = false,
     .trigger_type = TriggersType_TRIGGER_NONE,
     .glitch_output = GlitchOutput_LP,
-    .delay = 0,
-    .pulse = 0,
-    .trigger_pull_configuration = TriggerPullConfiguration_TRIGGER_PULL_NONE};
+    .delay_before_pulse = 0,
+    .pulse_width = 0};
 
 void glitcher_init() {
   // Initialize GPIO pins
@@ -81,10 +59,16 @@ void glitcher_test_configure() {
   glitcher.configured = true;
   glitcher.trigger_type = TriggersType_TRIGGER_RISING_EDGE;
   glitcher.glitch_output = GlitchOutput_OUT_EXT1;
-  glitcher.delay = 1000;  // 1000 cycles
-  // glitcher.pulse = 100;   // 100 cycles
-  glitcher.pulse = 2500;  // 10 us (2500 cycles at 250MHz)
-  glitcher.trigger_pull_configuration = TriggerPullConfiguration_TRIGGER_PULL_DOWN;
+  glitcher.delay_before_pulse = 1000;  // 1000 cycles
+  glitcher.pulse_width = 2500;  // 10 us (2500 cycles at 250MHz)
+}
+
+void glitcher_configure(TriggersType trigger_type, GlitchOutput_t glitch_output, uint32_t delay, uint32_t pulse) {
+  glitcher.configured = true;
+  glitcher.trigger_type = trigger_type;
+  glitcher.glitch_output = glitch_output;
+  glitcher.delay_before_pulse = delay;
+  glitcher.pulse_width = pulse;
 }
 
 bool glitcher_simple_setup() {
@@ -165,24 +149,6 @@ void prepare_adc() {
 void capture_adc() {
 }
 
-/**
- * @brief Create a square wave on the glitch pin
- *
- * @param glitch_pin Pin to use for the glitch
- * @param glitch_width Width of the glitch in cycles
- */
-void glitch_test(int glitch_pin, int glitch_width) {
-  gpio_init(glitch_pin);
-  gpio_set_dir(glitch_pin, GPIO_OUT);
-
-  while (1) {
-    gpio_put(glitch_pin, 1);
-    sleep_us(glitch_width);
-    gpio_put(glitch_pin, 0);
-    sleep_us(glitch_width);
-  }
-}
-
 void glitcher_run() {
   pio_clear_instruction_memory(pio0);
   glitcher_simple_setup();
@@ -191,13 +157,13 @@ void glitcher_run() {
   gpio_put(PIN_LED1, 1);
 
   // delay
-  pio_sm_put_blocking(pio0, 0, glitcher.delay);
+  pio_sm_put_blocking(pio0, 0, glitcher.delay_before_pulse);
 
   prepare_adc();
   // pulse
   if (glitcher.glitch_output != GlitchOutput_None) {
     printf("Glitching...\n");
-    pio_sm_put_blocking(pio0, 0, glitcher.pulse);
+    pio_sm_put_blocking(pio0, 0, glitcher.pulse_width);
   }
 
   // Trigger timeout. Ca. 1 second currently.
@@ -249,63 +215,4 @@ void glitcher_run() {
   pio_clear_instruction_memory(pio0);
   gpio_put(PIN_LED1, 0);
   gpio_put(PIN_LED2, 0);
-}
-
-/**
- * @brief Run the glitcher with the given parameters - do not call this
- * @param delay Delay in cycles
- * @param pulse_width Pulse width in cycles
- * @param trigger_pin Trigger pin number
- * @param glitch_pin Glitch pin number
- * @return true if successful, false otherwise
- */
-bool glitcher_simple_run(uint delay, uint pulse_width, int trigger_pin, int glitch_pin) {
-  // Initialize PIO program
-  struct ft_pio_program program = {0};
-  ft_pio_program_init(&program);
-  pio_sm_config c = pio_get_default_sm_config();
-
-  // Configure trigger input
-  gpio_init(trigger_pin);
-  gpio_set_dir(trigger_pin, GPIO_IN);
-  sm_config_set_in_pins(&c, trigger_pin);
-  pio_gpio_init(pio0, trigger_pin);
-  pio_sm_set_consecutive_pindirs(pio0, 0, trigger_pin, 1, false);
-
-  // Configure glitch output
-  gpio_init(glitch_pin);
-  gpio_set_dir(glitch_pin, GPIO_OUT);
-  sm_config_set_set_pins(&c, glitch_pin, 1);
-  pio_gpio_init(pio0, glitch_pin);
-  pio_sm_set_consecutive_pindirs(pio0, 0, glitch_pin, 1, true);
-
-  // Setup trigger detection (rising edge)
-  trigger_rising(&program);
-
-  // Add trigger IRQ
-  uint inst = pio_encode_irq_set(0, PIO_IRQ_TRIGGERED);
-  ft_pio_program_add_inst(&program, inst);
-
-  // Add delay
-  delay_regular(&program);
-
-  // Add glitch pulse
-  glitcher_simple(&program);
-
-  // Add completion IRQ
-  inst = pio_encode_irq_set(0, PIO_IRQ_GLITCHED);
-  ft_pio_program_add_inst(&program, inst);
-
-  // Load program
-  ft_pio_add_program(&program);
-
-  pio_sm_init(pio0, 0, program.loaded_offset, &c);
-
-  pio_sm_set_enabled(pio0, 0, true);
-
-  // Set delay and pulse width
-  pio_sm_put_blocking(pio0, 0, delay);
-  pio_sm_put_blocking(pio0, 0, pulse_width);
-
-  return true;
 }
