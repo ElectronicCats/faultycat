@@ -109,9 +109,6 @@ int main() {
     pulse_delay_cycles = PULSE_DELAY_CYCLES_DEFAULT;
     pulse_time_cycles = PULSE_TIME_CYCLES_DEFAULT;
 
-    sleep_ms(1000);
-    printf("Configuring glitcher...\n");
-
     // glitch_test(16, 100);
 
     glitcher_init();
