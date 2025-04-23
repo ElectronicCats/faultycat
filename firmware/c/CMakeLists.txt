@@ -42,7 +42,6 @@ target_sources(faultycat PRIVATE
         main.c
         # faultier/main.c
         picoemp.c
-        faultier_test.c
         serial/serial.c
         serial/serial_utils.c
         glitcher/glitcher.c
