@@ -20,29 +20,37 @@ int stringToInt(char* str) {
   return 0;
 }
 
-int getIntFromSerial(void) {
-  char strg[3] = {0, 0, 0};
-  char chr;
-  int lp = 0;
-  int value = 0;
-  chr = getc(stdin);
-  printf("%c", chr);
-  if (chr == CR || chr == LF || chr < 48 || chr > 57) {
-    value = 0;
-  } else if (chr > 49) {
-    strg[0] = chr;
-    value = stringToInt(strg);
-  } else {
-    strg[0] = chr;
-    chr = getc(stdin);
-    printf("%c", chr);
-    if (chr == CR || chr == LF || chr < 48 || chr > 57) {
-      strg[1] = 0;
-    } else {
-      strg[1] = chr;
-    }
-    value = stringToInt(strg);
+int getIntFromSerial(uint8_t max_digits) {
+  // Ensure max_digits is reasonable
+  if (max_digits < 1) {
+    max_digits = 1;
+  } else if (max_digits > 10) {  // Prevent int overflow (max 32-bit int is 10 digits)
+    max_digits = 10;
   }
+  
+  char strg[11] = {0}; // Max 10 digits for 32-bit int, plus null terminator
+  char chr;
+  int index = 0;
+  int value = 0;
+  
+  // Read characters one by one
+  while (index < max_digits) {
+    chr = getc(stdin);
+    printf("%c", chr); // Echo the character
+    
+    // Stop if CR, LF, or non-digit
+    if (chr == CR || chr == LF || chr < '0' || chr > '9') {
+      break;
+    }
+    
+    // Add the digit to our string
+    strg[index] = chr;
+    index++;
+  }
+  
+  // Convert to integer
+  value = stringToInt(strg);
+  
   printf("\n");
-  return (value);
+  return value;
 }

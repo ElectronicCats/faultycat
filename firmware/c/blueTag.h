@@ -107,10 +107,10 @@ void printProgress(size_t count, size_t max) {
 int getChannels(void) {
   int x;
   printf("     Enter number of channels hooked up (Min 4, Max %d): ", maxChannels);
-  x = getIntFromSerial();
+  x = getIntFromSerial(1);
   while (x < 4 || x > maxChannels) {
     printf("     Enter a valid value: ");
-    x = getIntFromSerial();
+    x = getIntFromSerial(1);
   }
   printf("     Number of channels set to: %d\n\n", x);
   return (x);
@@ -571,10 +571,10 @@ bool swdDeviceFound = false;
 int getSwdChannels(void) {
   char x;
   printf("     Enter number of channels hooked up (Min 2, Max %d): ", maxChannels);
-  x = getIntFromSerial();
+  x = getIntFromSerial(1);
   while (x < 2 || x > maxChannels) {
     printf("     Enter a valid value: ");
-    x = getIntFromSerial();
+    x = getIntFromSerial(1);
   }
   printf("     Number of channels set to: %d\n\n", x);
   return (x);

@@ -58,10 +58,10 @@ void glitcher_commands_configure() {
   printf("     5: Pulse Positive\n");
   printf("     6: Pulse Negative\n");
   printf("     > ");
-  int trigger_type_int = getIntFromSerial();
+  int trigger_type_int = getIntFromSerial(1);
   while (trigger_type_int < 0 || trigger_type_int > 6) {
     printf("     Enter a valid value: ");
-    trigger_type_int = getIntFromSerial();
+    trigger_type_int = getIntFromSerial(1);
   }
   TriggersType trigger_type = (TriggersType)trigger_type_int;
   printf("     Trigger type set to: ", trigger_type_int);
@@ -72,28 +72,28 @@ void glitcher_commands_configure() {
   printf("     1: LP\n");
   printf("     2: HP\n");
   printf("     > ");
-  int glitch_output_int = getIntFromSerial();
+  int glitch_output_int = getIntFromSerial(1);
   while (glitch_output_int < 0 || glitch_output_int > 2) {
     printf("     Enter a valid value: ");
-    glitch_output_int = getIntFromSerial();
+    glitch_output_int = getIntFromSerial(1);
   }
   GlitchOutput_t glitch_output = (GlitchOutput_t)glitch_output_int;
   printf("     Glitch output set to: ", glitch_output_int);
   print_glitch_output(glitch_output);
 
   printf("     Enter delay before pulse (in cycles): ");
-  int delay_before_pulse = getIntFromSerial();
+  int delay_before_pulse = getIntFromSerial(10);
   while (delay_before_pulse < 0) {
     printf("     Enter a valid value: ");
-    delay_before_pulse = getIntFromSerial();
+    delay_before_pulse = getIntFromSerial(10);
   }
   printf("     Delay before pulse set to: %d cycles\n", delay_before_pulse);
 
   printf("     Enter pulse width (in cycles): ");
-  int pulse_width = getIntFromSerial();
+  int pulse_width = getIntFromSerial(10);
   while (pulse_width < 0) {
     printf("     Enter a valid value: ");
-    pulse_width = getIntFromSerial();
+    pulse_width = getIntFromSerial(10);
   }
   printf("     Pulse width set to: %d cycles\n", pulse_width);
   printf("     Configuring glitcher...\n");
