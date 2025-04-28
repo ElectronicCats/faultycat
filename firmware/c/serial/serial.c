@@ -59,35 +59,41 @@ bool handle_toggle_gp1();
 bool handle_status();
 bool handle_reset();
 
+// Category
+#define CAT_FAULT_INJECTION "Fault Injection"
+#define CAT_GLITCH "Glitch"
+#define CAT_PINOUT_SCAN "SWD/JTAG Scan"
+#define CAT_SYSTEM "System"
+
 // Command registry
 static const command_t commands[] = {
     // Fault Injection Commands
-    {"arm", "a", "Arm the device for fault injection", handle_arm, "Fault Injection"},
-    {"disarm", "d", "Disarm the device", handle_disarm, "Fault Injection"},
-    {"pulse", "p", "Send a fault injection pulse", handle_pulse, "Fault Injection"},
-    {"enable_timeout", "en", "Enable timing protection", handle_enable_timeout, "Fault Injection"},
-    {"disable_timeout", "di", "Disable timing protection", handle_disable_timeout, "Fault Injection"},
-    {"fast_trigger", "f", "Execute fast trigger sequence", handle_fast_trigger, "Fault Injection"},
-    {"fast_trigger_configure", "fa", "Configure delay and time cycles", handle_fast_trigger_configure, "Fault Injection"},
-    {"internal_hvp", "in", "Use internal high voltage pulse", handle_internal_hvp, "Fault Injection"},
-    {"external_hvp", "ex", "Use external high voltage pulse", handle_external_hvp, "Fault Injection"},
-    {"configure", "c", "Set pulse time and power", handle_configure, "Fault Injection"},
+    {"arm", "a", "Arm the device for fault injection", handle_arm, CAT_FAULT_INJECTION},
+    {"disarm", "d", "Disarm the device", handle_disarm, CAT_FAULT_INJECTION},
+    {"pulse", "p", "Send a fault injection pulse", handle_pulse, CAT_FAULT_INJECTION},
+    {"enable_timeout", "en", "Enable timing protection", handle_enable_timeout, CAT_FAULT_INJECTION},
+    {"disable_timeout", "di", "Disable timing protection", handle_disable_timeout, CAT_FAULT_INJECTION},
+    {"fast_trigger", "f", "Execute fast trigger sequence", handle_fast_trigger, CAT_FAULT_INJECTION},
+    {"fast_trigger_configure", "fa", "Configure delay and time cycles", handle_fast_trigger_configure, CAT_FAULT_INJECTION},
+    {"internal_hvp", "in", "Use internal high voltage pulse", handle_internal_hvp, CAT_FAULT_INJECTION},
+    {"external_hvp", "ex", "Use external high voltage pulse", handle_external_hvp, CAT_FAULT_INJECTION},
+    {"configure", "c", "Set pulse time and power", handle_configure, CAT_FAULT_INJECTION},
 
     // Glitch Commands
-    {"glitch", "g", "Execute configured glitch", handle_glitch, "Glitch"},
-    {"configure_glitcher", "cg", "Configure glitcher parameters", handle_configure_glitcher, "Glitch"},
-    {"glitcher_status", "gs", "Show glitcher configuration", handle_glitcher_status, "Glitch"},
+    {"glitch", "g", "Execute configured glitch", handle_glitch, CAT_GLITCH},
+    {"configure glitcher", "co", "Configure glitcher parameters", handle_configure_glitcher, CAT_GLITCH},
+    {"glitcher_status", "gs", "Show glitcher configuration", handle_glitcher_status, CAT_GLITCH},
 
     // Pinout Scan Commands
-    {"jtag_scan", "j", "Scan for JTAG pinout", handle_jtag_scan, "Pinout Scan"},
-    {"swd_scan", "sw", "Scan for SWD pinout", handle_swd_scan, "Pinout Scan"},
-    {"pin_pulsing", "pp", "Enable/disable pin pulsing", handle_pin_pulsing, "Pinout Scan"},
+    {"jtag_scan", "j", "Scan for JTAG pinout", handle_jtag_scan, CAT_PINOUT_SCAN},
+    {"swd_scan", "sw", "Scan for SWD pinout", handle_swd_scan, CAT_PINOUT_SCAN},
+    {"pin pulsing", "pi", "Enable/disable pin pulsing", handle_pin_pulsing, CAT_PINOUT_SCAN},
 
     // System Commands
-    {"help", "h", "Show this help menu", handle_help, "System"},
-    {"toggle_gp1", "t", "Toggle GPIO pin 1", handle_toggle_gp1, "System"},
-    {"status", "s", "Show device status", handle_status, "System"},
-    {"reset", "r", "Reset the device", handle_reset, "System"},
+    {"help", "h", "Show the help menu", handle_help, CAT_SYSTEM},
+    {"toggle_gp1", "t", "Toggle GPIO pin 1", handle_toggle_gp1, CAT_SYSTEM},
+    {"status", "s", "Show device status", handle_status, CAT_SYSTEM},
+    {"reset", "r", "Reset the device", handle_reset, CAT_SYSTEM},
 
     // End marker
     {NULL, NULL, NULL, NULL, NULL}};
@@ -383,10 +389,27 @@ bool handle_reset(void) {
   while (1) {
     // Wait for watchdog reset
   }
-  return true; // This will never be reached
+  return true;  // This will never be reached
+}
+
+void display_command_help(const char* command_name) {
+  // Find the command
+  for (int i = 0; commands[i].name != NULL; i++) {
+    if (strcmp(command_name, commands[i].name) == 0 ||
+        strcmp(command_name, commands[i].alias) == 0) {
+      printf("=== Command: %s ===\n", commands[i].name);
+      printf("Alias: %s\n", commands[i].alias);
+      printf("Category: %s\n", commands[i].category);
+      printf("Description: %s\n", commands[i].description);
+      return;
+    }
+  }
+
+  printf("Command '%s' not found. Type 'help' for a list of commands.\n", command_name);
 }
 
 bool handle_command(char* command) {
+  // Check for empty command (repeat last command)
   if (command[0] == 0 && last_command[0] != 0) {
     printf("Repeat previous command (%s)\n", last_command);
     return handle_command(last_command);
@@ -399,7 +422,25 @@ bool handle_command(char* command) {
     return false;  // Return false to show help menu
   }
 
-  // Find and execute the command
+  // Check for --help suffix
+  char base_command[256] = {0};
+  bool help_requested = false;
+
+  // Extract the base command if --help is present
+  char* help_suffix = strstr(command, " --help");
+  if (help_suffix != NULL) {
+    size_t base_len = help_suffix - command;
+    strncpy(base_command, command, base_len);
+    base_command[base_len] = '\0';
+    help_requested = true;
+  }
+
+  if (help_requested) {
+    display_command_help(base_command);
+    return true;
+  }
+
+  // Find and execute the command (existing code)
   for (int i = 0; commands[i].name != NULL; i++) {
     if (strcmp(command, commands[i].name) == 0 ||
         strcmp(command, commands[i].alias) == 0) {
@@ -426,14 +467,13 @@ void display_help() {
     }
 
     // Print the command
-    printf("- [%s]%-20s - %s\n",
+    printf("- [%s]%s\n",
            commands[i].alias,
-           commands[i].name + strlen(commands[i].alias),
-           commands[i].description);
+           commands[i].name + strlen(commands[i].alias));
   }
 
   printf("\n");
-  printf("- <empty>                  - Repeat last command\n");
+  printf("- <empt - Repeat last command\n");
 }
 
 void serial_console() {
