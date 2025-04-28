@@ -329,6 +329,9 @@ void serial_console() {
   pulse_delay_cycles = PULSE_DELAY_CYCLES_DEFAULT;
   pulse_time_cycles = PULSE_TIME_CYCLES_DEFAULT;
 
+  // BlueTag init
+  initChannels();
+
   while (1) {
     read_line();
     printf("\n");

@@ -6,9 +6,7 @@
 
 #include "picoemp.h"
 #include "serial.h"
-
 #include "trigger_basic.pio.h"
-// #include "faultier_test.h"
 #include "glitcher.h"
 
 static bool armed = false;
@@ -99,13 +97,7 @@ int main() {
 
   // Run serial-console on second core
   multicore_launch_core1(serial_console);
-
-  // bool success = simple_glitch_run(0, 0, PIN_IN_TRIGGER, PIN_OUT_HVPULSE);
-  // if(!success) {
-  //     printf("Failed to initialize glitcher\n");
-  //     return 1;
-  // }
-
+  
   pulse_time = PULSE_TIME_US_DEFAULT;
   pulse_power.f = PULSE_POWER_DEFAULT;
   pulse_delay_cycles = PULSE_DELAY_CYCLES_DEFAULT;
