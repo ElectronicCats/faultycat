@@ -50,17 +50,9 @@ function App() {
   const [responses, setResponses] = useState<string[]>([]);
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
   const responsesContainerRef = useRef<HTMLDivElement>(null);
-  const pollingRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetchSerialPorts();
-    
-    // Cleanup polling on unmount
-    return () => {
-      if (pollingRef.current !== null) {
-        window.clearInterval(pollingRef.current);
-      }
-    };
   }, []);
   
   // Auto-scroll to the bottom when new responses arrive
@@ -119,13 +111,6 @@ function App() {
       
       // Clear old responses
       setResponses([]);
-      
-      // Start polling for responses
-      if (pollingRef.current !== null) {
-        window.clearInterval(pollingRef.current);
-      }
-      
-      pollingRef.current = window.setInterval(fetchSerialResponses, 100); // Poll every 100ms
     } catch (error) {
       console.error("Connection error:", error);
       setMessage({text: `Connection error: ${error}`, severity: 'error'});
@@ -137,13 +122,6 @@ function App() {
   const handleDisconnect = async () => {
     try {
       setConnecting(true);
-      
-      // Stop polling
-      if (pollingRef.current !== null) {
-        window.clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-      
       const result = await invoke<string>("disconnect_serial");
       setConnected(false);
       setMessage({text: result, severity: 'success'});
@@ -159,8 +137,12 @@ function App() {
     if (!connected || !command) return;
     
     try {
+      
       setSendingCommand(true);
-      const result = await invoke<string>("send_command", { command });
+      const result = await invoke<string>("send_command_with_read", { 
+        command,
+        readDurationMs: 2000
+      });
       setMessage({text: result, severity: 'success'});
       // Clear command after sending
       setCommand("");
@@ -198,7 +180,6 @@ function App() {
       }
     } catch (error) {
       console.error("Error fetching responses:", error);
-      // We don't show an error message for each polling failure to avoid spamming the user
     }
   };
   

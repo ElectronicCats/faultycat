@@ -4,8 +4,9 @@ use std::sync::Mutex;
 use std::time::Duration;
 use std::io::{self, Read};
 use std::collections::VecDeque;
-
-mod test_serial;
+use std::time::Instant;
+use std::thread;
+use std::sync::{Arc, Mutex as StdMutex};
 
 // Struct to manage the serial connection with response buffer
 struct SerialConnection {
@@ -181,10 +182,94 @@ fn read_serial_response(state: tauri::State<'_, Mutex<SerialConnection>>) -> Res
     Ok(connection.response_buffer.iter().cloned().collect())
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    // test_serial::run_serial_test();
+#[tauri::command]
+fn send_command_with_read(
+    state: tauri::State<'_, Mutex<SerialConnection>>,
+    command: &str, 
+    read_duration_ms: u64
+) -> Result<String, String> {
+    // First send the command
+    let result = send_command(state.clone(), command)?;
     
+    // Create a thread-safe copy of the port and a separate response buffer
+    let port_mutex = Arc::new(StdMutex::new(None));
+    let response_buffer = Arc::new(StdMutex::new(Vec::new()));
+    
+    // Get the port from the state and store it in our thread-safe container
+    {
+        let mut connection = state.lock().map_err(|e| e.to_string())?;
+        if let Some(port) = connection.port.take() {
+            *port_mutex.lock().unwrap() = Some(port);
+        } else {
+            return Err("Not connected to any port".to_string());
+        }
+    }
+    
+    // Clone for the thread
+    let port_for_thread = Arc::clone(&port_mutex);
+    let responses_for_thread = Arc::clone(&response_buffer);
+    
+    // Spawn thread to read for specified duration
+    thread::spawn(move || {
+        let start_time = Instant::now();
+        let duration = Duration::from_millis(read_duration_ms);
+        
+        while start_time.elapsed() < duration {
+            // Read from port
+            if let Some(port) = &mut *port_for_thread.lock().unwrap() {
+                let mut buffer = [0; 1024];
+                match port.read(&mut buffer) {
+                    Ok(bytes_read) if bytes_read > 0 => {
+                        if let Ok(data) = String::from_utf8(buffer[..bytes_read].to_vec()) {
+                            println!("Read data: {}", data);
+                            
+                            // Add to temporary response buffer
+                            if !data.trim().is_empty() {
+                                responses_for_thread.lock().unwrap().push(data);
+                            }
+                        }
+                    },
+                    Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
+                        // Timeout is normal, just continue
+                    },
+                    Err(e) => {
+                        eprintln!("Error reading from port: {}", e);
+                        break;
+                    },
+                    _ => {}
+                }
+            }
+            
+            // Sleep to prevent CPU hogging
+            thread::sleep(Duration::from_millis(50));
+        }
+        
+        println!("Finished reading after {}ms", read_duration_ms);
+    });
+
+    // Wait a moment to collect initial responses
+    thread::sleep(Duration::from_millis(100));
+    
+    // Transfer the collected responses to the state
+    {
+        let responses = response_buffer.lock().unwrap();
+        let mut connection = state.lock().map_err(|e| e.to_string())?;
+        
+        for response in responses.iter() {
+            connection.add_response(response.clone());
+        }
+        
+        // Return the port to the state
+        if let Some(port) = port_mutex.lock().unwrap().take() {
+            connection.port = Some(port);
+        }
+    }
+    
+    Ok(format!("{} (reading responses for {}ms)", result, read_duration_ms))
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {   
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Mutex::new(SerialConnection::new()))
@@ -193,7 +278,8 @@ pub fn run() {
             connect_serial,
             disconnect_serial,
             send_command,
-            read_serial_response
+            read_serial_response,
+            send_command_with_read
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
