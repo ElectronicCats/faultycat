@@ -22,11 +22,13 @@ project(faultycat)
 
 pico_sdk_init()
 
+
 # Add Nanopb support
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/faultier/nanopb/extra)
 find_package(Nanopb REQUIRED)
 
 add_executable(faultycat)
+target_compile_definitions(faultycat PUBLIC USBD_VID=0xCAFE USBD_PID=0xCAFE USBD_MANUFACTURER="Electronic Cats" USBD_PRODUCT="Faulty Cat")
 
 # Generate PIO headers
 pico_generate_pio_header(faultycat ${CMAKE_CURRENT_LIST_DIR}/trigger_basic.pio)
