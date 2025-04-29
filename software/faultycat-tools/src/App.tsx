@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import {
@@ -20,12 +20,14 @@ import {
   TextField,
   Alert,
   Snackbar,
-  Grid
+  Grid,
+  Divider
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SendIcon from "@mui/icons-material/Send";
 import UsbIcon from "@mui/icons-material/Usb";
 import UsbOffIcon from "@mui/icons-material/UsbOff";
+import ClearIcon from "@mui/icons-material/Clear";
 
 // Define interface to match Rust PortInfo struct
 interface PortInfo {
@@ -45,11 +47,28 @@ function App() {
   const [command, setCommand] = useState("");
   const [sendingCommand, setSendingCommand] = useState(false);
   const [message, setMessage] = useState<{text: string, severity: 'success' | 'error' | 'info' | 'warning'} | null>(null);
+  const [responses, setResponses] = useState<string[]>([]);
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
+  const responsesContainerRef = useRef<HTMLDivElement>(null);
+  const pollingRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetchSerialPorts();
+    
+    // Cleanup polling on unmount
+    return () => {
+      if (pollingRef.current !== null) {
+        window.clearInterval(pollingRef.current);
+      }
+    };
   }, []);
+  
+  // Auto-scroll to the bottom when new responses arrive
+  useEffect(() => {
+    if (responsesContainerRef.current) {
+      responsesContainerRef.current.scrollTop = responsesContainerRef.current.scrollHeight;
+    }
+  }, [responses]);
   
   const theme = useMemo(
     () =>
@@ -97,6 +116,16 @@ function App() {
       });
       setConnected(true);
       setMessage({text: result, severity: 'success'});
+      
+      // Clear old responses
+      setResponses([]);
+      
+      // Start polling for responses
+      if (pollingRef.current !== null) {
+        window.clearInterval(pollingRef.current);
+      }
+      
+      pollingRef.current = window.setInterval(fetchSerialResponses, 100); // Poll every 100ms
     } catch (error) {
       console.error("Connection error:", error);
       setMessage({text: `Connection error: ${error}`, severity: 'error'});
@@ -108,6 +137,13 @@ function App() {
   const handleDisconnect = async () => {
     try {
       setConnecting(true);
+      
+      // Stop polling
+      if (pollingRef.current !== null) {
+        window.clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      
       const result = await invoke<string>("disconnect_serial");
       setConnected(false);
       setMessage({text: result, severity: 'success'});
@@ -126,6 +162,8 @@ function App() {
       setSendingCommand(true);
       const result = await invoke<string>("send_command", { command });
       setMessage({text: result, severity: 'success'});
+      // Clear command after sending
+      setCommand("");
     } catch (error) {
       console.error("Command error:", error);
       setMessage({text: `Command error: ${error}`, severity: 'error'});
@@ -148,6 +186,24 @@ function App() {
     } finally {
       setSendingCommand(false);
     }
+  };
+  
+  const fetchSerialResponses = async () => {
+    if (!connected) return;
+    
+    try {
+      const newResponses = await invoke<string[]>("read_serial_response");
+      if (newResponses && newResponses.length > 0) {
+        setResponses(newResponses);
+      }
+    } catch (error) {
+      console.error("Error fetching responses:", error);
+      // We don't show an error message for each polling failure to avoid spamming the user
+    }
+  };
+  
+  const clearResponses = () => {
+    setResponses([]);
   };
 
   return (
@@ -251,73 +307,124 @@ function App() {
         </Paper>
 
         {connected && (
-          <Paper elevation={3} sx={{ p: 3 }}>
-            <Typography variant="h5" component="h2" gutterBottom>
-              FaultyCat Commands
-            </Typography>
-
-            <Typography variant="body1" gutterBottom>
-              Send a command to the FaultyCat device:
-            </Typography>
-
-            <Box sx={{ mb: 3 }}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={8}>
-                  <TextField
-                    fullWidth
-                    label="Command"
-                    value={command}
-                    onChange={(e) => setCommand(e.target.value)}
-                    helperText="Enter a command to send"
-                  />
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    color="primary"
-                    onClick={handleSendCommand}
-                    disabled={sendingCommand || !command}
-                    startIcon={sendingCommand ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
-                    sx={{ height: '56px' }}
-                  >
-                    {sendingCommand ? "Sending..." : "Send Command"}
-                  </Button>
-                </Grid>
-              </Grid>
-            </Box>
-
-            <Typography variant="h6" gutterBottom>
-              Quick Commands:
-            </Typography>
+          <>
+            <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+              <Typography variant="h5" component="h2" gutterBottom>
+                Device Output
+              </Typography>
+              
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+                <Button 
+                  variant="outlined" 
+                  color="secondary" 
+                  onClick={clearResponses}
+                  startIcon={<ClearIcon />}
+                >
+                  Clear Output
+                </Button>
+              </Box>
+              
+              <Box 
+                ref={responsesContainerRef}
+                sx={{ 
+                  height: '300px', 
+                  overflowY: 'auto', 
+                  p: 2, 
+                  bgcolor: 'background.default',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  fontFamily: 'monospace'
+                }}
+              >
+                {responses.map((response, index) => (
+                  <Typography key={index} component="div" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {response}
+                  </Typography>
+                ))}
+                {responses.length === 0 && (
+                  <Typography color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    No output yet. Try sending a command.
+                  </Typography>
+                )}
+              </Box>
+            </Paper>
             
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              <Button variant="outlined" onClick={() => sendQuickCommand("a")}>
-                Arm (a)
-              </Button>
-              <Button variant="outlined" onClick={() => sendQuickCommand("d")}>
-                Disarm (d)
-              </Button>
-              <Button variant="outlined" onClick={() => sendQuickCommand("p")}>
-                Pulse (p)
-              </Button>
-              <Button variant="outlined" onClick={() => sendQuickCommand("s")}>
-                Status (s)
-              </Button>
-              <Button variant="outlined" onClick={() => sendQuickCommand("h")}>
-                Help (h)
-              </Button>
-              <Button variant="outlined" onClick={() => sendQuickCommand("g")}>
-                Glitch (g)
-              </Button>
-              <Button variant="outlined" onClick={() => sendQuickCommand("j")}>
-                JTAG Scan (j)
-              </Button>
-              <Button variant="outlined" onClick={() => sendQuickCommand("c")}>
-                Configure (c)
-              </Button>
-            </Box>
-          </Paper>
+            <Paper elevation={3} sx={{ p: 3 }}>
+              <Typography variant="h5" component="h2" gutterBottom>
+                FaultyCat Commands
+              </Typography>
+
+              <Typography variant="body1" gutterBottom>
+                Send a command to the FaultyCat device:
+              </Typography>
+
+              <Box sx={{ mb: 3 }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={8}>
+                    <TextField
+                      fullWidth
+                      label="Command"
+                      value={command}
+                      onChange={(e) => setCommand(e.target.value)}
+                      helperText="Enter a command to send"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !sendingCommand && command) {
+                          handleSendCommand();
+                        }
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      color="primary"
+                      onClick={handleSendCommand}
+                      disabled={sendingCommand || !command}
+                      startIcon={sendingCommand ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+                      sx={{ height: '56px' }}
+                    >
+                      {sendingCommand ? "Sending..." : "Send Command"}
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Box>
+
+              <Divider sx={{ my: 2 }} />
+
+              <Typography variant="h6" gutterBottom>
+                Quick Commands:
+              </Typography>
+              
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Button variant="outlined" onClick={() => sendQuickCommand("a")}>
+                  Arm (a)
+                </Button>
+                <Button variant="outlined" onClick={() => sendQuickCommand("d")}>
+                  Disarm (d)
+                </Button>
+                <Button variant="outlined" onClick={() => sendQuickCommand("p")}>
+                  Pulse (p)
+                </Button>
+                <Button variant="outlined" onClick={() => sendQuickCommand("s")}>
+                  Status (s)
+                </Button>
+                <Button variant="outlined" onClick={() => sendQuickCommand("h")}>
+                  Help (h)
+                </Button>
+                <Button variant="outlined" onClick={() => sendQuickCommand("g")}>
+                  Glitch (g)
+                </Button>
+                <Button variant="outlined" onClick={() => sendQuickCommand("j")}>
+                  JTAG Scan (j)
+                </Button>
+                <Button variant="outlined" onClick={() => sendQuickCommand("c")}>
+                  Configure (c)
+                </Button>
+              </Box>
+            </Paper>
+          </>
         )}
       </Container>
     </ThemeProvider>

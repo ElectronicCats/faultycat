@@ -1,17 +1,34 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use serde::{Deserialize, Serialize};
-use serialport::SerialPortInfo;
 use std::sync::Mutex;
 use std::time::Duration;
+use std::io::{self, Read};
+use std::collections::VecDeque;
 
-// Struct to manage the serial connection
+mod test_serial;
+
+// Struct to manage the serial connection with response buffer
 struct SerialConnection {
     port: Option<Box<dyn serialport::SerialPort>>,
+    response_buffer: VecDeque<String>,
 }
 
 impl SerialConnection {
     fn new() -> Self {
-        SerialConnection { port: None }
+        SerialConnection { 
+            port: None,
+            response_buffer: VecDeque::with_capacity(100), // Keep last 100 messages
+        }
+    }
+
+    fn add_response(&mut self, response: String) {
+        // Add response to buffer, keeping it under capacity
+        if !response.trim().is_empty() {
+            self.response_buffer.push_back(response);
+            if self.response_buffer.len() > 100 {
+                self.response_buffer.pop_front();
+            }
+        }
     }
 }
 
@@ -22,11 +39,6 @@ pub struct PortInfo {
     manufacturer: Option<String>,
     product: Option<String>,
     serial_number: Option<String>,
-}
-
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
 #[tauri::command]
@@ -83,9 +95,10 @@ fn connect_serial(
 
     // Close any existing connection
     connection.port = None;
+    connection.response_buffer.clear();
 
     // Open a new connection
-    match serialport::new(port_name, 115200) // FaultyCat uses 921600 baud
+    match serialport::new(port_name, 115_200) // FaultyCat uses 115200 baud
         .timeout(Duration::from_millis(1000))
         .open()
     {
@@ -101,6 +114,7 @@ fn connect_serial(
 fn disconnect_serial(state: tauri::State<'_, Mutex<SerialConnection>>) -> Result<String, String> {
     let mut connection = state.lock().map_err(|e| e.to_string())?;
     connection.port = None;
+    connection.response_buffer.clear();
     Ok("Disconnected".to_string())
 }
 
@@ -113,10 +127,14 @@ fn send_command(
 
     match &mut connection.port {
         Some(port) => {
-            // Add a newline to the command (FaultyCat expects commands followed by newline)
-            let cmd = format!("{}\n", command);
+            // Use carriage return (\r) instead of newline (\n)
+            // FaultyCat firmware expects \r termination
+            let cmd = format!("{}\r", command);
             match port.write(cmd.as_bytes()) {
-                Ok(_) => Ok(format!("Sent command: {}", command)),
+                Ok(_) => {
+                    println!("Sent command: {}", command);
+                    Ok(format!("Sent command: {}", command))
+                },
                 Err(e) => Err(format!("Failed to send command: {}", e)),
             }
         }
@@ -124,17 +142,58 @@ fn send_command(
     }
 }
 
+#[tauri::command]
+fn read_serial_response(state: tauri::State<'_, Mutex<SerialConnection>>) -> Result<Vec<String>, String> {
+    let mut connection = state.lock().map_err(|e| e.to_string())?;
+    
+    // Check if port is connected
+    if let Some(port) = &mut connection.port {
+        // Buffer for reading data
+        let mut buffer = [0; 1024];
+        
+        // Try to read from the port
+        match port.read(&mut buffer) {
+            Ok(bytes_read) if bytes_read > 0 => {
+                // Convert the buffer to a string
+                if let Ok(data) = String::from_utf8(buffer[..bytes_read].to_vec()) {
+                    // We need to handle potentially partial lines and echoed commands
+                    for line in data.lines() {
+                        // Skip empty lines and filter out echoed commands
+                        // (this is a simple heuristic - we may need more complex filtering)
+                        let trimmed = line.trim();
+                        if !trimmed.is_empty() && !trimmed.starts_with('>') {
+                            connection.add_response(line.to_string());
+                        }
+                    }
+                }
+            }
+            Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
+                // Timeout is normal, just continue
+            }
+            Err(e) => {
+                return Err(format!("Error reading from port: {}", e));
+            }
+            _ => {}
+        }
+    }
+    
+    // Return the current buffer
+    Ok(connection.response_buffer.iter().cloned().collect())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // test_serial::run_serial_test();
+    
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Mutex::new(SerialConnection::new()))
         .invoke_handler(tauri::generate_handler![
-            greet,
             list_serial_ports,
             connect_serial,
             disconnect_serial,
-            send_command
+            send_command,
+            read_serial_response
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
