@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import {
@@ -34,6 +34,10 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [selectedPort, setSelectedPort] = useState<PortInfo | null>(null);
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
+
+  useEffect(() => {
+    fetchSerialPorts();
+  }, []);
   
   const theme = useMemo(
     () =>
