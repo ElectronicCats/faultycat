@@ -98,7 +98,7 @@ static const command_t commands[] = {
     // End marker
     {NULL, NULL, NULL, NULL, NULL}};
 
-void read_line() {
+void read_command() {
   memset(serial_buffer, 0, sizeof(serial_buffer));
   while (1) {
     int c = getchar();
@@ -152,7 +152,6 @@ void print_status(uint32_t status) {
   }
 }
 
-// Example handler for the arm command
 bool handle_arm(void) {
   multicore_fifo_push_blocking(cmd_arm);
   uint32_t result = multicore_fifo_pop_blocking();
@@ -164,7 +163,6 @@ bool handle_arm(void) {
   return true;
 }
 
-// Example handler for the disarm command
 bool handle_disarm(void) {
   multicore_fifo_push_blocking(cmd_disarm);
   uint32_t result = multicore_fifo_pop_blocking();
@@ -231,7 +229,7 @@ bool handle_fast_trigger_configure(void) {
   printf("  max = MAX_UINT32 = 4294967295 cycles = 34359ms\n");
 
   printf(" pulse_delay_cycles (current: %d, default: %d)?\n> ", pulse_delay_cycles, PULSE_DELAY_CYCLES_DEFAULT);
-  read_line();
+  read_command();
   printf("\n");
   if (serial_buffer[0] == 0)
     printf("Using default\n");
@@ -239,7 +237,7 @@ bool handle_fast_trigger_configure(void) {
     pulse_delay_cycles = strtoul(serial_buffer, unused, 10);
 
   printf(" pulse_time_cycles (current: %d, default: %d)?\n> ", pulse_time_cycles, PULSE_TIME_CYCLES_DEFAULT);
-  read_line();
+  read_command();
   printf("\n");
   if (serial_buffer[0] == 0)
     printf("Using default\n");
@@ -290,7 +288,7 @@ bool handle_external_hvp(void) {
 bool handle_configure(void) {
   char** unused;
   printf(" pulse_time (current: %d, default: %d)?\n> ", pulse_time, PULSE_TIME_US_DEFAULT);
-  read_line();
+  read_command();
   printf("\n");
   if (serial_buffer[0] == 0)
     printf("Using default\n");
@@ -298,7 +296,7 @@ bool handle_configure(void) {
     pulse_time = strtoul(serial_buffer, unused, 10);
 
   printf(" pulse_power (current: %f, default: %f)?\n> ", pulse_power.f, PULSE_POWER_DEFAULT);
-  read_line();
+  read_command();
   printf("\n");
   if (serial_buffer[0] == 0)
     printf("Using default");
@@ -473,7 +471,7 @@ void display_help() {
   }
 
   printf("\n");
-  printf("- <empt - Repeat last command\n");
+  printf("- <empty> - Repeat last command\n");
 }
 
 void serial_console() {
@@ -501,8 +499,7 @@ void serial_console() {
       printf(" > ");
     }
 
-    // Read command
-    read_line();
+    read_command();
     printf("\n");
 
     // Handle command (show help if command returns false)
