@@ -6,18 +6,17 @@ import {
   Typography,
   Button,
   Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Box,
   CircularProgress,
   ThemeProvider,
   createTheme,
   useMediaQuery,
-  CssBaseline
+  CssBaseline,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  SelectChangeEvent
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
@@ -33,7 +32,7 @@ interface PortInfo {
 function App() {
   const [serialPorts, setSerialPorts] = useState<PortInfo[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedPort, setSelectedPort] = useState<PortInfo | null>(null);
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
   
   const theme = useMemo(
@@ -51,13 +50,25 @@ function App() {
       setLoading(true);
       // Call our Rust function
       const ports = await invoke<PortInfo[]>("list_serial_ports");
-      setSerialPorts(ports);
+      // Filter for only USB ports
+      const usbPorts = ports.filter(port => 
+        port.port_type.toLowerCase().includes('usb')
+      );
+      setSerialPorts(usbPorts);
+      // Reset selection when refreshing ports
+      setSelectedPort(null);
     } catch (error) {
       console.error("Failed to fetch serial ports:", error);
     } finally {
       setLoading(false);
     }
   }
+  
+  const handlePortChange = (event: SelectChangeEvent) => {
+    const portName = event.target.value;
+    const port = serialPorts.find(p => p.name === portName) || null;
+    setSelectedPort(port);
+  };
 
   return (
     <ThemeProvider theme={theme}>
@@ -84,30 +95,35 @@ function App() {
           </Box>
 
           {serialPorts.length > 0 ? (
-            <TableContainer component={Paper} elevation={1} sx={{ mt: 2 }}>
-              <Table aria-label="serial ports table">
-                <TableHead>
-                  <TableRow sx={{ backgroundColor: 'primary.light' }}>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Type</TableCell>
-                    <TableCell>Manufacturer</TableCell>
-                    <TableCell>Product</TableCell>
-                    <TableCell>Serial Number</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+            <Box sx={{ mt: 2 }}>
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel id="port-select-label">Select Serial Port</InputLabel>
+                <Select
+                  labelId="port-select-label"
+                  id="port-select"
+                  value={selectedPort?.name || ''}
+                  label="Select Serial Port"
+                  onChange={handlePortChange}
+                >
                   {serialPorts.map((port, index) => (
-                    <TableRow key={index} sx={{ '&:nth-of-type(odd)': { backgroundColor: 'action.hover' } }}>
-                      <TableCell>{port.name}</TableCell>
-                      <TableCell>{port.port_type}</TableCell>
-                      <TableCell>{port.manufacturer || "N/A"}</TableCell>
-                      <TableCell>{port.product || "N/A"}</TableCell>
-                      <TableCell>{port.serial_number || "N/A"}</TableCell>
-                    </TableRow>
+                    <MenuItem key={index} value={port.name}>
+                      {port.name} - {port.manufacturer || "N/A"} {port.product ? `(${port.product})` : ""}
+                    </MenuItem>
                   ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                </Select>
+              </FormControl>
+              
+              {selectedPort && (
+                <Box sx={{ mt: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                  <Typography variant="h6" gutterBottom>Selected Port Details:</Typography>
+                  <Typography><strong>Name:</strong> {selectedPort.name}</Typography>
+                  <Typography><strong>Type:</strong> {selectedPort.port_type}</Typography>
+                  <Typography><strong>Manufacturer:</strong> {selectedPort.manufacturer || "N/A"}</Typography>
+                  <Typography><strong>Product:</strong> {selectedPort.product || "N/A"}</Typography>
+                  <Typography><strong>Serial Number:</strong> {selectedPort.serial_number || "N/A"}</Typography>
+                </Box>
+              )}
+            </Box>
           ) : (
             <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
               No serial ports found or click the button to list them.
