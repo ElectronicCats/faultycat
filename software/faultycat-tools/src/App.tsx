@@ -1,7 +1,20 @@
 import { useState } from "react";
-import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { 
+  Container, 
+  Typography, 
+  Button, 
+  Paper, 
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Box,
+  CircularProgress
+} from "@mui/material";
+import RefreshIcon from "@mui/icons-material/Refresh";
 
 // Define interface to match Rust PortInfo struct
 interface PortInfo {
@@ -13,15 +26,8 @@ interface PortInfo {
 }
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
   const [serialPorts, setSerialPorts] = useState<PortInfo[]>([]);
   const [loading, setLoading] = useState(false);
-
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
 
   async function fetchSerialPorts() {
     try {
@@ -37,76 +43,59 @@ function App() {
   }
 
   return (
-    <main className="container">
-      <h1>FaultyCat Tools</h1>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Typography variant="h3" component="h1" gutterBottom align="center">
+        FaultyCat Tools
+      </Typography>
 
-      <div className="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://reactjs.org" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-
-      <div className="card">
-        <h2>Serial Ports</h2>
-        <button onClick={fetchSerialPorts} disabled={loading}>
-          {loading ? "Loading..." : "List Serial Ports"}
-        </button>
+      <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, justifyContent: 'space-between' }}>
+          <Typography variant="h5" component="h2">
+            Serial Ports
+          </Typography>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            onClick={fetchSerialPorts} 
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <RefreshIcon />}
+          >
+            {loading ? "Loading..." : "List Serial Ports"}
+          </Button>
+        </Box>
         
         {serialPorts.length > 0 ? (
-          <div className="serial-ports">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>Manufacturer</th>
-                  <th>Product</th>
-                  <th>Serial Number</th>
-                </tr>
-              </thead>
-              <tbody>
+          <TableContainer component={Paper} elevation={1} sx={{ mt: 2 }}>
+            <Table aria-label="serial ports table">
+              <TableHead>
+                <TableRow sx={{ backgroundColor: 'primary.light' }}>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell>Manufacturer</TableCell>
+                  <TableCell>Product</TableCell>
+                  <TableCell>Serial Number</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {serialPorts.map((port, index) => (
-                  <tr key={index}>
-                    <td>{port.name}</td>
-                    <td>{port.port_type}</td>
-                    <td>{port.manufacturer || "N/A"}</td>
-                    <td>{port.product || "N/A"}</td>
-                    <td>{port.serial_number || "N/A"}</td>
-                  </tr>
+                  <TableRow key={index} sx={{ '&:nth-of-type(odd)': { backgroundColor: 'action.hover' } }}>
+                    <TableCell>{port.name}</TableCell>
+                    <TableCell>{port.port_type}</TableCell>
+                    <TableCell>{port.manufacturer || "N/A"}</TableCell>
+                    <TableCell>{port.product || "N/A"}</TableCell>
+                    <TableCell>{port.serial_number || "N/A"}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
         ) : (
-          <p>No serial ports found or click the button to list them.</p>
+          <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
+            No serial ports found or click the button to list them.
+          </Typography>
         )}
-      </div>
-
-      <div className="card">
-        <h2>Greeting Example</h2>
-        <form
-          className="row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            greet();
-          }}
-        >
-          <input
-            id="greet-input"
-            onChange={(e) => setName(e.currentTarget.value)}
-            placeholder="Enter a name..."
-          />
-          <button type="submit">Greet</button>
-        </form>
-        <p>{greetMsg}</p>
-      </div>
-    </main>
+      </Paper>
+    </Container>
   );
 }
 
