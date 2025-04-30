@@ -6,6 +6,8 @@
 #include "trigger_compiler.h"
 
 #include <stdio.h>
+#include "hardware/adc.h"
+#include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "pico/time.h"
@@ -13,13 +15,10 @@
 #define PIN_LED1 10
 #define PIN_LED2 9
 
-// ADC channels
-#define ADC_MUX_PIN 26
-#define ADC_EXT_PIN 27
-#define ADC_CB_PIN 28
-#define ADC_MUX 0
-#define ADC_EXT 1
-#define ADC_CB 2
+#define CAPTURE_DEPTH 30000
+#define ADC_DMA_CHANNEL 0
+#define ADC_PIN 29
+#define ADC_CHANNEL 3
 
 #define PIO_IRQ_TRIGGERED 0
 #define PIO_IRQ_GLITCHED 1
@@ -34,6 +33,9 @@ struct glitcher_configuration glitcher = {
     .glitch_output = GlitchOutput_None,
     .delay_before_pulse = 0,
     .pulse_width = 0};
+
+static uint8_t capture_buffer[CAPTURE_DEPTH];
+static uint32_t sample_count = 1000;  // Default sample count
 
 void glitcher_init() {
   // Initialize GPIO pins
@@ -163,10 +165,78 @@ bool glitcher_configure() {
   return true;
 }
 
+bool glitcher_set_adc_sample_count(uint32_t count) {
+  if (count > CAPTURE_DEPTH) {
+    printf("Sample count exceeds 30000 buffer size\n");
+    return false;
+  }
+  sample_count = count;
+  return true;
+}
+
+uint8_t* adc_get_capture_buffer() {
+  return capture_buffer;
+}
+
+uint32_t adc_get_sample_count() {
+  return sample_count;
+}
+
 void prepare_adc() {
+  // Init GPIO for analogue use: hi-Z, no pulls, disable digital input buffer
+  adc_gpio_init(ADC_PIN);
+
+  // Initialize ADC
+  adc_init();
+  adc_select_input(ADC_CHANNEL);
+
+  // Setup ADC FIFO
+  adc_fifo_setup(
+      true,   // Write each completed conversion to the sample FIFO
+      true,   // Enable DMA data request (DREQ)
+      1,      // DREQ (and IRQ) asserted when at least 1 sample present
+      false,  // We won't see the ERR bit because of 8 bit reads; disable.
+      true    // Shift each sample to 8 bits when pushing to FIFO
+  );
+
+  // Set full speed (no clock divider)
+  adc_set_clkdiv(0);
+
+  // Configure DMA to capture ADC samples
+  dma_channel_config cfg = dma_channel_get_default_config(ADC_DMA_CHANNEL);
+  channel_config_set_transfer_data_size(&cfg, DMA_SIZE_8);
+  channel_config_set_read_increment(&cfg, false);
+  channel_config_set_write_increment(&cfg, true);
+  channel_config_set_dreq(&cfg, DREQ_ADC);
+
+  dma_channel_configure(ADC_DMA_CHANNEL, &cfg,
+                        capture_buffer,  // dst
+                        &adc_hw->fifo,   // src
+                        sample_count,    // transfer count
+                        true             // start immediately
+  );
 }
 
 void capture_adc() {
+  // Start ADC
+  adc_run(true);
+
+  // Wait for DMA to complete
+  dma_channel_wait_for_finish_blocking(ADC_DMA_CHANNEL);
+
+  // Stop ADC and clean up FIFO
+  adc_run(false);
+  adc_fifo_drain();
+}
+
+static inline bool pio_interrupt_get_timeout_us(PIO pio, uint irq, uint timeout) {
+  uint32_t absolute_timeout = time_us_32() + timeout;
+  while (!pio_interrupt_get(pio, irq)) {
+    if (time_us_32() > absolute_timeout) {
+      return false;
+    }
+  }
+  return true;
 }
 
 void glitcher_run() {
@@ -229,7 +299,7 @@ void glitcher_run() {
   //       - run uart_task while glitching
 
   // Hardcoded 3 second timeout for glitcher, no error reporting
-  // pio_interrupt_get_timeout_us(pio0, PIO_IRQ_GLITCHED, 3000000);  // TODO: should it be here?
+  pio_interrupt_get_timeout_us(pio0, PIO_IRQ_GLITCHED, 3000000);  // TODO: should it be here?
   pio_interrupt_clear(pio0, PIO_IRQ_GLITCHED);
   pio_sm_set_enabled(pio0, 0, false);
   pio_clear_instruction_memory(pio0);

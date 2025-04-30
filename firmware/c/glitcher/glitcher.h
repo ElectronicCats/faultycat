@@ -48,6 +48,27 @@ void glitcher_get_config(struct glitcher_configuration* config);
 bool glitcher_configure();
 
 /**
+ * @brief Setup the ADC for capturing samples
+ * 
+ * @param count The number of samples to capture
+ * 
+ * @return true if the setup was successful, false otherwise
+ */
+bool glitcher_set_adc_sample_count(uint32_t count);
+
+/**
+ * @brief Get pointer to captured ADC data
+ * @return Pointer to the capture buffer
+ */
+uint8_t* adc_get_capture_buffer();
+
+/**
+* @brief Get current sample count setting
+* @return Current sample count
+*/
+uint32_t adc_get_sample_count();
+
+/**
  * @brief Execute the glitcher
  * @details This function will setup the glitcher and execute it
  *
