@@ -46,7 +46,7 @@ function App() {
   const [connected, setConnected] = useState(false);
   const [command, setCommand] = useState("");
   const [sendingCommand, setSendingCommand] = useState(false);
-  const [message, setMessage] = useState<{text: string, severity: 'success' | 'error' | 'info' | 'warning'} | null>(null);
+  const [message, setMessage] = useState<{ text: string, severity: 'success' | 'error' | 'info' | 'warning' } | null>(null);
   const [responses, setResponses] = useState<string[]>([]);
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
   const responsesContainerRef = useRef<HTMLDivElement>(null);
@@ -54,14 +54,14 @@ function App() {
   useEffect(() => {
     fetchSerialPorts();
   }, []);
-  
+
   // Auto-scroll to the bottom when new responses arrive
   useEffect(() => {
     if (responsesContainerRef.current) {
       responsesContainerRef.current.scrollTop = responsesContainerRef.current.scrollHeight;
     }
   }, [responses]);
-  
+
   const theme = useMemo(
     () =>
       createTheme({
@@ -78,7 +78,7 @@ function App() {
       // Call our Rust function
       const ports = await invoke<PortInfo[]>("list_serial_ports");
       // Filter for only USB ports
-      const usbPorts = ports.filter(port => 
+      const usbPorts = ports.filter(port =>
         port.port_type.toLowerCase().includes('usb')
       );
       setSerialPorts(usbPorts);
@@ -86,12 +86,12 @@ function App() {
       setSelectedPort(null);
     } catch (error) {
       console.error("Failed to fetch serial ports:", error);
-      setMessage({text: `Error: ${error}`, severity: 'error'});
+      setMessage({ text: `Error: ${error}`, severity: 'error' });
     } finally {
       setLoading(false);
     }
   }
-  
+
   const handlePortChange = (event: SelectChangeEvent) => {
     const portName = event.target.value;
     const port = serialPorts.find(p => p.name === portName) || null;
@@ -100,20 +100,20 @@ function App() {
 
   const handleConnect = async () => {
     if (!selectedPort) return;
-    
+
     try {
       setConnecting(true);
-      const result = await invoke<string>("connect_serial", { 
-        portName: selectedPort.name 
+      const result = await invoke<string>("connect_serial", {
+        portName: selectedPort.name
       });
       setConnected(true);
-      setMessage({text: result, severity: 'success'});
-      
+      setMessage({ text: result, severity: 'success' });
+
       // Clear old responses
       setResponses([]);
     } catch (error) {
       console.error("Connection error:", error);
-      setMessage({text: `Connection error: ${error}`, severity: 'error'});
+      setMessage({ text: `Connection error: ${error}`, severity: 'error' });
     } finally {
       setConnecting(false);
     }
@@ -124,10 +124,10 @@ function App() {
       setConnecting(true);
       const result = await invoke<string>("disconnect_serial");
       setConnected(false);
-      setMessage({text: result, severity: 'success'});
+      setMessage({ text: result, severity: 'success' });
     } catch (error) {
       console.error("Disconnection error:", error);
-      setMessage({text: `Disconnection error: ${error}`, severity: 'error'});
+      setMessage({ text: `Disconnection error: ${error}`, severity: 'error' });
     } finally {
       setConnecting(false);
     }
@@ -135,20 +135,20 @@ function App() {
 
   const handleSendCommand = async () => {
     if (!connected || !command) return;
-    
+
     try {
-      
+
       setSendingCommand(true);
-      const result = await invoke<string>("send_command_with_read", { 
+      const result = await invoke<string>("send_command_with_read", {
         command,
         readDurationMs: 2000
       });
-      setMessage({text: result, severity: 'success'});
+      setMessage({ text: result, severity: 'success' });
       // Clear command after sending
       setCommand("");
     } catch (error) {
       console.error("Command error:", error);
-      setMessage({text: `Command error: ${error}`, severity: 'error'});
+      setMessage({ text: `Command error: ${error}`, severity: 'error' });
     } finally {
       setSendingCommand(false);
     }
@@ -157,32 +157,19 @@ function App() {
   // Handle common FaultyCat commands
   const sendQuickCommand = async (cmd: string) => {
     if (!connected) return;
-    
+
     try {
       setSendingCommand(true);
       const result = await invoke<string>("send_command", { command: cmd });
-      setMessage({text: result, severity: 'success'});
+      setMessage({ text: result, severity: 'success' });
     } catch (error) {
       console.error("Command error:", error);
-      setMessage({text: `Command error: ${error}`, severity: 'error'});
+      setMessage({ text: `Command error: ${error}`, severity: 'error' });
     } finally {
       setSendingCommand(false);
     }
   };
-  
-  const fetchSerialResponses = async () => {
-    if (!connected) return;
-    
-    try {
-      const newResponses = await invoke<string[]>("read_serial_response");
-      if (newResponses && newResponses.length > 0) {
-        setResponses(newResponses);
-      }
-    } catch (error) {
-      console.error("Error fetching responses:", error);
-    }
-  };
-  
+
   const clearResponses = () => {
     setResponses([]);
   };
@@ -196,9 +183,9 @@ function App() {
         </Typography>
 
         {message && (
-          <Snackbar 
-            open={!!message} 
-            autoHideDuration={6000} 
+          <Snackbar
+            open={!!message}
+            autoHideDuration={6000}
             onClose={() => setMessage(null)}
           >
             <Alert severity={message.severity} onClose={() => setMessage(null)}>
@@ -242,7 +229,7 @@ function App() {
                   ))}
                 </Select>
               </FormControl>
-              
+
               {selectedPort && (
                 <>
                   <Box sx={{ mt: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
@@ -253,7 +240,7 @@ function App() {
                     <Typography><strong>Product:</strong> {selectedPort.product || "N/A"}</Typography>
                     <Typography><strong>Serial Number:</strong> {selectedPort.serial_number || "N/A"}</Typography>
                   </Box>
-                  
+
                   <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
                     {!connected ? (
                       <Button
@@ -293,24 +280,24 @@ function App() {
               <Typography variant="h5" component="h2" gutterBottom>
                 Device Output
               </Typography>
-              
+
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-                <Button 
-                  variant="outlined" 
-                  color="secondary" 
+                <Button
+                  variant="outlined"
+                  color="secondary"
                   onClick={clearResponses}
                   startIcon={<ClearIcon />}
                 >
                   Clear Output
                 </Button>
               </Box>
-              
-              <Box 
+
+              <Box
                 ref={responsesContainerRef}
-                sx={{ 
-                  height: '300px', 
-                  overflowY: 'auto', 
-                  p: 2, 
+                sx={{
+                  height: '300px',
+                  overflowY: 'auto',
+                  p: 2,
                   bgcolor: 'background.default',
                   border: '1px solid',
                   borderColor: 'divider',
@@ -330,7 +317,7 @@ function App() {
                 )}
               </Box>
             </Paper>
-            
+
             <Paper elevation={3} sx={{ p: 3 }}>
               <Typography variant="h5" component="h2" gutterBottom>
                 FaultyCat Commands
@@ -342,7 +329,7 @@ function App() {
 
               <Box sx={{ mb: 3 }}>
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={8}>
+                  <Grid size={{ xs: 12, sm: 8 }}>
                     <TextField
                       fullWidth
                       label="Command"
@@ -356,7 +343,7 @@ function App() {
                       }}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <Button
                       fullWidth
                       variant="contained"
@@ -377,7 +364,7 @@ function App() {
               <Typography variant="h6" gutterBottom>
                 Quick Commands:
               </Typography>
-              
+
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                 <Button variant="outlined" onClick={() => sendQuickCommand("a")}>
                   Arm (a)
