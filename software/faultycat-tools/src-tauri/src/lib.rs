@@ -209,10 +209,14 @@ fn send_command_with_read(
     let port_for_thread = Arc::clone(&port_mutex);
     let responses_for_thread = Arc::clone(&response_buffer);
     
+    // Use a channel to signal when the reading is complete
+    let (tx, rx) = std::sync::mpsc::channel();
+    
     // Spawn thread to read for specified duration
     thread::spawn(move || {
         let start_time = Instant::now();
         let duration = Duration::from_millis(read_duration_ms);
+        let mut combined_data = String::new();
         
         while start_time.elapsed() < duration {
             // Read from port
@@ -225,6 +229,7 @@ fn send_command_with_read(
                             
                             // Add to temporary response buffer
                             if !data.trim().is_empty() {
+                                combined_data.push_str(&data);
                                 responses_for_thread.lock().unwrap().push(data);
                             }
                         }
@@ -240,15 +245,16 @@ fn send_command_with_read(
                 }
             }
             
-            // Sleep to prevent CPU hogging
-            thread::sleep(Duration::from_millis(50));
+            // Sleep a shorter time to be more responsive
+            thread::sleep(Duration::from_millis(10));
         }
         
         println!("Finished reading after {}ms", read_duration_ms);
+        let _ = tx.send(());
     });
-
-    // Wait for the reading to complete
-    thread::sleep(Duration::from_millis(read_duration_ms + 50));
+    
+    // Wait for the reading thread to finish, with a timeout for safety
+    let _ = rx.recv_timeout(Duration::from_millis(read_duration_ms + 100));
     
     // Collect the responses and update the state
     let collected_data = {

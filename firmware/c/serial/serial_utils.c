@@ -1,5 +1,6 @@
 #include "serial_utils.h"
 
+#include <string.h>
 #include <stdio.h>
 
 #define CR 13
@@ -36,7 +37,11 @@ int getIntFromSerial(uint8_t max_digits) {
   // Read characters one by one
   while (index < max_digits) {
     chr = getc(stdin);
-    printf("%c", chr); // Echo the character
+
+    // If chr is \r
+    if (chr == CR && index == 0) {
+      continue;
+    }
     
     // Stop if CR, LF, or non-digit
     if (chr == CR || chr == LF || chr < '0' || chr > '9') {

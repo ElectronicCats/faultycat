@@ -218,45 +218,50 @@ function App() {
    */
   const submitGlitchConfig = async () => {
     if (!connected) return;
-
+  
     try {
       setConfiguring(true);
       setConfigResponse("");
-
+  
       // Send the initial configure glitcher command
-      const initialResponse = await invoke<string>("send_command_with_read", {
-        command: "co",
-        readDurationMs: 200
+      const initialResponse = await invoke<string>("send_command", {
+        command: "co"
+        // readDurationMs: 1000
       });
-
+  
       let fullResponse = initialResponse;
-
-      // Function to send a value and append response
-      const sendConfigValue = async (value, readDuration = 200) => {
-        const response = await invoke<string>("send_command_with_read", {
-          command: value,
-          readDurationMs: readDuration
+  
+      // Function to send a value after receiving a prompt
+      const sendConfigValue = async (value: string, readDuration = 1000) => {
+        // Wait longer to ensure device is ready for input
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const response = await invoke<string>("send_command", {
+          command: value
+          // readDurationMs: readDuration
         });
+        
         return response;
       };
-
-      // Send trigger type
-      fullResponse += await sendConfigValue(glitchConfig.triggerType);
-
-      // Send trigger pull configuration
-      fullResponse += await sendConfigValue(glitchConfig.triggerPull);
-
-      // Send glitch output
-      fullResponse += await sendConfigValue(glitchConfig.glitchOutput);
-
-      // Send delay before pulse
-      fullResponse += await sendConfigValue(glitchConfig.delayBeforePulse.toString());
-
-      // Send pulse width
-      fullResponse += await sendConfigValue(glitchConfig.pulseWidth.toString(), 500);
-
+  
+      // Send each configuration value with longer read durations
+      fullResponse += await sendConfigValue(glitchConfig.triggerType, 1000);
+      fullResponse += await sendConfigValue(glitchConfig.triggerPull, 1000);
+      fullResponse += await sendConfigValue(glitchConfig.glitchOutput, 1000);
+      fullResponse += await sendConfigValue(glitchConfig.delayBeforePulse.toString(), 1000);
+      fullResponse += await sendConfigValue(glitchConfig.pulseWidth.toString(), 2000);
+  
       setConfigResponse(fullResponse);
       setMessage({ text: "Glitch configuration completed successfully!", severity: 'success' });
+      
+      // Get the current configuration to verify
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const configStatus = await invoke<string>("send_command_with_read", {
+        command: "gl",
+        readDurationMs: 1000
+      });
+      setConfigResponse(fullResponse + "\n\n" + configStatus);
+      
     } catch (error) {
       console.error("Configuration error:", error);
       setMessage({ text: `Configuration error: ${error}`, severity: 'error' });
@@ -644,19 +649,6 @@ function App() {
                 </AccordionDetails>
               </Accordion>
 
-              {/* Add Execute Glitch button outside the accordion for quick access */}
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                <Button
-                  variant="contained"
-                  color="warning"
-                  onClick={executeGlitch}
-                  disabled={configuring || !connected}
-                  sx={{ mt: 2 }}
-                >
-                  Execute Glitch (g)
-                </Button>
-              </Box>
-
               {/* New ADC Configuration Accordion */}
               <Accordion sx={{ mt: 2 }}>
                 <AccordionSummary
@@ -751,6 +743,20 @@ function App() {
                   )}
                 </AccordionDetails>
               </Accordion>
+
+              {/* Add Execute Glitch button outside the accordion for quick access */}
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Button
+                  variant="contained"
+                  color="warning"
+                  onClick={executeGlitch}
+                  disabled={configuring || !connected}
+                  sx={{ mt: 2 }}
+                >
+                  Execute Glitch (g)
+                </Button>
+              </Box>
+
             </Paper>
           </>
         )}
