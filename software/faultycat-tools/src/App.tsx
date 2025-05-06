@@ -177,11 +177,18 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography variant="h3" component="h1" gutterBottom align="center">
-          FaultyCat Tools
-        </Typography>
-
+      <Container
+        maxWidth="lg"
+        disableGutters
+        sx={{
+          height: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'auto',
+          py: 2,
+          px: 2
+        }}
+      >
         {message && (
           <Snackbar
             open={!!message}
