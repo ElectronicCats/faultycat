@@ -58,6 +58,8 @@ bool handle_help();
 bool handle_toggle_gp1();
 bool handle_status();
 bool handle_reset();
+bool handle_configure_adc();
+bool handle_display_adc();
 
 // Category
 #define CAT_FAULT_INJECTION "Fault Injection"
@@ -71,27 +73,29 @@ static const command_t commands[] = {
     {"arm", "a", "Arm the device for fault injection", handle_arm, CAT_FAULT_INJECTION},
     {"disarm", "d", "Disarm the device", handle_disarm, CAT_FAULT_INJECTION},
     {"pulse", "p", "Send a fault injection pulse", handle_pulse, CAT_FAULT_INJECTION},
-    {"enable_timeout", "en", "Enable timing protection", handle_enable_timeout, CAT_FAULT_INJECTION},
-    {"disable_timeout", "di", "Disable timing protection", handle_disable_timeout, CAT_FAULT_INJECTION},
-    {"fast_trigger", "f", "Execute fast trigger sequence", handle_fast_trigger, CAT_FAULT_INJECTION},
-    {"fast_trigger_configure", "fa", "Configure delay and time cycles", handle_fast_trigger_configure, CAT_FAULT_INJECTION},
-    {"internal_hvp", "in", "Use internal high voltage pulse", handle_internal_hvp, CAT_FAULT_INJECTION},
-    {"external_hvp", "ex", "Use external high voltage pulse", handle_external_hvp, CAT_FAULT_INJECTION},
+    {"enable timeout", "en", "Enable timing protection", handle_enable_timeout, CAT_FAULT_INJECTION},
+    {"disable timeout", "di", "Disable timing protection", handle_disable_timeout, CAT_FAULT_INJECTION},
+    {"fast trigger", "f", "Execute fast trigger sequence", handle_fast_trigger, CAT_FAULT_INJECTION},
+    {"fast trigger configure", "fa", "Configure delay and time cycles", handle_fast_trigger_configure, CAT_FAULT_INJECTION},
+    {"internal hvp", "in", "Use internal high voltage pulse", handle_internal_hvp, CAT_FAULT_INJECTION},
+    {"external hvp", "ex", "Use external high voltage pulse", handle_external_hvp, CAT_FAULT_INJECTION},
     {"configure", "c", "Set pulse time and power", handle_configure, CAT_FAULT_INJECTION},
 
     // Glitch Commands
     {"glitch", "g", "Execute configured glitch", handle_glitch, CAT_GLITCH},
     {"configure glitcher", "co", "Configure glitcher parameters", handle_configure_glitcher, CAT_GLITCH},
-    {"glitcher_status", "gs", "Show glitcher configuration", handle_glitcher_status, CAT_GLITCH},
+    {"glitcher status", "gl", "Show glitcher configuration", handle_glitcher_status, CAT_GLITCH},
+    {"configure adc", "con", "Configure ADC sample count", handle_configure_adc, CAT_GLITCH},
+    {"display adc", "di", "Display captured ADC data", handle_display_adc, CAT_GLITCH},
 
     // Pinout Scan Commands
-    {"jtag_scan", "j", "Scan for JTAG pinout", handle_jtag_scan, CAT_PINOUT_SCAN},
-    {"swd_scan", "sw", "Scan for SWD pinout", handle_swd_scan, CAT_PINOUT_SCAN},
+    {"jtag scan", "j", "Scan for JTAG pinout", handle_jtag_scan, CAT_PINOUT_SCAN},
+    {"swd scan", "sw", "Scan for SWD pinout", handle_swd_scan, CAT_PINOUT_SCAN},
     {"pin pulsing", "pi", "Enable/disable pin pulsing", handle_pin_pulsing, CAT_PINOUT_SCAN},
 
     // System Commands
     {"help", "h", "Show the help menu", handle_help, CAT_SYSTEM},
-    {"toggle_gp1", "t", "Toggle GPIO pin 1", handle_toggle_gp1, CAT_SYSTEM},
+    {"toggle gp1", "t", "Toggle GPIO pin 1", handle_toggle_gp1, CAT_SYSTEM},
     {"status", "s", "Show device status", handle_status, CAT_SYSTEM},
     {"reset", "r", "Reset the device", handle_reset, CAT_SYSTEM},
 
@@ -472,6 +476,78 @@ void display_help() {
 
   printf("\n");
   printf("- <empty> - Repeat last command\n");
+}
+
+// Add these functions at the end of the file before serial_console()
+
+bool handle_configure_adc(void) {
+  char** unused;
+  uint32_t current_count = adc_get_sample_count();
+  
+  printf(" Configure ADC sample count\n");
+  printf(" Current count: %lu (max: 30000)\n", current_count);
+  printf(" Enter new sample count: ");
+  
+  read_command();
+  printf("\n");
+  
+  if (serial_buffer[0] == 0) {
+    printf(" Using current value: %lu\n", current_count);
+    return true;
+  }
+  
+  uint32_t new_count = strtoul(serial_buffer, unused, 10);
+  
+  if (new_count > 30000) {
+    printf(" Error: Sample count exceeds maximum (30000)\n");
+    return true;
+  }
+  
+  if (glitcher_set_adc_sample_count(new_count)) {
+    printf(" ADC sample count set to: %lu\n", new_count);
+  } else {
+    printf(" Failed to set ADC sample count\n");
+  }
+  
+  return true;
+}
+
+bool handle_display_adc(void) {
+  uint32_t sample_count = adc_get_sample_count();
+  uint8_t* buffer = adc_get_capture_buffer();
+  
+  printf(" Displaying %lu ADC samples:\n\n", sample_count);
+  
+  // Print header
+  printf(" Index | Value | Bar\n");
+  printf("-------|-------|-------------------\n");
+  
+  // Determine the number of samples to display (up to 20 for readability)
+  uint32_t display_count = sample_count < 20 ? sample_count : 20;
+  
+  // Calculate step size if we need to sample the data
+  uint32_t step = sample_count / display_count;
+  if (step == 0) step = 1;
+  
+  // Display samples
+  for (uint32_t i = 0; i < sample_count; i += step) {
+    if (i >= display_count * step) break;
+    
+    // Print index and value
+    printf(" %5lu | %5u | ", i, buffer[i]);
+    
+    // Print simple bar chart representation
+    int bar_length = buffer[i] / 10; // Scale to reasonable length
+    for (int j = 0; j < bar_length; j++) {
+      printf("#");
+    }
+    printf("\n");
+  }
+  
+  printf("\n Note: Displaying %lu out of %lu samples\n", display_count, sample_count);
+  printf(" To see all data, use a data visualization tool with the raw values\n");
+  
+  return true;
 }
 
 void serial_console() {
