@@ -141,7 +141,7 @@ function App() {
       setSendingCommand(true);
       const result = await invoke<string>("send_command_with_read", {
         command,
-        readDurationMs: 2000
+        readDurationMs: 50
       });
       setMessage({ text: result, severity: 'success' });
       // Clear command after sending
@@ -269,7 +269,7 @@ function App() {
             </Box>
           ) : (
             <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
-              No serial ports found or click the button to list them.
+              No serial ports found, please connect your FaultyCat.
             </Typography>
           )}
         </Paper>

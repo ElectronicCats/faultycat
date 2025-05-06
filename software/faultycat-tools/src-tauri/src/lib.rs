@@ -189,7 +189,7 @@ fn send_command_with_read(
     read_duration_ms: u64
 ) -> Result<String, String> {
     // First send the command
-    let result = send_command(state.clone(), command)?;
+    let _result = send_command(state.clone(), command)?;
     
     // Create a thread-safe copy of the port and a separate response buffer
     let port_mutex = Arc::new(StdMutex::new(None));
@@ -247,25 +247,35 @@ fn send_command_with_read(
         println!("Finished reading after {}ms", read_duration_ms);
     });
 
-    // Wait a moment to collect initial responses
-    thread::sleep(Duration::from_millis(100));
+    // Wait for the reading to complete
+    thread::sleep(Duration::from_millis(read_duration_ms + 50));
     
-    // Transfer the collected responses to the state
-    {
+    // Collect the responses and update the state
+    let collected_data = {
         let responses = response_buffer.lock().unwrap();
         let mut connection = state.lock().map_err(|e| e.to_string())?;
         
+        // Build a single string from all responses
+        let mut result = String::new();
         for response in responses.iter() {
             connection.add_response(response.clone());
+            result.push_str(response);
         }
         
         // Return the port to the state
         if let Some(port) = port_mutex.lock().unwrap().take() {
             connection.port = Some(port);
         }
-    }
+        
+        result
+    };
     
-    Ok(format!("{} (reading responses for {}ms)", result, read_duration_ms))
+    // Return the collected data
+    if collected_data.is_empty() {
+        Ok("No response received".to_string())
+    } else {
+        Ok(collected_data)
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
