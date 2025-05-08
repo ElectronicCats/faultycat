@@ -31634,7 +31634,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Button_Switch_SMD:SW_SP3T_PCM13"
+		(property "Footprint" "BuggyCat:Sw3P1T"
 			(at 193.675 208.915 0)
 			(effects
 				(font
@@ -31661,7 +31661,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C2681567"
+		(property "LCSC#" "C361168"
 			(at 177.8 204.47 0)
 			(effects
 				(font
