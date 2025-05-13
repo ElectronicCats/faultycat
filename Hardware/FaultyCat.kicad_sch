@@ -31024,7 +31024,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "TYPE-C-31-M-31"
+		(property "Manf#" ""
 			(at 25.4 254.635 0)
 			(effects
 				(font
