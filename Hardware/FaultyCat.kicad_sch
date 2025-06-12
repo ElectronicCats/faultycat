@@ -17023,7 +17023,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C106209"
+		(property "LCSC#" "C14663"
 			(at 353.695 235.331 0)
 			(effects
 				(font
@@ -17032,7 +17032,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "CC0402ZRY5V7BB104"
+		(property "Manf#" ""
 			(at 353.695 235.331 0)
 			(effects
 				(font
@@ -19839,7 +19839,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C66501"
+		(property "LCSC#" "C14663"
 			(at 241.3 190.5 0)
 			(effects
 				(font
@@ -22317,7 +22317,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C106209"
+		(property "LCSC#" "C14663"
 			(at 321.437 235.077 0)
 			(effects
 				(font
@@ -22326,7 +22326,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "CC0402ZRY5V7BB104"
+		(property "Manf#" ""
 			(at 321.437 235.077 0)
 			(effects
 				(font
@@ -22935,6 +22935,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC#" "C3193927 "
+			(at 139.065 80.645 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "8152b30a-ba67-412e-aa94-76e0f3e2b1c8")
 		)
@@ -23137,7 +23146,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C106209"
+		(property "LCSC#" "C14663"
 			(at 391.795 235.331 0)
 			(effects
 				(font
@@ -23146,7 +23155,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "CC0402ZRY5V7BB104"
+		(property "Manf#" ""
 			(at 391.795 235.331 0)
 			(effects
 				(font
@@ -23327,7 +23336,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C106209"
+		(property "LCSC#" "C14663"
 			(at 361.061 235.331 0)
 			(effects
 				(font
@@ -23336,7 +23345,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "CC0402ZRY5V7BB104"
+		(property "Manf#" ""
 			(at 361.061 235.331 0)
 			(effects
 				(font
@@ -23517,7 +23526,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C106209"
+		(property "LCSC#" "C14663"
 			(at 399.415 235.077 0)
 			(effects
 				(font
@@ -23526,7 +23535,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "CC0402ZRY5V7BB104"
+		(property "Manf#" ""
 			(at 399.415 235.077 0)
 			(effects
 				(font
@@ -24063,7 +24072,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C106209"
+		(property "LCSC#" "C14663"
 			(at 368.681 235.331 0)
 			(effects
 				(font
@@ -24072,7 +24081,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "CC0402ZRY5V7BB104"
+		(property "Manf#" ""
 			(at 368.681 235.331 0)
 			(effects
 				(font
@@ -25465,7 +25474,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C106209"
+		(property "LCSC#" "C14663"
 			(at 328.549 235.077 0)
 			(effects
 				(font
@@ -25474,7 +25483,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "CC0402ZRY5V7BB104"
+		(property "Manf#" ""
 			(at 328.549 235.077 0)
 			(effects
 				(font
@@ -25768,7 +25777,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C106209"
+		(property "LCSC#" "C14663"
 			(at 384.175 235.331 0)
 			(effects
 				(font
@@ -25777,7 +25786,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "CC0402ZRY5V7BB104"
+		(property "Manf#" ""
 			(at 384.175 235.331 0)
 			(effects
 				(font
@@ -27722,7 +27731,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C106209"
+		(property "LCSC#" "C14663"
 			(at 376.301 235.331 0)
 			(effects
 				(font
@@ -27731,7 +27740,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "CC0402ZRY5V7BB104"
+		(property "Manf#" ""
 			(at 376.301 235.331 0)
 			(effects
 				(font
@@ -27845,7 +27854,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C106209"
+		(property "LCSC#" "C14663"
 			(at 235.585 273.177 0)
 			(effects
 				(font
@@ -27854,7 +27863,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "CC0402ZRY5V7BB104"
+		(property "Manf#" ""
 			(at 235.585 273.177 0)
 			(effects
 				(font
@@ -29769,7 +29778,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" "C66501"
+		(property "LCSC#" "C14663"
 			(at 259.08 190.5 0)
 			(effects
 				(font
