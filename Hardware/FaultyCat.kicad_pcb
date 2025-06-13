@@ -2165,7 +2165,7 @@
 				)
 			)
 		)
-		(property "LCSC#" "C14663"
+		(property "LCSC#" "C131394"
 			(at 0 0 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -2540,7 +2540,7 @@
 				)
 			)
 		)
-		(property "LCSC#" "C3193927 "
+		(property "LCSC#" ""
 			(at 0 0 90)
 			(unlocked yes)
 			(layer "F.Fab")
@@ -3680,7 +3680,7 @@
 				)
 			)
 		)
-		(property "LCSC#" "C2886897"
+		(property "LCSC#" "C318889"
 			(at 0 0 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -4761,7 +4761,7 @@
 				)
 			)
 		)
-		(property "LCSC#" "C14663"
+		(property "LCSC#" "C131394"
 			(at 55.81125 169.24875 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -16841,7 +16841,7 @@
 				)
 			)
 		)
-		(property "LCSC#" "C14663"
+		(property "LCSC#" "C131394"
 			(at 158.51375 -69.76625 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -19312,7 +19312,7 @@
 				)
 			)
 		)
-		(property "LCSC#" "C14663"
+		(property "LCSC#" "C131394"
 			(at 152.90875 -65.63125 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -21241,7 +21241,7 @@
 				)
 			)
 		)
-		(property "LCSC#" "C14663"
+		(property "LCSC#" "C131394"
 			(at 148.02875 -66.43125 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -27452,7 +27452,7 @@
 				)
 			)
 		)
-		(property "LCSC#" "C14663"
+		(property "LCSC#" "C131394"
 			(at 207.1 103.8975 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -28879,7 +28879,7 @@
 				)
 			)
 		)
-		(property "LCSC#" "C14663"
+		(property "LCSC#" "C131394"
 			(at 153.87875 -66.60125 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -31719,7 +31719,7 @@
 				)
 			)
 		)
-		(property "LCSC#" "C2886897"
+		(property "LCSC#" "C318889"
 			(at 179.32 74.3 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -40317,7 +40317,7 @@
 				)
 			)
 		)
-		(property "LCSC#" "C14663"
+		(property "LCSC#" "C131394"
 			(at 0 0 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -40656,7 +40656,7 @@
 				)
 			)
 		)
-		(property "LCSC#" "C14663"
+		(property "LCSC#" "C131394"
 			(at 0 0 0)
 			(layer "F.Fab")
 			(hide yes)
@@ -43251,7 +43251,7 @@
 				)
 			)
 		)
-		(property "LCSC#" "C14663"
+		(property "LCSC#" "C131394"
 			(at 207.12 95.5175 0)
 			(layer "F.Fab")
 			(hide yes)
