@@ -17928,7 +17928,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" ""
+		(property "LCSC#" "C2886902"
 			(at 125.73 31.75 0)
 			(effects
 				(font
@@ -18063,6 +18063,15 @@
 			)
 		)
 		(property "Manf#" "10-PIN"
+			(at 217.17 213.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC#" "C5116489"
 			(at 217.17 213.36 0)
 			(effects
 				(font
@@ -19629,6 +19638,15 @@
 			)
 		)
 		(property "Manf#" "2-PIN"
+			(at 36.83 201.93 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC#" "C7499322"
 			(at 36.83 201.93 0)
 			(effects
 				(font
@@ -21602,6 +21620,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC#" "C7499322"
+			(at 36.83 196.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "e6efc161-4523-463e-9c08-d4cea8aa3d24")
 		)
@@ -22935,7 +22962,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" ""
+		(property "LCSC#" "C3193927"
 			(at 139.065 80.645 0)
 			(effects
 				(font
@@ -23759,6 +23786,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC#" "C692326"
+			(at 123.825 74.295 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "1900c140-57e5-408d-9c8b-5b47c781ec62")
 		)
@@ -24205,6 +24241,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC#" "C7499322"
+			(at 36.83 207.01 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "f1a5b3f3-9113-44e6-8e0d-a01cf03d94c0")
 		)
@@ -24491,7 +24536,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "SM4005PL-TP"
+		(property "Manf#" "1N4005"
 			(at 368.3 21.59 0)
 			(effects
 				(font
@@ -24528,6 +24573,15 @@
 			)
 		)
 		(property "Sim.Type" ""
+			(at 368.3 21.59 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC#" "C437593"
 			(at 368.3 21.59 0)
 			(effects
 				(font
@@ -24987,7 +25041,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" ""
+		(property "LCSC#" "C2886902"
 			(at 331.47 27.305 0)
 			(effects
 				(font
@@ -25663,7 +25717,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "SM4005PL-TP"
+		(property "Manf#" "1N4005"
 			(at 46.355 100.965 0)
 			(effects
 				(font
@@ -25700,6 +25754,15 @@
 			)
 		)
 		(property "Sim.Type" ""
+			(at 46.355 100.965 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC#" "C437593"
 			(at 46.355 100.965 0)
 			(effects
 				(font
@@ -25969,6 +26032,15 @@
 			)
 		)
 		(property "Manf#" "2-PIN"
+			(at 36.83 191.77 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC#" "C7499322"
 			(at 36.83 191.77 0)
 			(effects
 				(font
@@ -26316,7 +26388,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "SM4005PL-TP"
+		(property "Manf#" "1N4005"
 			(at 23.495 118.745 0)
 			(effects
 				(font
@@ -26353,6 +26425,15 @@
 			)
 		)
 		(property "Sim.Type" ""
+			(at 23.495 118.745 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC#" "C437593"
 			(at 23.495 118.745 0)
 			(effects
 				(font
@@ -28082,6 +28163,15 @@
 		)
 		(property "Sim.Type" ""
 			(at 126.365 127 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC#" "C263147"
+			(at 126.365 127 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -30162,7 +30252,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC#" ""
+		(property "LCSC#" "C2886902"
 			(at 332.105 83.82 0)
 			(effects
 				(font
@@ -31179,7 +31269,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manf#" "SM4005PL-TP"
+		(property "Manf#" "1N4005"
 			(at 43.18 147.955 0)
 			(effects
 				(font
@@ -31216,6 +31306,15 @@
 			)
 		)
 		(property "Sim.Type" ""
+			(at 43.18 147.955 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC#" "C437593"
 			(at 43.18 147.955 0)
 			(effects
 				(font
