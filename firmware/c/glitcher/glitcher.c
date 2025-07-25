@@ -153,6 +153,7 @@ bool glitcher_configure() {
   }
 
   if (glitcher.glitch_output != GlitchOutput_None) {
+    // TODO: use actual glitch output pin
     sm_config_set_set_pins(&c, GLITCHER_LP_GLITCH_PIN, GPIO_OUT);
     pio_gpio_init(pio0, GLITCHER_LP_GLITCH_PIN);
     pio_sm_set_consecutive_pindirs(pio0, 0, GLITCHER_LP_GLITCH_PIN, 1, true);

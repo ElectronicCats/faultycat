@@ -4,10 +4,21 @@
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 
+#include "glitcher.h"
 #include "picoemp.h"
 #include "serial.h"
 #include "trigger_basic.pio.h"
-#include "glitcher.h"
+
+/**
+ * @brief Flag to indicate whether we are testing hardware or not.
+ * 
+ * Comment this out to disable hardware testing.
+ */
+// #define TEST_HARDWARE 1
+
+#ifdef TEST_HARDWARE
+#include "hardware/adc.h"
+#endif
 
 static bool armed = false;
 static bool timeout_active = true;
@@ -88,6 +99,37 @@ int main() {
   // Initialize USB-UART as STDIO
   stdio_init_all();
 
+#ifdef TEST_HARDWARE
+  // For testing purposes, blink GPIOs 0-7 infinitely
+  uint8_t trigger_pin = 8;
+  gpio_init(trigger_pin);
+  gpio_set_dir(trigger_pin, GPIO_IN);
+
+  // Configure ADC
+  adc_init();
+  adc_gpio_init(29);
+  adc_select_input(3); // ADC3 corresponds to GPIO29
+
+  for (uint i = 0; i < 8; i++) {
+    gpio_init(i);
+    gpio_set_dir(i, GPIO_OUT);
+  }
+  
+  while (true) {
+    for (uint i = 0; i < 8; i++) {
+      gpio_put(i, true);
+    }
+    sleep_ms(500);
+    for (uint i = 0; i < 8; i++) {
+      gpio_put(i, false);
+    }
+    sleep_ms(500);
+    
+    uint16_t adc_value = adc_read();
+    printf("Trigger state: %d, ADC value: %d\n", gpio_get(trigger_pin), adc_value);
+  }
+#endif
+
   picoemp_init();
 
   // Init for reset pin (move somewhere else)
@@ -97,7 +139,7 @@ int main() {
 
   // Run serial-console on second core
   multicore_launch_core1(serial_console);
-  
+
   pulse_time = PULSE_TIME_US_DEFAULT;
   pulse_power.f = PULSE_POWER_DEFAULT;
   pulse_delay_cycles = PULSE_DELAY_CYCLES_DEFAULT;
@@ -174,8 +216,9 @@ int main() {
           pulse_power.ui32 = multicore_fifo_pop_blocking();
           multicore_fifo_push_blocking(return_ok);
           break;
-        case cmd_toggle_gp1:
-          gpio_xor_mask(1 << 1);
+        case cmd_toggle_gp_all:
+          // Toggle GPIOs 0-7 (mask = 0xFF = 0b11111111)
+          gpio_xor_mask(0xFF);
           multicore_fifo_push_blocking(return_ok);
           break;
       }

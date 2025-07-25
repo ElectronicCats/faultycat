@@ -55,7 +55,7 @@ bool handle_jtag_scan();
 bool handle_swd_scan();
 bool handle_pin_pulsing();
 bool handle_help();
-bool handle_toggle_gp1();
+bool handle_toggle_all_gpios();
 bool handle_status();
 bool handle_reset();
 bool handle_configure_adc();
@@ -95,7 +95,7 @@ static const command_t commands[] = {
 
     // System Commands
     {"help", "h", "Show the help menu", handle_help, CAT_SYSTEM},
-    {"toggle gp1", "t", "Toggle GPIO pin 1", handle_toggle_gp1, CAT_SYSTEM},
+    {"toggle gpios", "t", "Toggle channels and glitch", handle_toggle_all_gpios, CAT_SYSTEM},
     {"status", "s", "Show device status", handle_status, CAT_SYSTEM},
     {"reset", "r", "Reset the device", handle_reset, CAT_SYSTEM},
 
@@ -366,12 +366,16 @@ bool handle_help(void) {
   return false;
 }
 
-bool handle_toggle_gp1(void) {
-  multicore_fifo_push_blocking(cmd_toggle_gp1);
+bool handle_toggle_all_gpios(void) {
+  multicore_fifo_push_blocking(cmd_toggle_gp_all);
+
   uint32_t result = multicore_fifo_pop_blocking();
-  if (result != return_ok) {
-    printf("target_reset failed.");
+  if (result == return_ok) {
+    printf("All GPIOs (0-7) toggled successfully.\n");
+  } else {
+    printf("Toggle all GPIOs failed.\n");
   }
+
   return true;
 }
 
@@ -483,70 +487,72 @@ void display_help() {
 bool handle_configure_adc(void) {
   char** unused;
   uint32_t current_count = adc_get_sample_count();
-  
+
   printf(" Configure ADC sample count\n");
   printf(" Current count: %lu (max: 30000)\n", current_count);
   printf(" Enter new sample count: ");
-  
+
   read_command();
   printf("\n");
-  
+
   if (serial_buffer[0] == 0) {
     printf(" Using current value: %lu\n", current_count);
     return true;
   }
-  
+
   uint32_t new_count = strtoul(serial_buffer, unused, 10);
-  
+
   if (new_count > 30000) {
     printf(" Error: Sample count exceeds maximum (30000)\n");
     return true;
   }
-  
+
   if (glitcher_set_adc_sample_count(new_count)) {
     printf(" ADC sample count set to: %lu\n", new_count);
   } else {
     printf(" Failed to set ADC sample count\n");
   }
-  
+
   return true;
 }
 
 bool handle_display_adc(void) {
   uint32_t sample_count = adc_get_sample_count();
   uint8_t* buffer = adc_get_capture_buffer();
-  
+
   printf(" Displaying %lu ADC samples:\n\n", sample_count);
-  
+
   // Print header
   printf(" Index | Value | Bar\n");
   printf("-------|-------|-------------------\n");
-  
+
   // Determine the number of samples to display (up to 20 for readability)
   uint32_t display_count = sample_count < 20 ? sample_count : 20;
-  
+
   // Calculate step size if we need to sample the data
   uint32_t step = sample_count / display_count;
-  if (step == 0) step = 1;
-  
+  if (step == 0)
+    step = 1;
+
   // Display samples
   for (uint32_t i = 0; i < sample_count; i += step) {
-    if (i >= display_count * step) break;
-    
+    if (i >= display_count * step)
+      break;
+
     // Print index and value
     printf(" %5lu | %5u | ", i, buffer[i]);
-    
+
     // Print simple bar chart representation
-    int bar_length = buffer[i] / 10; // Scale to reasonable length
+    int bar_length = buffer[i] / 10;  // Scale to reasonable length
     for (int j = 0; j < bar_length; j++) {
       printf("#");
     }
     printf("\n");
   }
-  
+
   printf("\n Note: Displaying %lu out of %lu samples\n", display_count, sample_count);
   printf(" To see all data, use a data visualization tool with the raw values\n");
-  
+
   return true;
 }
 
