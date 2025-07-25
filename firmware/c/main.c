@@ -1,20 +1,19 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "glitcher.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
-
-#include "glitcher.h"
 #include "picoemp.h"
 #include "serial.h"
 #include "trigger_basic.pio.h"
 
 /**
  * @brief Flag to indicate whether we are testing hardware or not.
- * 
+ *
  * Comment this out to disable hardware testing.
  */
-// #define TEST_HARDWARE 1
+#define TEST_HARDWARE 1
 
 #ifdef TEST_HARDWARE
 #include "hardware/adc.h"
@@ -92,14 +91,8 @@ void fast_trigger() {
   pio_sm_put_blocking(pio, sm, pulse_time_cycles);
 }
 
-int main() {
-  // Overclock to 250MHz
-  set_sys_clock_khz(250000, true);
-
-  // Initialize USB-UART as STDIO
-  stdio_init_all();
-
 #ifdef TEST_HARDWARE
+void test_hardware() {
   // For testing purposes, blink GPIOs 0-7 infinitely
   uint8_t trigger_pin = 8;
   gpio_init(trigger_pin);
@@ -108,13 +101,15 @@ int main() {
   // Configure ADC
   adc_init();
   adc_gpio_init(29);
-  adc_select_input(3); // ADC3 corresponds to GPIO29
+  adc_select_input(3);  // ADC3 corresponds to GPIO29
+
+  glitcher_set_config(TriggersType_TRIGGER_NONE, GlitchOutput_LP, 1000, 2500);
 
   for (uint i = 0; i < 8; i++) {
     gpio_init(i);
     gpio_set_dir(i, GPIO_OUT);
   }
-  
+
   while (true) {
     for (uint i = 0; i < 8; i++) {
       gpio_put(i, true);
@@ -124,11 +119,20 @@ int main() {
       gpio_put(i, false);
     }
     sleep_ms(500);
-    
+
     uint16_t adc_value = adc_read();
     printf("Trigger state: %d, ADC value: %d\n", gpio_get(trigger_pin), adc_value);
+    glitcher_run();
   }
+}
 #endif
+
+int main() {
+  // Overclock to 250MHz
+  set_sys_clock_khz(250000, true);
+
+  // Initialize USB-UART as STDIO
+  stdio_init_all();
 
   picoemp_init();
 
@@ -146,6 +150,10 @@ int main() {
   pulse_time_cycles = PULSE_TIME_CYCLES_DEFAULT;
 
   glitcher_init();
+
+#ifdef TEST_HARDWARE
+  test_hardware();
+#endif
 
   while (1) {
     gpio_put(PIN_LED_HV, gpio_get(PIN_IN_CHARGED));
@@ -192,8 +200,7 @@ int main() {
         case cmd_fast_trigger:
           fast_trigger();
           multicore_fifo_push_blocking(return_ok);
-          while (!pio_interrupt_get(pio0, 0))
-            ;
+          while (!pio_interrupt_get(pio0, 0));
           multicore_fifo_push_blocking(return_ok);
           pio_sm_set_enabled(pio0, 0, false);
           picoemp_configure_pulse_output();
@@ -238,8 +245,7 @@ int main() {
         disarm();
       }
       // YOLO debouncing
-      while (gpio_get(PIN_BTN_ARM))
-        ;
+      while (gpio_get(PIN_BTN_ARM));
       sleep_ms(100);
     }
 
