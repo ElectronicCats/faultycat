@@ -95,6 +95,10 @@ void fast_trigger() {
 void test_hardware() {
   // For testing purposes, blink GPIOs 0-7 infinitely
   uint8_t trigger_pin = 8;
+
+  // Variable to switch the glitch type
+  bool switch_glitch_type = false;
+
   gpio_init(trigger_pin);
   gpio_set_dir(trigger_pin, GPIO_IN);
 
@@ -102,8 +106,6 @@ void test_hardware() {
   adc_init();
   adc_gpio_init(29);
   adc_select_input(3);  // ADC3 corresponds to GPIO29
-
-  glitcher_set_config(TriggersType_TRIGGER_NONE, GlitchOutput_LP, 1000, 2500);
 
   for (uint i = 0; i < 8; i++) {
     gpio_init(i);
@@ -122,6 +124,21 @@ void test_hardware() {
 
     uint16_t adc_value = adc_read();
     printf("Trigger state: %d, ADC value: %d\n", gpio_get(trigger_pin), adc_value);
+
+    // Switching the glitch type between LP and HP pins
+    if(switch_glitch_type){
+      glitcher_set_config(TriggersType_TRIGGER_NONE, GlitchOutput_LP, 1000, 2500);
+      printf("\nGlitch With LP pulse\n");
+    }
+    else{
+      glitcher_set_config(TriggersType_TRIGGER_NONE, GlitchOutput_HP, 1000, 2500);
+      printf("\nGlitch With HP pulse\n");
+    }
+
+    // Change value of switching glitch type
+    switch_glitch_type = !switch_glitch_type;
+
+    // Run glitch
     glitcher_run();
   }
 }

@@ -152,8 +152,15 @@ bool glitcher_configure() {
     pio_sm_set_consecutive_pindirs(pio0, 0, trigger_pin, 1, false);
   }
 
-  if (glitcher.glitch_output != GlitchOutput_None) {
-    // TODO: use actual glitch output pin
+  // If glitch output is HP type
+  if(glitcher.glitch_output == GlitchOutput_HP) {
+    sm_config_set_set_pins(&c, GLITCHER_HP_GLITCH_PIN, GPIO_OUT);
+    pio_gpio_init(pio0, GLITCHER_HP_GLITCH_PIN);
+    pio_sm_set_consecutive_pindirs(pio0, 0, GLITCHER_HP_GLITCH_PIN, 1, true);
+  }
+
+  // If glitch output is LP type
+  if(glitcher.glitch_output == GlitchOutput_LP) {
     sm_config_set_set_pins(&c, GLITCHER_LP_GLITCH_PIN, GPIO_OUT);
     pio_gpio_init(pio0, GLITCHER_LP_GLITCH_PIN);
     pio_sm_set_consecutive_pindirs(pio0, 0, GLITCHER_LP_GLITCH_PIN, 1, true);
