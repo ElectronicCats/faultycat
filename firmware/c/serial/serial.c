@@ -137,7 +137,7 @@ void print_status(uint32_t status) {
   bool charged = (status >> 1) & 1;
   bool timeout_active = (status >> 2) & 1;
   bool hvp_mode = (status >> 3) & 1;
-  printf("Status:\n");
+  printf("Fault Injection Status:\n");
   if (armed) {
     printf("- Armed\n");
   } else {
@@ -391,6 +391,14 @@ bool handle_status(void) {
   } else {
     printf("Getting status failed!\n");
   }
+
+  printf("\n");
+  handle_glitcher_status();
+
+  // CAT_PINOUT_SCAN status
+  printf("\nJTAG/SWD scan status:\n");
+  printf("- Pin pulsing: %s\n", jPulsePins ? "Enabled" : "Disabled");
+
   return true;
 }
 

@@ -133,13 +133,13 @@ void glitcher_commands_configure() {
 void glitcher_commands_get_config() {
   struct glitcher_configuration config;
   glitcher_get_config(&config);
-  printf("     Glitcher configuration:\n");
-  printf("     Trigger type: ");
+  printf("Glitcher configuration status:\n");
+  printf("- Trigger type: ");
   print_trigger_type(config.trigger_type);
-  printf("     Trigger pull configuration: ");
+  printf("- Trigger pull configuration: ");
   print_trigger_pull_configuration(config.trigger_pull_configuration);
-  printf("     Glitch output: ");
+  printf("- Glitch output: ");
   print_glitch_output(config.glitch_output);
-  printf("     Delay before pulse: %d cycles\n", config.delay_before_pulse);
-  printf("     Pulse width: %d cycles\n", config.pulse_width);
+  printf("- Delay before pulse: %d cycles\n", config.delay_before_pulse);
+  printf("- Pulse width: %d cycles\n", config.pulse_width);
 }
