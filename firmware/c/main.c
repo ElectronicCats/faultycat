@@ -13,7 +13,7 @@
  *
  * Comment this out to disable hardware testing.
  */
-#define TEST_HARDWARE 1
+// #define TEST_HARDWARE 1
 
 #ifdef TEST_HARDWARE
 #include "hardware/adc.h"

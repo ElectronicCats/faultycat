@@ -63,41 +63,41 @@ bool handle_display_adc();
 
 // Category
 #define CAT_FAULT_INJECTION "Fault Injection"
-#define CAT_GLITCH "Glitch"
-#define CAT_PINOUT_SCAN "SWD/JTAG Scan"
+#define CAT_GLITCH "Glitcher"
+#define CAT_PINOUT_SCAN "JTAG / SWD Tools"
 #define CAT_SYSTEM "System"
 
 // Command registry
 static const command_t commands[] = {
     // Fault Injection Commands
-    {"arm", "a", "Arm the device for fault injection", handle_arm, CAT_FAULT_INJECTION},
-    {"disarm", "d", "Disarm the device", handle_disarm, CAT_FAULT_INJECTION},
-    {"pulse", "p", "Send a fault injection pulse", handle_pulse, CAT_FAULT_INJECTION},
-    {"enable timeout", "en", "Enable timing protection", handle_enable_timeout, CAT_FAULT_INJECTION},
-    {"disable timeout", "di", "Disable timing protection", handle_disable_timeout, CAT_FAULT_INJECTION},
-    {"fast trigger", "f", "Execute fast trigger sequence", handle_fast_trigger, CAT_FAULT_INJECTION},
-    {"fast trigger configure", "fa", "Configure delay and time cycles", handle_fast_trigger_configure, CAT_FAULT_INJECTION},
-    {"internal hvp", "in", "Use internal high voltage pulse", handle_internal_hvp, CAT_FAULT_INJECTION},
-    {"external hvp", "ex", "Use external high voltage pulse", handle_external_hvp, CAT_FAULT_INJECTION},
-    {"configure", "c", "Set pulse time and power", handle_configure, CAT_FAULT_INJECTION},
+    {"arm", "a", "Arm injection circuit", handle_arm, CAT_FAULT_INJECTION},
+    {"disarm", "d", "Disarm injection", handle_disarm, CAT_FAULT_INJECTION},
+    {"pulse", "p", "Pulse (manual trigger)", handle_pulse, CAT_FAULT_INJECTION},
+    {"enable timeout", "en", "Enable timeout", handle_enable_timeout, CAT_FAULT_INJECTION},
+    {"disable timeout", "dt", "Disable timeout", handle_disable_timeout, CAT_FAULT_INJECTION},
+    {"fast trigger", "fq", "Fast trigger (quick pulse)", handle_fast_trigger, CAT_FAULT_INJECTION},
+    {"fast trigger configure", "fc", "Configure fast trigger", handle_fast_trigger_configure, CAT_FAULT_INJECTION},
+    {"internal hvp", "in", "Use internal HV source", handle_internal_hvp, CAT_FAULT_INJECTION},
+    {"external hvp", "ex", "Use external HV source", handle_external_hvp, CAT_FAULT_INJECTION},
+    {"configure", "cfg", "Configure FI parameters", handle_configure, CAT_FAULT_INJECTION},
 
     // Glitch Commands
-    {"glitch", "g", "Execute configured glitch", handle_glitch, CAT_GLITCH},
-    {"configure glitcher", "co", "Configure glitcher parameters", handle_configure_glitcher, CAT_GLITCH},
-    {"glitcher status", "gl", "Show glitcher configuration", handle_glitcher_status, CAT_GLITCH},
-    {"configure adc", "con", "Configure ADC sample count", handle_configure_adc, CAT_GLITCH},
-    {"display adc", "di", "Display captured ADC data", handle_display_adc, CAT_GLITCH},
+    {"glitch", "g", "Trigger glitch", handle_glitch, CAT_GLITCH},
+    {"configure glitcher", "gc", "Configure glitcher", handle_configure_glitcher, CAT_GLITCH},
+    {"glitcher status", "gs", "Show glitcher status", handle_glitcher_status, CAT_GLITCH},
+    {"configure adc", "ac", "ADC: configure sampling", handle_configure_adc, CAT_GLITCH},
+    {"display adc", "av", "ADC: view sampled data", handle_display_adc, CAT_GLITCH},
 
     // Pinout Scan Commands
-    {"jtag scan", "j", "Scan for JTAG pinout", handle_jtag_scan, CAT_PINOUT_SCAN},
-    {"swd scan", "sw", "Scan for SWD pinout", handle_swd_scan, CAT_PINOUT_SCAN},
-    {"pin pulsing", "pi", "Enable/disable pin pulsing", handle_pin_pulsing, CAT_PINOUT_SCAN},
+    {"jtag scan", "j", "Scan JTAG chain", handle_jtag_scan, CAT_PINOUT_SCAN},
+    {"swd scan", "sw", "Scan SWD targets", handle_swd_scan, CAT_PINOUT_SCAN},
+    {"pin pulsing", "pp", "Pulse test pins", handle_pin_pulsing, CAT_PINOUT_SCAN},
 
     // System Commands
-    {"help", "h", "Show the help menu", handle_help, CAT_SYSTEM},
-    {"toggle gpios", "t", "Toggle channels and glitch", handle_toggle_all_gpios, CAT_SYSTEM},
-    {"status", "s", "Show device status", handle_status, CAT_SYSTEM},
-    {"reset", "r", "Reset the device", handle_reset, CAT_SYSTEM},
+    {"help", "h", "Help (this menu)", handle_help, CAT_SYSTEM},
+    {"toggle gpios", "t", "Toggle channels 0-7 for testing", handle_toggle_all_gpios, CAT_SYSTEM},
+    {"status", "s", "Show system status", handle_status, CAT_SYSTEM},
+    {"reset", "r", "Reset device", handle_reset, CAT_SYSTEM},
 
     // End marker
     {NULL, NULL, NULL, NULL, NULL}};
@@ -459,7 +459,7 @@ bool handle_command(char* command) {
 }
 
 void display_help() {
-  printf("=== FaultyCat Command Interface ===\n\n");
+  printf("=== FaultyCat 2 Command Menu ===\n\n");
 
   // Track the current category
   const char* current_category = NULL;
@@ -469,17 +469,17 @@ void display_help() {
     // If we're entering a new category, print the category header
     if (current_category == NULL || strcmp(current_category, commands[i].category) != 0) {
       current_category = commands[i].category;
-      printf("\n%s Commands:\n", current_category);
+      printf("\n%s:\n", current_category);
     }
 
     // Print the command
-    printf("- [%s]%s\n",
+    printf("[%s] - %s\n",
            commands[i].alias,
-           commands[i].name + strlen(commands[i].alias));
+           commands[i].description);
   }
 
   printf("\n");
-  printf("- <empty> - Repeat last command\n");
+  printf("- <Enter> - Repeat last command\n");
 }
 
 // Add these functions at the end of the file before serial_console()
