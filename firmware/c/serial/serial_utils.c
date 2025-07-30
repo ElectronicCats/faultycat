@@ -32,6 +32,15 @@ int getIntFromSerial(uint8_t max_digits) {
   char chr;
   int index = 0;
   int value = 0;
+
+  // Discard leading newline characters
+  while (1) {
+    chr = getc(stdin);
+    if (chr != CR && chr != LF) {
+      ungetc(chr, stdin); // Push back non-newline character
+      break;
+    }
+  }
   
   // Read characters one by one
   while (index < max_digits) {
