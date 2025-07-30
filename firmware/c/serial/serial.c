@@ -12,6 +12,8 @@
 #include "glitcher.h"
 #include "glitcher_commands.h"
 
+#define FIRMWARE_VERSION "2.1.0.0"
+
 static char serial_buffer[256];
 static char last_command[256];
 
@@ -60,6 +62,7 @@ bool handle_status();
 bool handle_reset();
 bool handle_configure_adc();
 bool handle_display_adc();
+bool handle_firmware_version();
 
 // Category
 #define CAT_FAULT_INJECTION "Fault Injection"
@@ -98,6 +101,7 @@ static const command_t commands[] = {
     {"toggle gpios", "t", "Toggle channels 0-7 for testing", handle_toggle_all_gpios, CAT_SYSTEM},
     {"status", "s", "Show system status", handle_status, CAT_SYSTEM},
     {"reset", "r", "Reset device", handle_reset, CAT_SYSTEM},
+    {"version", "v", "Show firmware version", handle_firmware_version, CAT_SYSTEM},
 
     // End marker
     {NULL, NULL, NULL, NULL, NULL}};
@@ -553,6 +557,11 @@ bool handle_display_adc(void) {
   printf("\n Note: Displaying %lu out of %lu samples\n", display_count, sample_count);
   printf(" To see all data, use a data visualization tool with the raw values\n");
 
+  return true;
+}
+
+bool handle_firmware_version(void) {
+  printf("Firmware Version: %s\n", FIRMWARE_VERSION);
   return true;
 }
 
