@@ -13,6 +13,7 @@ _autosave-*
 *-save.pro
 *-save.kicad_pcb
 fp-info-cache
+hardware/**/~*.lck
 
 # Netlist files (exported from Eeschema)
 *.net
@@ -28,3 +29,12 @@ fp-info-cache
 __pycache__
 ./venv/*
 .venv/
+
+# Firmware binaries
+/**/build/
+
+# Visual Studio config files
+.vscode/
+
+# macOS folder attributes
+/**/.DS_Store
