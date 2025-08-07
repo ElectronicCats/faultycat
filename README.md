@@ -4,7 +4,7 @@ Faulty Cat is a low-cost Electromagnetic Fault Injection (EMFI) tool, designed s
 
 <a href="https://github.com/ElectronicCats/FaultyCat/wiki">
   <p align="center">
-  <img src="https://github.com/ElectronicCats/FaultyCat/assets/40640735/bd1966a8-1dd1-4355-b788-5885f66f081d" height="400" />
+  <img src="https://github.com/user-attachments/assets/99890265-0602-4206-a05e-5c75bb6a386d" height="400" />
     </p>
 </a>
 
@@ -36,7 +36,7 @@ Please **only** use Faulty Cat when you have purchased it from us and control it
 
 **IMPORTANT**: The plastic shield is critical for safe operation. While the output itself is isolated from the input connections, you will still **easily shock yourself** on the exposed high-voltage capacitor and circuitry. **NEVER** operate the device without the shield.
 
-As an open-source project and as a remix of the project [ChipSHOUTER PicoEMP](https://github.com/newaetech/chipshouter-picoemp), it also collects inputs from various community members, and welcomes your contributions! It also has various remixes of it, including:
+As an open-source project and as a remix of the project [ChipSHOUTER PicoEMP](https://github.com/newaetech/chipshouter-picoemp), it also collects inputs from various community members, and welcomes your contributions!
 
 ## Thanks / Contributors
 
