@@ -11,9 +11,8 @@
         Yusufss4 (https://gist.github.com/amullins83/24b5ef48657c08c4005a8fab837b7499?permalink_comment_id=4554839#gistcomment-4554839)
         Arm Debug Interface Architecture Specification (debug_interface_v5_2_architecture_specification_IHI0031F.pdf)
 */
-#include "serial_utils.h"
-
 #include "pico/stdlib.h"
+#include "serial_utils.h"
 
 const char* banner = R"banner(
              _______ ___     __   __ _______ _______ _______ _______ 
@@ -32,8 +31,7 @@ char* version = "1.0.2";
 #define MAX_DR_LEN 4096                               // Maximum length of data register
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(*array))
 
-const uint onboardLED = 10;
-const uint unusedGPIO = 28;  // Pins on Pico are accessed using GPIO names
+const uint statusLED = 10;
 const uint MAX_NUM_JTAG = 32;
 const uint maxChannels = 8;  // Max number of channels supported by Faulty Cat
 uint progressCount = 0;
@@ -477,7 +475,7 @@ void jtagScan(void) {
             continue;
           }
           // onBoard LED notification
-          gpio_put(onboardLED, 1);
+          gpio_put(statusLED, 1);
 
           progressCount = progressCount + 1;
           printProgress(progressCount, maxPermutations);
@@ -535,12 +533,12 @@ void jtagScan(void) {
               displayPinout();
               displayDeviceDetails();
               // onBoard LED notification
-              gpio_put(onboardLED, 0);
+              gpio_put(statusLED, 0);
               return;
             }
           }
           // onBoard LED notification
-          gpio_put(onboardLED, 0);
+          gpio_put(statusLED, 0);
         }
       }
     }
@@ -766,9 +764,9 @@ void swdTrySWDJ(void) {
 
 bool swdBruteForce(void) {
   // onBoard LED notification
-  gpio_put(onboardLED, 1);
+  gpio_put(statusLED, 1);
   swdTrySWDJ();
-  gpio_put(onboardLED, 0);
+  gpio_put(statusLED, 0);
   if (swdDeviceFound) {
     return (true);
   } else {

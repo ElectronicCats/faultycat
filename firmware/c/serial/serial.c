@@ -575,6 +575,11 @@ bool handle_firmware_version(void) {
 
 void serial_console() {
   multicore_fifo_drain();
+  gpio_init(statusLED);
+  gpio_set_dir(statusLED, GPIO_OUT);
+  gpio_put(statusLED, true);
+  sleep_ms(100);
+  gpio_put(statusLED, false);
 
   memset(last_command, 0, sizeof(last_command));
 
