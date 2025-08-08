@@ -38,6 +38,15 @@ Please **only** use Faulty Cat when you have purchased it from us and control it
 
 As an open-source project and as a remix of the project [ChipSHOUTER PicoEMP](https://github.com/newaetech/chipshouter-picoemp), it also collects inputs from various community members, and welcomes your contributions!
 
+###  NEW FEATURES AVAILABLE ON V2.1⚡😼
+
+- Voltage glitching.
+- Trigger using dedicated pins, available in the new pinout.
+- Trigger voltage reference, for more accurate response every time a voltage glitch is attempted to be sent.
+- Analog input to monitor the target device’s status during the glitching process.
+- JTAG/SWD scanner.
+
+
 ## Thanks / Contributors
 
 Faulty Cat based in PicoEMP is a community-focused project, with major contributions from:
