@@ -32,7 +32,6 @@ char* version = "1.0.2";
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(*array))
 
 const uint statusLED = 10;
-const uint unusedGPIO = 28;  // Pins on Pico are accessed using GPIO names
 const uint MAX_NUM_JTAG = 32;
 const uint maxChannels = 8;  // Max number of channels supported by Faulty Cat
 uint progressCount = 0;
