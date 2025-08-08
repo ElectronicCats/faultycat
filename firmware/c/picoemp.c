@@ -9,7 +9,6 @@
 
 const uint32_t PIN_IN_TRIGGER = 0; // also GP0 on the board
 const uint32_t PIN_LED_HV = 9;
-const uint32_t PIN_LED_STATUS = 10;
 const uint32_t PIN_BTN_PULSE = 11;
 const uint32_t PIN_OUT_HVPULSE = 14;
 const uint32_t PIN_IN_CHARGED = 18;
@@ -99,13 +98,9 @@ void picoemp_configure_pulse_external() {
 void picoemp_init() {
     // Initialize LED GPIOs
     gpio_init(PIN_LED_HV);
-    gpio_init(PIN_LED_STATUS);
     gpio_init(PIN_LED_CHARGE_ON);
     gpio_set_dir(PIN_LED_HV, GPIO_OUT);
-    gpio_set_dir(PIN_LED_STATUS, GPIO_OUT);
     gpio_set_dir(PIN_LED_CHARGE_ON, GPIO_OUT);
-    // Enable status LED
-    gpio_put(PIN_LED_STATUS, true);
 
     // Initialize button GPIOs
     gpio_init(PIN_BTN_ARM);
