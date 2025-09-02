@@ -150,7 +150,7 @@ int main() {
 
   // Initialize USB-UART as STDIO
   stdio_init_all();
-
+  // gpio_put(statusLED, true);
   picoemp_init();
 
   // Init for reset pin (move somewhere else)
