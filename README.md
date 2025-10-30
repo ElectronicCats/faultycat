@@ -58,8 +58,7 @@ Faulty Cat based in PicoEMP is a community-focused project, with major contribut
 
 ### Programming the Faulty Cat
 
-Follow the [first steps section](https://github.com/ElectronicCats/FaultyCat/wiki/3.-First-Steps) of the Faulty Cat wiki in order to program it.  You can run other tasks on the microcontroller
-as well.
+Follow the steps in the [Bootloader mode section](https://github.com/ElectronicCats/faultycat/wiki/1.-Understanding-Faulty-Cat#bootloader-mode) of the Faulty Cat wiki in order to program it.  You can run other tasks on the microcontroller as well.
 
 
 ### Useful References
