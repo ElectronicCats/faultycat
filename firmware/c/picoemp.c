@@ -7,14 +7,37 @@
 
 #include <stdio.h>
 
-const uint32_t PIN_IN_TRIGGER = 0; // also GP0 on the board
-const uint32_t PIN_LED_HV = 9;
-const uint32_t PIN_BTN_PULSE = 11;
-const uint32_t PIN_OUT_HVPULSE = 14;
-const uint32_t PIN_IN_CHARGED = 18;
-const uint32_t PIN_OUT_HVPWM = 20;
-const uint32_t PIN_LED_CHARGE_ON = 27;
-const uint32_t PIN_BTN_ARM = 28;
+#include "board_config.h"
+
+// Mappings to board_config via constants for compatibility
+const uint32_t PIN_IN_TRIGGER = PIN_TRIGGER;
+const uint32_t PIN_LED_HV = PIN_LED_HV_ARMED;
+
+// Fix PIN_BTN_PULSE macro conflict
+#ifdef PIN_BTN_PULSE
+const uint32_t _PIN_BTN_PULSE = PIN_BTN_PULSE;
+#undef PIN_BTN_PULSE
+const uint32_t PIN_BTN_PULSE = _PIN_BTN_PULSE;
+#endif
+
+const uint32_t PIN_OUT_HVPULSE = PIN_HV_PULSE;
+const uint32_t PIN_IN_CHARGED = PIN_HV_FB_IN;
+const uint32_t PIN_OUT_HVPWM = PIN_HV_PWM;
+
+// Fix conflict with macros: use a different name for the constant or undef macro
+// PIN_LED_CHARGE_ON is defined in board_config.h
+#ifdef PIN_LED_CHARGE_ON
+const uint32_t _PIN_LED_CHARGE_ON = PIN_LED_CHARGE_ON;
+#undef PIN_LED_CHARGE_ON
+const uint32_t PIN_LED_CHARGE_ON = _PIN_LED_CHARGE_ON;
+#endif
+
+// PIN_BTN_ARM is defined in board_config.h
+#ifdef PIN_BTN_ARM
+const uint32_t _PIN_BTN_ARM = PIN_BTN_ARM;
+#undef PIN_BTN_ARM
+const uint32_t PIN_BTN_ARM = _PIN_BTN_ARM;
+#endif
 
 static bool pwm_enabled = false;
 

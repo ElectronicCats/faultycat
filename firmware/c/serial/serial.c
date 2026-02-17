@@ -11,6 +11,7 @@
 #include "blueTag.h"
 #include "glitcher.h"
 #include "glitcher_commands.h"
+#include "serial_utils.h"
 
 #define FIRMWARE_VERSION "2.1.0.0"
 
@@ -160,9 +161,18 @@ void print_status(uint32_t status) {
   }
 }
 
+static bool multicore_fifo_pop_safe(uint32_t *data) {
+    if (!multicore_fifo_pop_timeout_us(1000000, data)) { // 1 second timeout
+        printf("Error: Multicore response timeout!\n");
+        return false;
+    }
+    return true;
+}
+
 bool handle_arm(void) {
-  multicore_fifo_push_blocking(cmd_arm);
-  uint32_t result = multicore_fifo_pop_blocking();
+  multicore_fifo_push_blocking(SERIAL_CMD_arm);
+  uint32_t result;
+  if (!multicore_fifo_pop_safe(&result)) return true;
   if (result == return_ok) {
     printf("Device armed!\n");
   } else {
@@ -172,8 +182,9 @@ bool handle_arm(void) {
 }
 
 bool handle_disarm(void) {
-  multicore_fifo_push_blocking(cmd_disarm);
-  uint32_t result = multicore_fifo_pop_blocking();
+  multicore_fifo_push_blocking(SERIAL_CMD_disarm);
+  uint32_t result;
+  if (!multicore_fifo_pop_safe(&result)) return true;
   if (result == return_ok) {
     printf("Device disarmed!\n");
   } else {
@@ -183,8 +194,9 @@ bool handle_disarm(void) {
 }
 
 bool handle_pulse(void) {
-  multicore_fifo_push_blocking(cmd_pulse);
-  uint32_t result = multicore_fifo_pop_blocking();
+  multicore_fifo_push_blocking(SERIAL_CMD_pulse);
+  uint32_t result;
+  if (!multicore_fifo_pop_safe(&result)) return true;
   if (result == return_ok) {
     printf("Pulsed!\n");
   } else {
@@ -194,8 +206,9 @@ bool handle_pulse(void) {
 }
 
 bool handle_enable_timeout(void) {
-  multicore_fifo_push_blocking(cmd_enable_timeout);
-  uint32_t result = multicore_fifo_pop_blocking();
+  multicore_fifo_push_blocking(SERIAL_CMD_enable_timeout);
+  uint32_t result;
+  if (!multicore_fifo_pop_safe(&result)) return true;
   if (result == return_ok) {
     printf("Timeout enabled!\n");
   } else {
@@ -205,8 +218,9 @@ bool handle_enable_timeout(void) {
 }
 
 bool handle_disable_timeout(void) {
-  multicore_fifo_push_blocking(cmd_disable_timeout);
-  uint32_t result = multicore_fifo_pop_blocking();
+  multicore_fifo_push_blocking(SERIAL_CMD_disable_timeout);
+  uint32_t result;
+  if (!multicore_fifo_pop_safe(&result)) return true;
   if (result == return_ok) {
     printf("Timeout disabled!\n");
   } else {
@@ -216,12 +230,16 @@ bool handle_disable_timeout(void) {
 }
 
 bool handle_fast_trigger(void) {
-  multicore_fifo_push_blocking(cmd_fast_trigger);
+  multicore_fifo_push_blocking(SERIAL_CMD_fast_trigger);
   uint32_t result = multicore_fifo_pop_blocking();
   if (result == return_ok) {
     printf("Fast trigger active...\n");
-    multicore_fifo_pop_blocking();
-    printf("Triggered!\n");
+    uint32_t trigger_result = multicore_fifo_pop_blocking();
+    if (trigger_result == return_ok) {
+        printf("Triggered!\n");
+    } else {
+        printf("Trigger timed out!\n");
+    }
   } else {
     printf("Setting up fast trigger failed.");
   }
@@ -229,51 +247,103 @@ bool handle_fast_trigger(void) {
 }
 
 bool handle_fast_trigger_configure(void) {
-  char** unused;
-  printf(" configure in cycles\n");
-  printf("  1 cycle = 8ns\n");
-  printf("  1us = 125 cycles\n");
-  printf("  1ms = 125000 cycles\n");
-  printf("  max = MAX_UINT32 = 4294967295 cycles = 34359ms\n");
+  printf("\n=== Fast Trigger Configuration ===\n");
+  printf("Configures the glitcher to fire immediately upon detecting a specific edge.\n");
+  
+  // 1. Trigger Edge
+  printf("\n[1/3] Trigger Edge\n");
+  printf("Select the signal transition on the Trigger Input pin that will fire the glitch.\n");
+  printf("  0: Rising Edge (Low -> High)\n");
+  printf("  1: Falling Edge (High -> Low)\n");
+  printf("  Current selection: %s\n", (glitcher.trigger_type == TriggersType_TRIGGER_FALLING_EDGE) ? "Falling" : "Rising");
+  printf("  > ");
+  
+  uint32_t edge_val = 0;
+  read_command();
+  if (serial_buffer[0] != 0) {
+     if (safe_strtoul(serial_buffer, &edge_val) && edge_val <= 1) {
+         // Valid
+     } else {
+         edge_val = 0; // Default Rising
+         printf("Invalid value. Defaulting to Rising Edge.\n");
+     }
+  } else {
+     printf("Keeping default/current (Rising).\n");
+  }
+  printf("Selected: %s Edge\n", (edge_val == 0) ? "Rising" : "Falling");
 
-  printf(" pulse_delay_cycles (current: %d, default: %d)?\n> ", pulse_delay_cycles, PULSE_DELAY_CYCLES_DEFAULT);
+  // 2. Pulse Delay
+  printf("\n[2/3] Pulse Delay (Cycles)\n");
+  printf("How many clock cycles to wait after the trigger before firing.\n");
+  printf("  - 1 cycle = ~8ns (at 125MHz)\n");
+  printf("  - 0 = Immediate fire (minimum latency)\n");
+  printf("  Current value: %d cycles\n", pulse_delay_cycles);
+  printf("  Enter new value (or press Enter to keep current): ");
+  
   read_command();
   printf("\n");
-  if (serial_buffer[0] == 0)
-    printf("Using default\n");
-  else
-    pulse_delay_cycles = strtoul(serial_buffer, unused, 10);
+  if (serial_buffer[0] != 0) {
+    uint32_t val;
+    if (safe_strtoul(serial_buffer, &val)) {
+        pulse_delay_cycles = val;
+        printf("New Delay: %d cycles\n", pulse_delay_cycles);
+    } else {
+        printf("Invalid input. Keeping current: %d cycles\n", pulse_delay_cycles);
+    }
+  } else {
+    printf("Keeping current: %d cycles\n", pulse_delay_cycles);
+  }
 
-  printf(" pulse_time_cycles (current: %d, default: %d)?\n> ", pulse_time_cycles, PULSE_TIME_CYCLES_DEFAULT);
+  // 3. Pulse Width
+  printf("\n[3/3] Pulse Width (Cycles)\n");
+  printf("Duration of the glitch pulse in clock cycles.\n");
+  printf("  - Default: %d cycles (~5us)\n", PULSE_TIME_CYCLES_DEFAULT);
+  printf("  Current value: %d cycles\n", pulse_time_cycles);
+  printf("  Enter new value (or press Enter to keep current): ");
+  
   read_command();
   printf("\n");
-  if (serial_buffer[0] == 0)
-    printf("Using default\n");
-  else
-    pulse_time_cycles = strtoul(serial_buffer, unused, 10);
+  if (serial_buffer[0] != 0) {
+    uint32_t val;
+    if (safe_strtoul(serial_buffer, &val) && val > 0) {
+        pulse_time_cycles = val;
+        printf("New Width: %d cycles\n", pulse_time_cycles);
+    } else {
+        printf("Invalid input (must be > 0). Keeping current: %d cycles\n", pulse_time_cycles);
+    }
+  } else {
+    printf("Keeping current: %d cycles\n", pulse_time_cycles);
+  }
 
-  multicore_fifo_push_blocking(cmd_config_pulse_delay_cycles);
+  // Send configuration to Core 0 (Main)
+  multicore_fifo_push_blocking(SERIAL_CMD_config_pulse_delay_cycles);
   multicore_fifo_push_blocking(pulse_delay_cycles);
-  uint32_t result = multicore_fifo_pop_blocking();
-  if (result != return_ok) {
-    printf("Config pulse_delay_cycles failed.");
-  }
+  if (multicore_fifo_pop_blocking() != return_ok) printf("Error: Failed to sync pulse_delay_cycles.\n");
 
-  multicore_fifo_push_blocking(cmd_config_pulse_time_cycles);
+  multicore_fifo_push_blocking(SERIAL_CMD_config_pulse_time_cycles);
   multicore_fifo_push_blocking(pulse_time_cycles);
-  result = multicore_fifo_pop_blocking();
-  if (result != return_ok) {
-    printf("Config pulse_time_cycles failed.");
-  }
+  if (multicore_fifo_pop_blocking() != return_ok) printf("Error: Failed to sync pulse_time_cycles.\n");
+  
+  uint32_t trigger_type = (edge_val == 0) ? 3 : 4; // 3=Rising, 4=Falling (Maps to TriggerType enum)
+  
+  multicore_fifo_push_blocking(SERIAL_CMD_config_trigger_type);
+  multicore_fifo_push_blocking(trigger_type);
+  if (multicore_fifo_pop_blocking() != return_ok) printf("Error: Failed to sync trigger_type.\n");
 
-  printf("pulse_delay_cycles=%d, pulse_time_cycles=%d\n", pulse_delay_cycles, pulse_time_cycles);
+  printf("\n=== Configuration Complete ===\n");
+  printf("Summary:\n");
+  printf("  - Trigger: %s Edge\n", (edge_val == 0) ? "Rising" : "Falling");
+  printf("  - Delay:   %d cycles\n", pulse_delay_cycles);
+  printf("  - Width:   %d cycles\n", pulse_time_cycles);
+  printf("Use 'fq' to activate Fast Trigger mode.\n");
 
   return true;
 }
 
 bool handle_internal_hvp(void) {
-  multicore_fifo_push_blocking(cmd_internal_hvp);
-  uint32_t result = multicore_fifo_pop_blocking();
+  multicore_fifo_push_blocking(SERIAL_CMD_internal_hvp);
+  uint32_t result;
+  if (!multicore_fifo_pop_safe(&result)) return true;
   if (result == return_ok) {
     printf("Internal HVP mode active!\n");
   } else {
@@ -283,8 +353,9 @@ bool handle_internal_hvp(void) {
 }
 
 bool handle_external_hvp(void) {
-  multicore_fifo_push_blocking(cmd_external_hvp);
-  uint32_t result = multicore_fifo_pop_blocking();
+  multicore_fifo_push_blocking(SERIAL_CMD_external_hvp);
+  uint32_t result;
+  if (!multicore_fifo_pop_safe(&result)) return true;
   if (result == return_ok) {
     printf("External HVP mode active!\n");
   } else {
@@ -298,10 +369,16 @@ bool handle_configure(void) {
   printf(" pulse_time (current: %d, default: %d)?\n> ", pulse_time, PULSE_TIME_US_DEFAULT);
   read_command();
   printf("\n");
-  if (serial_buffer[0] == 0)
+  if (serial_buffer[0] == 0) {
     printf("Using default\n");
-  else
-    pulse_time = strtoul(serial_buffer, unused, 10);
+  } else {
+    uint32_t val;
+    if (safe_strtoul(serial_buffer, &val)) {
+        pulse_time = val;
+    } else {
+        printf("Invalid value, keeping current.\n");
+    }
+  }
 
   printf(" pulse_power (current: %f, default: %f)?\n> ", pulse_power.f, PULSE_POWER_DEFAULT);
   read_command();
@@ -311,14 +388,14 @@ bool handle_configure(void) {
   else
     pulse_power.f = strtof(serial_buffer, unused);
 
-  multicore_fifo_push_blocking(cmd_config_pulse_time);
+  multicore_fifo_push_blocking(SERIAL_CMD_config_pulse_time);
   multicore_fifo_push_blocking(pulse_time);
   uint32_t result = multicore_fifo_pop_blocking();
   if (result != return_ok) {
     printf("Config pulse_time failed.");
   }
 
-  multicore_fifo_push_blocking(cmd_config_pulse_power);
+  multicore_fifo_push_blocking(SERIAL_CMD_config_pulse_power);
   multicore_fifo_push_blocking(pulse_power.ui32);
   result = multicore_fifo_pop_blocking();
   if (result != return_ok) {
@@ -371,9 +448,10 @@ bool handle_help(void) {
 }
 
 bool handle_toggle_all_gpios(void) {
-  multicore_fifo_push_blocking(cmd_toggle_gp_all);
+  multicore_fifo_push_blocking(SERIAL_CMD_toggle_gp_all);
 
-  uint32_t result = multicore_fifo_pop_blocking();
+  uint32_t result;
+  if (!multicore_fifo_pop_safe(&result)) return true;
   if (result == return_ok) {
     printf("All GPIOs (0-7) toggled successfully.\n");
   } else {
@@ -384,10 +462,15 @@ bool handle_toggle_all_gpios(void) {
 }
 
 bool handle_status(void) {
-  multicore_fifo_push_blocking(cmd_status);
-  uint32_t result = multicore_fifo_pop_blocking();
+  multicore_fifo_push_blocking(SERIAL_CMD_status);
+  uint32_t result;
+// ...
+  if (!multicore_fifo_pop_safe(&result)) return true;
   if (result == return_ok) {
-    print_status(multicore_fifo_pop_blocking());
+    uint32_t status_val;
+    if (multicore_fifo_pop_safe(&status_val)) {
+      print_status(status_val);
+    }
   } else {
     printf("Getting status failed!\n");
   }

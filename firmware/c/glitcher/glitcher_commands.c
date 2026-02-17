@@ -73,13 +73,13 @@ void glitcher_commands_configure() {
   printf("     5: Pulse Positive\n");
   printf("     6: Pulse Negative\n");
   printf("     > ");
-  int trigger_type_int = getIntFromSerial(1);
-  while (trigger_type_int < 0 || trigger_type_int > 6) {
-    printf("     Enter a valid value: ");
-    trigger_type_int = getIntFromSerial(1);
+  
+  int32_t val;
+  while (!safe_read_int(&val, 1) || val < 0 || val > 6) {
+    printf("     Invalid. Enter (0-6): ");
   }
-  TriggersType trigger_type = (TriggersType)trigger_type_int;
-  printf("     Trigger type set to: ", trigger_type_int);
+  TriggersType trigger_type = (TriggersType)val;
+  printf("     Trigger type set to: %d\n", val);
   print_trigger_type(trigger_type);
 
   printf("     Enter trigger pull configuration (0-2):\n");
@@ -87,13 +87,12 @@ void glitcher_commands_configure() {
   printf("     1: Pull Up\n");
   printf("     2: Pull Down\n");
   printf("     > ");
-  int trigger_pull_configuration_int = getIntFromSerial(1);
-  while (trigger_pull_configuration_int < 0 || trigger_pull_configuration_int > 2) {
-    printf("     Enter a valid value: ");
-    trigger_pull_configuration_int = getIntFromSerial(1);
+  
+  while (!safe_read_int(&val, 1) || val < 0 || val > 2) {
+    printf("     Invalid. Enter (0-2): ");
   }
-  TriggerPullConfiguration trigger_pull_configuration = (TriggerPullConfiguration)trigger_pull_configuration_int;
-  printf("     Trigger pull configuration set to: ", trigger_pull_configuration_int);
+  TriggerPullConfiguration trigger_pull_configuration = (TriggerPullConfiguration)val;
+  printf("     Trigger pull configuration set to: %d\n", val);
   print_trigger_pull_configuration(trigger_pull_configuration);
 
   printf("     Enter glitch output (0-2):\n");
@@ -101,32 +100,31 @@ void glitcher_commands_configure() {
   printf("     1: LP\n");
   printf("     2: HP\n");
   printf("     > ");
-  int glitch_output_int = getIntFromSerial(1);
-  while (glitch_output_int < 0 || glitch_output_int > 2) {
-    printf("     Enter a valid value: ");
-    glitch_output_int = getIntFromSerial(1);
+  
+  while (!safe_read_int(&val, 1) || val < 0 || val > 2) {
+      printf("     Invalid. Enter (0-2): ");
   }
-  GlitchOutput_t glitch_output = (GlitchOutput_t)glitch_output_int;
-  printf("     Glitch output set to: ", glitch_output_int);
+  GlitchOutput_t glitch_output = (GlitchOutput_t)val;
+  printf("     Glitch output set to: %d\n", val);
   print_glitch_output(glitch_output);
 
   printf("     Enter delay before pulse (in cycles): ");
-  int delay_before_pulse = getIntFromSerial(10);
-  while (delay_before_pulse < 0) {
-    printf("     Enter a valid value: ");
-    delay_before_pulse = getIntFromSerial(10);
+  int32_t delay_val;
+  while (!safe_read_int(&delay_val, 10) || delay_val < 0) {
+    printf("     Invalid value. Try again: ");
   }
-  printf("     Delay before pulse set to: %d cycles\n", delay_before_pulse);
+  printf("     Delay before pulse set to: %d cycles\n", delay_val);
 
   printf("     Enter pulse width (in cycles): ");
-  int pulse_width = getIntFromSerial(10);
-  while (pulse_width < 0) {
-    printf("     Enter a valid value: ");
-    pulse_width = getIntFromSerial(10);
+  int32_t width_val;
+  // Prevent 0 width which causes infinite loop in PIO
+  while (!safe_read_int(&width_val, 10) || width_val <= 0) {
+    printf("     Invalid value (must be > 0). Try again: ");
   }
-  printf("     Pulse width set to: %d cycles\n", pulse_width);
+  printf("     Pulse width set to: %d cycles\n", width_val);
+  
   printf("     Configuring glitcher...\n");
-  glitcher_set_config(trigger_type, glitch_output, delay_before_pulse, pulse_width);
+  glitcher_set_config(trigger_type, glitch_output, (uint32_t)delay_val, (uint32_t)width_val);
   printf("     Glitcher configured successfully\n");
 }
 

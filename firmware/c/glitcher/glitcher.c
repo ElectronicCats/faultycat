@@ -12,20 +12,27 @@
 #include "hardware/pio.h"
 #include "pico/time.h"
 
+#include "board_config.h"
+
+#define PIN_LED1 PIN_LED_HV_ARMED  // Reuse existing LED definition logic if applicable? 
+// Original code had PIN_LED1 10, PIN_LED2 9. 
+// board_config has 9 as LED_HV_ARMED. 
+// Let's defer LED changes to avoid behavior change, but unify trigger/glitch pins.
+
 #define PIN_LED1 10
 #define PIN_LED2 9
 
 #define CAPTURE_DEPTH 30000
 #define ADC_DMA_CHANNEL 0
-#define ADC_PIN 29
-#define ADC_CHANNEL 3
+#define ADC_PIN PIN_ADC_INPUT
+#define ADC_CHANNEL ADC_CHANNEL_NUM
 
 #define PIO_IRQ_TRIGGERED 0
 #define PIO_IRQ_GLITCHED 1
 
-#define GLITCHER_TRIGGER_PIN 8
-#define GLITCHER_LP_GLITCH_PIN 16
-#define GLITCHER_HP_GLITCH_PIN 17
+#define GLITCHER_TRIGGER_PIN PIN_TRIGGER
+#define GLITCHER_LP_GLITCH_PIN PIN_GLITCH_LP
+#define GLITCHER_HP_GLITCH_PIN PIN_GLITCH_HP
 
 struct glitcher_configuration glitcher = {
     .trigger_type = TriggersType_TRIGGER_NONE,
@@ -164,6 +171,13 @@ bool glitcher_configure() {
     sm_config_set_set_pins(&c, GLITCHER_LP_GLITCH_PIN, GPIO_OUT);
     pio_gpio_init(pio0, GLITCHER_LP_GLITCH_PIN);
     pio_sm_set_consecutive_pindirs(pio0, 0, GLITCHER_LP_GLITCH_PIN, 1, true);
+  }
+
+  // If glitch output is EMP type
+  if(glitcher.glitch_output == GlitchOutput_EMP) {
+    sm_config_set_set_pins(&c, PIN_HV_PULSE, GPIO_OUT);
+    pio_gpio_init(pio0, PIN_HV_PULSE);
+    pio_sm_set_consecutive_pindirs(pio0, 0, PIN_HV_PULSE, 1, true);
   }
 
   pio_sm_init(pio0, 0, program.loaded_offset, &c);

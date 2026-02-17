@@ -13,6 +13,7 @@ typedef enum _GlitchOutput_t {
   GlitchOutput_None = 0,
   GlitchOutput_LP,
   GlitchOutput_HP,
+  GlitchOutput_EMP, // Drives PIN_HV_PULSE (GP14)
 } GlitchOutput_t;
 
 struct glitcher_configuration {
@@ -22,6 +23,8 @@ struct glitcher_configuration {
   uint32_t delay_before_pulse;
   uint32_t pulse_width;
 };
+
+extern struct glitcher_configuration glitcher;
 
 void glitcher_init();
 
