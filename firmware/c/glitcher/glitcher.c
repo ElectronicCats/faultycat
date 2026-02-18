@@ -261,7 +261,7 @@ static inline bool pio_interrupt_get_timeout_us(PIO pio, uint irq, uint timeout)
   return true;
 }
 
-void glitcher_run() {
+bool glitcher_run() {
   pio_clear_instruction_memory(pio0);
   glitcher_configure();
 
@@ -305,7 +305,7 @@ void glitcher_run() {
       gpio_put(PIN_LED1, 0);
       gpio_put(PIN_LED2, 0);
       printf("Trigger timed out\n");
-      // return;
+      return false;
     }
   } else {
     printf("Trigger successful\n");
@@ -327,4 +327,6 @@ void glitcher_run() {
   pio_clear_instruction_memory(pio0);
   gpio_put(PIN_LED1, 0);
   gpio_put(PIN_LED2, 0);
+  
+  return true;
 }

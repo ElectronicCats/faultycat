@@ -117,12 +117,17 @@ void read_command() {
 
     putchar(c);
 
-    if (c == '\r') {
-      return;
+    if (c == '\r' || c == '\n') {
+      if (strlen(serial_buffer) > 0) {
+          return;
+      } else {
+          // Ignore empty lines if we want, or return empty command.
+          // Better logic: if we have chars, return. If empty (just newline), maybe return empty to refresh prompt?
+          // Existing code returned on \r.
+          return;
+      }
     }
-    if (c == '\n') {
-      continue;
-    }
+    // if (c == '\n') { continue; } // Removed this
 
     // buffer full, just return.
     if (strlen(serial_buffer) >= 255) {
@@ -316,19 +321,20 @@ bool handle_fast_trigger_configure(void) {
   }
 
   // Send configuration to Core 0 (Main)
+  // Send configuration to Core 0 (Main)
   multicore_fifo_push_blocking(SERIAL_CMD_config_pulse_delay_cycles);
   multicore_fifo_push_blocking(pulse_delay_cycles);
-  if (multicore_fifo_pop_blocking() != return_ok) printf("Error: Failed to sync pulse_delay_cycles.\n");
+  if (!multicore_fifo_pop_safe(NULL)) printf("Error: Timeout syncing pulse_delay_cycles.\n");
 
   multicore_fifo_push_blocking(SERIAL_CMD_config_pulse_time_cycles);
   multicore_fifo_push_blocking(pulse_time_cycles);
-  if (multicore_fifo_pop_blocking() != return_ok) printf("Error: Failed to sync pulse_time_cycles.\n");
+  if (!multicore_fifo_pop_safe(NULL)) printf("Error: Timeout syncing pulse_time_cycles.\n");
   
   uint32_t trigger_type = (edge_val == 0) ? 3 : 4; // 3=Rising, 4=Falling (Maps to TriggerType enum)
   
   multicore_fifo_push_blocking(SERIAL_CMD_config_trigger_type);
   multicore_fifo_push_blocking(trigger_type);
-  if (multicore_fifo_pop_blocking() != return_ok) printf("Error: Failed to sync trigger_type.\n");
+  if (!multicore_fifo_pop_safe(NULL)) printf("Error: Timeout syncing trigger_type.\n");
 
   printf("\n=== Configuration Complete ===\n");
   printf("Summary:\n");

@@ -77,6 +77,6 @@ uint32_t adc_get_sample_count();
  *
  * @note This function will block until the glitch is done or timed out
  *
- * @return void
+ * @return true if triggered successfully, false if timed out
  */
-void glitcher_run();
+bool glitcher_run();

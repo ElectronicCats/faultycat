@@ -245,9 +245,13 @@ int main() {
           // Set Output to EMP (GP14) for fast trigger compatibility
           glitcher.glitch_output = GlitchOutput_EMP; 
           
-          glitcher_run();
+          bool triggered = glitcher_run();
           multicore_fifo_push_blocking(return_ok);
-          multicore_fifo_push_blocking(return_ok); // Signify success
+          if (triggered) {
+              multicore_fifo_push_blocking(return_ok);
+          } else {
+              multicore_fifo_push_blocking(return_failed); // Or any non-ok value to signal timeout
+          }
           break;
 
         case SERIAL_CMD_config_pulse_delay_cycles:
