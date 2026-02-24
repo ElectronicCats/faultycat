@@ -245,8 +245,9 @@ int main() {
           // Set Output to EMP (GP14) for fast trigger compatibility
           glitcher.glitch_output = GlitchOutput_EMP; 
           
-          bool triggered = glitcher_run();
           multicore_fifo_push_blocking(return_ok);
+          bool triggered = glitcher_run();
+          
           if (triggered) {
               multicore_fifo_push_blocking(return_ok);
           } else {

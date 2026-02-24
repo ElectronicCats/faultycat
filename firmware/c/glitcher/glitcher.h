@@ -9,6 +9,12 @@
 
 #include "faultier.pb.h"
 
+// Extended Trigger Type (Manually added, not in proto)
+#define TriggersType_TRIGGER_SERIAL 100
+#define GlitchOutput_OUT_EMP 7
+
+#define CAPTURE_DEPTH 8192 // 8KB Memory, must be power of 2 for DMA ring
+
 typedef enum _GlitchOutput_t {
   GlitchOutput_None = 0,
   GlitchOutput_LP,
@@ -22,6 +28,13 @@ struct glitcher_configuration {
   GlitchOutput_t glitch_output;
   uint32_t delay_before_pulse;
   uint32_t pulse_width;
+  uint8_t serial_pin;
+  char serial_pattern[32];
+  
+  // Advanced Faultier Attributes
+  TriggerSource trigger_source;
+  GlitchOutput power_cycle_output;
+  uint32_t power_cycle_length;
 };
 
 extern struct glitcher_configuration glitcher;

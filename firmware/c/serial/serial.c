@@ -53,6 +53,7 @@ bool handle_external_hvp();
 bool handle_configure();
 bool handle_glitch();
 bool handle_configure_glitcher();
+bool handle_configure_faultier();
 bool handle_glitcher_status();
 bool handle_jtag_scan();
 bool handle_swd_scan();
@@ -88,6 +89,7 @@ static const command_t commands[] = {
     // Glitch Commands
     {"glitch", "g", "Trigger glitch", handle_glitch, CAT_GLITCH},
     {"configure glitcher", "gc", "Configure glitcher", handle_configure_glitcher, CAT_GLITCH},
+    {"configure faultier", "cf", "Configure advanced faultier features", handle_configure_faultier, CAT_GLITCH},
     {"glitcher status", "gs", "Show glitcher status", handle_glitcher_status, CAT_GLITCH},
     {"configure adc", "ac", "ADC: configure sampling", handle_configure_adc, CAT_GLITCH},
     {"display adc", "av", "ADC: view sampled data", handle_display_adc, CAT_GLITCH},
@@ -260,22 +262,67 @@ bool handle_fast_trigger_configure(void) {
   printf("Select the signal transition on the Trigger Input pin that will fire the glitch.\n");
   printf("  0: Rising Edge (Low -> High)\n");
   printf("  1: Falling Edge (High -> Low)\n");
-  printf("  Current selection: %s\n", (glitcher.trigger_type == TriggersType_TRIGGER_FALLING_EDGE) ? "Falling" : "Rising");
+  printf("  2: Serial Pattern on GPO0\n");
+  
+  const char* current_type_str = "Rising";
+  if (glitcher.trigger_type == TriggersType_TRIGGER_FALLING_EDGE) current_type_str = "Falling";
+  else if (glitcher.trigger_type == TriggersType_TRIGGER_SERIAL) current_type_str = "Serial";
+  
+  printf("  Current selection: %s\n", current_type_str);
   printf("  > ");
   
   uint32_t edge_val = 0;
+  if (glitcher.trigger_type == TriggersType_TRIGGER_FALLING_EDGE) edge_val = 1;
+  else if (glitcher.trigger_type == TriggersType_TRIGGER_SERIAL) edge_val = 2;
+
   read_command();
+  printf("\n");
   if (serial_buffer[0] != 0) {
-     if (safe_strtoul(serial_buffer, &edge_val) && edge_val <= 1) {
+     if (safe_strtoul(serial_buffer, &edge_val) && edge_val <= 2) {
          // Valid
      } else {
          edge_val = 0; // Default Rising
          printf("Invalid value. Defaulting to Rising Edge.\n");
      }
   } else {
-     printf("Keeping default/current (Rising).\n");
+     printf("Keeping default/current (%s).\n", current_type_str);
   }
-  printf("Selected: %s Edge\n", (edge_val == 0) ? "Rising" : "Falling");
+  
+  uint32_t trigger_type;
+  if (edge_val == 0) trigger_type = 3; // 3=Rising
+  else if (edge_val == 1) trigger_type = 4; // 4=Falling
+  else trigger_type = 7; // 7=Serial
+  
+  const char* new_type_str = "Rising";
+  if (edge_val == 1) new_type_str = "Falling";
+  else if (edge_val == 2) new_type_str = "Serial";
+  
+  printf("Selected: %s\n", new_type_str);
+
+  if (trigger_type == 7) { // Serial
+      char temp_pattern[32] = {0};
+      printf("     Enter serial pattern to wait for on GPO0 (Rx) (Current: \"%s\"): ", glitcher.serial_pattern);
+      int i = 0;
+      while (i < 31) {
+          int c = getchar();
+          if (c == '\r' || c == '\n') {
+              break;
+          } else if (c == '\b' || c == 127) {
+              if (i > 0) { i--; printf("\b \b"); }
+          } else {
+              temp_pattern[i++] = (char)c;
+              putchar(c);
+          }
+      }
+      temp_pattern[i] = '\0';
+      if (i > 0) {
+          printf("\n     Pattern set to: \"%s\"\n", temp_pattern);
+          glitcher.serial_pin = 0; // Hardcoded GPO0 (PIN_GATE)
+          strncpy(glitcher.serial_pattern, temp_pattern, sizeof(glitcher.serial_pattern) - 1);
+      } else {
+          printf("\n     Keeping current pattern.\n");
+      }
+  }
 
   // 2. Pulse Delay
   printf("\n[2/3] Pulse Delay (Cycles)\n");
@@ -321,7 +368,6 @@ bool handle_fast_trigger_configure(void) {
   }
 
   // Send configuration to Core 0 (Main)
-  // Send configuration to Core 0 (Main)
   multicore_fifo_push_blocking(SERIAL_CMD_config_pulse_delay_cycles);
   multicore_fifo_push_blocking(pulse_delay_cycles);
   if (!multicore_fifo_pop_safe(NULL)) printf("Error: Timeout syncing pulse_delay_cycles.\n");
@@ -330,18 +376,21 @@ bool handle_fast_trigger_configure(void) {
   multicore_fifo_push_blocking(pulse_time_cycles);
   if (!multicore_fifo_pop_safe(NULL)) printf("Error: Timeout syncing pulse_time_cycles.\n");
   
-  uint32_t trigger_type = (edge_val == 0) ? 3 : 4; // 3=Rising, 4=Falling (Maps to TriggerType enum)
-  
   multicore_fifo_push_blocking(SERIAL_CMD_config_trigger_type);
   multicore_fifo_push_blocking(trigger_type);
   if (!multicore_fifo_pop_safe(NULL)) printf("Error: Timeout syncing trigger_type.\n");
 
   printf("\n=== Configuration Complete ===\n");
   printf("Summary:\n");
-  printf("  - Trigger: %s Edge\n", (edge_val == 0) ? "Rising" : "Falling");
+  printf("  - Trigger: %s \n", new_type_str);
   printf("  - Delay:   %d cycles\n", pulse_delay_cycles);
   printf("  - Width:   %d cycles\n", pulse_time_cycles);
-  printf("Use 'fq' to activate Fast Trigger mode.\n");
+
+  printf("\n[AUTO] Arming Device and Waiting for Trigger...\n");
+  handle_arm();
+  handle_fast_trigger();
+  printf("\n[AUTO] Disarming Device...\n");
+  handle_disarm();
 
   return true;
 }
@@ -415,16 +464,267 @@ bool handle_configure(void) {
 
 bool handle_glitch(void) {
   glitcher_run();
+  printf("\n[AUTO] Disarming Device...\n");
+  handle_disarm();
   return true;
 }
 
+const char* get_trigger_type_str(TriggersType type) {
+  switch (type) {
+    case TriggersType_TRIGGER_NONE: return "None";
+    case TriggersType_TRIGGER_HIGH: return "High";
+    case TriggersType_TRIGGER_LOW: return "Low";
+    case TriggersType_TRIGGER_RISING_EDGE: return "Rising Edge";
+    case TriggersType_TRIGGER_FALLING_EDGE: return "Falling Edge";
+    case TriggersType_TRIGGER_PULSE_POSITIVE: return "Pulse Positive";
+    case TriggersType_TRIGGER_PULSE_NEGATIVE: return "Pulse Negative";
+    case TriggersType_TRIGGER_SERIAL: return "Serial";
+    default: return "Unknown";
+  }
+}
+
+const char* get_trigger_pull_str(TriggerPullConfiguration pull) {
+  switch (pull) {
+    case TriggerPullConfiguration_TRIGGER_PULL_NONE: return "None";
+    case TriggerPullConfiguration_TRIGGER_PULL_UP: return "Pull Up";
+    case TriggerPullConfiguration_TRIGGER_PULL_DOWN: return "Pull Down";
+    default: return "Unknown";
+  }
+}
+
+const char* get_glitch_output_str(GlitchOutput_t out) {
+  switch (out) {
+    case GlitchOutput_LP: return "LP";
+    case GlitchOutput_HP: return "HP";
+    case GlitchOutput_EMP: return "EMP (Antenna)";
+    case GlitchOutput_None: return "None";
+    default: return "Unknown";
+  }
+}
+
 bool handle_configure_glitcher(void) {
-  glitcher_commands_configure();
+  printf("\n=== Glitcher Configuration ===\n");
+  
+  // 1. Trigger Type
+  printf("\n[1/5] Trigger Type\n");
+  printf("  0: None\n  1: High\n  2: Low\n  3: Rising Edge\n  4: Falling Edge\n  5: Pulse Positive\n  6: Pulse Negative\n  7: Serial\n");
+  printf("  Current: %s\n  > ", get_trigger_type_str(glitcher.trigger_type));
+  read_command();
+  printf("\n");
+  if (serial_buffer[0] != 0) {
+    uint32_t val;
+    if (safe_strtoul(serial_buffer, &val) && val <= 7) {
+      glitcher.trigger_type = (TriggersType)val;
+    } else {
+      printf("  Invalid. Keeping current.\n");
+    }
+  }
+
+  if (glitcher.trigger_type == TriggersType_TRIGGER_SERIAL) {
+      char temp_pattern[32] = {0};
+      printf("     Enter serial pattern to wait for on GPO0 (Rx) (Current: \"%s\"): ", glitcher.serial_pattern);
+      int i = 0;
+      while (i < 31) {
+          int c = getchar();
+          if (c == '\r' || c == '\n') {
+              break;
+          } else if (c == '\b' || c == 127) {
+              if (i > 0) { i--; printf("\b \b"); }
+          } else {
+              temp_pattern[i++] = (char)c;
+              putchar(c);
+          }
+      }
+      temp_pattern[i] = '\0';
+      if (i > 0) {
+          printf("\n     Pattern set to: \"%s\"\n", temp_pattern);
+          glitcher.serial_pin = 0; // Hardcoded GPO0 (PIN_GATE)
+          strncpy(glitcher.serial_pattern, temp_pattern, sizeof(glitcher.serial_pattern) - 1);
+      } else {
+          printf("\n     Keeping current pattern.\n");
+      }
+  }
+
+  // 2. Trigger Pull Configuration
+  printf("\n[2/5] Trigger Pull Configuration\n");
+  printf("  0: None\n  1: Pull Up\n  2: Pull Down\n");
+  printf("  Current: %s\n  > ", get_trigger_pull_str(glitcher.trigger_pull_configuration));
+  read_command();
+  printf("\n");
+  if (serial_buffer[0] != 0) {
+    uint32_t val;
+    if (safe_strtoul(serial_buffer, &val) && val <= 2) {
+      glitcher.trigger_pull_configuration = (TriggerPullConfiguration)val;
+    } else {
+      printf("  Invalid. Keeping current.\n");
+    }
+  }
+
+  // 3. Glitch Output
+  printf("\n[3/5] Glitch Output\n");
+  printf("  0: None\n  1: LP\n  2: HP\n  3: EMP (Antenna)\n");
+  printf("  Current: %s\n  > ", get_glitch_output_str(glitcher.glitch_output));
+  read_command();
+  printf("\n");
+  if (serial_buffer[0] != 0) {
+    uint32_t val;
+    if (safe_strtoul(serial_buffer, &val) && val <= 3) {
+      glitcher.glitch_output = (GlitchOutput_t)val;
+    } else {
+      printf("  Invalid. Keeping current.\n");
+    }
+  }
+
+  // 4. Delay before pulse
+  printf("\n[4/5] Delay Before Pulse (cycles)\n");
+  printf("  Current: %lu cycles\n  > ", glitcher.delay_before_pulse);
+  read_command();
+  printf("\n");
+  if (serial_buffer[0] != 0) {
+    uint32_t val;
+    if (safe_strtoul(serial_buffer, &val)) {
+      glitcher.delay_before_pulse = val;
+    } else {
+      printf("  Invalid. Keeping current.\n");
+    }
+  }
+
+  // 5. Pulse width
+  printf("\n[5/5] Pulse Width (cycles)\n");
+  printf("  Current: %lu cycles\n  > ", glitcher.pulse_width);
+  read_command();
+  printf("\n");
+  if (serial_buffer[0] != 0) {
+    uint32_t val;
+    if (safe_strtoul(serial_buffer, &val) && val > 0) {
+      glitcher.pulse_width = val;
+    } else {
+      printf("  Invalid (must be > 0). Keeping current.\n");
+    }
+  }
+
+  printf("\n=== Glitcher Configured ===\n");
+  printf("     Configuring glitcher internally...\n");
+  glitcher_set_config(glitcher.trigger_type, glitcher.glitch_output, glitcher.delay_before_pulse, glitcher.pulse_width);
+  printf("     Glitcher configured successfully\n");
+
+  printf("\n[AUTO] Arming Device and Waiting for Trigger...\n");
+  handle_arm();
+  handle_glitch();
+
   return true;
 }
 
 bool handle_glitcher_status(void) {
   glitcher_commands_get_config();
+  return true;
+}
+
+const char* get_trigger_source_str(TriggerSource src) {
+  switch(src) {
+    case TriggerSource_TRIGGER_IN_NONE: return "None";
+    case TriggerSource_TRIGGER_IN_EXT0: return "EXT0";
+    case TriggerSource_TRIGGER_IN_EXT1: return "EXT1";
+    default: return "Unknown";
+  }
+}
+
+const char* get_power_cycle_out_str(GlitchOutput out) {
+  switch(out) {
+    case GlitchOutput_OUT_CROWBAR: return "Crowbar";
+    case GlitchOutput_OUT_MUX0: return "MUX0";
+    case GlitchOutput_OUT_MUX1: return "MUX1";
+    case GlitchOutput_OUT_MUX2: return "MUX2";
+    case GlitchOutput_OUT_EXT0: return "EXT0";
+    case GlitchOutput_OUT_EXT1: return "EXT1";
+    case GlitchOutput_OUT_NONE: return "None";
+    case GlitchOutput_OUT_EMP: return "EMP (Antenna)";
+    default: return "Unknown";
+  }
+}
+
+bool handle_configure_faultier(void) {
+  printf("\n=== Faultier Configuration ===\n");
+  
+  // 1. Trigger Source
+  printf("\n[1/3] Trigger Source\n");
+  printf("  0: None\n  1: EXT0\n  2: EXT1\n");
+  printf("  Current: %s\n  > ", get_trigger_source_str(glitcher.trigger_source));
+  read_command();
+  printf("\n");
+  if (serial_buffer[0] != 0) {
+    uint32_t val;
+    if (safe_strtoul(serial_buffer, &val) && val <= 2) glitcher.trigger_source = (TriggerSource)val;
+    else printf("  Invalid. Keeping current.\n");
+  }
+
+  // 1.5 Trigger Type (Add Serial Trigger selection for Faultier)
+  printf("\n[Optional] Faultier Trigger Type\n");
+  printf("  0: Inherit from Glitcher (Default)\n  7: Serial (GPO0)\n");
+  printf("  Current Master Type: %d\n  > ", glitcher.trigger_type);
+  read_command();
+  printf("\n");
+  if (serial_buffer[0] != 0) {
+    uint32_t val;
+    if (safe_strtoul(serial_buffer, &val)) {
+        if (val == 7) {
+            glitcher.trigger_type = TriggersType_TRIGGER_SERIAL;
+            
+            char temp_pattern[32] = {0};
+            printf("     Enter serial pattern to wait for on GPO0 (Rx): ");
+            int i = 0;
+            while (i < 31) {
+                int c = getchar();
+                if (c == '\r' || c == '\n') {
+                    if (i > 0) break;
+                } else if (c == '\b' || c == 127) {
+                    if (i > 0) { i--; printf("\b \b"); }
+                } else {
+                    temp_pattern[i++] = (char)c;
+                    putchar(c);
+                }
+            }
+            temp_pattern[i] = '\0';
+            printf("\n     Pattern set to: \"%s\"\n", temp_pattern);
+            glitcher.serial_pin = 0; // Hardcoded GPO0 (PIN_GATE)
+            strncpy(glitcher.serial_pattern, temp_pattern, sizeof(glitcher.serial_pattern) - 1);
+        }
+    }
+  }
+  
+  // 2. Power Cycle Output
+  printf("\n[2/3] Power Cycle Output (Target to cut power to)\n");
+  printf("  0: Crowbar\n  1: MUX0\n  2: MUX1\n  3: MUX2\n  4: EXT0\n  5: EXT1\n  6: None\n  7: EMP (Antenna)\n");
+  printf("  Current: %s\n  > ", get_power_cycle_out_str(glitcher.power_cycle_output));
+  read_command();
+  printf("\n");
+  if (serial_buffer[0] != 0) {
+    uint32_t val;
+    if (safe_strtoul(serial_buffer, &val) && val <= 7) glitcher.power_cycle_output = (GlitchOutput)val;
+    else printf("  Invalid. Keeping current.\n");
+  }
+
+  // 3. Power Cycle Length
+  if(glitcher.power_cycle_output != GlitchOutput_OUT_NONE) {
+    printf("\n[3/3] Power Cycle Length (Time to keep power off via PIO cycles)\n");
+    printf("  Current: %lu cycles\n  > ", glitcher.power_cycle_length);
+    read_command();
+    printf("\n");
+    if (serial_buffer[0] != 0) {
+      uint32_t val;
+      if (safe_strtoul(serial_buffer, &val)) glitcher.power_cycle_length = val;
+      else printf("  Invalid. Keeping current.\n");
+    }
+  } else {
+    printf("\n[3/3] Skipping Power Cycle Length (Output is None)\n");
+  }
+  
+  printf("\n=== Faultier Configured ===\n");
+
+  printf("\n[AUTO] Arming Device and Waiting for Trigger...\n");
+  handle_arm();
+  handle_glitch();
+
   return true;
 }
 
