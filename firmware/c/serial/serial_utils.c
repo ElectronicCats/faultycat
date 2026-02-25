@@ -1,6 +1,7 @@
 #include "serial_utils.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #define CR 13
 #define LF 10

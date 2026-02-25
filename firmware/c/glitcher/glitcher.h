@@ -9,7 +9,6 @@
 
 #include "faultier.pb.h"
 
-// Extended Trigger Type (Manually added, not in proto)
 #define TriggersType_TRIGGER_SERIAL 100
 #define GlitchOutput_OUT_EMP 7
 
@@ -28,8 +27,11 @@ struct glitcher_configuration {
   GlitchOutput_t glitch_output;
   uint32_t delay_before_pulse;
   uint32_t pulse_width;
+  
+  // Hardware UART Trigger Config
   uint8_t serial_pin;
   char serial_pattern[32];
+  uint32_t serial_baud;
   
   // Advanced Faultier Attributes
   TriggerSource trigger_source;

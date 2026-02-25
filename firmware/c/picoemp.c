@@ -85,6 +85,8 @@ void picoemp_enable_pwm(float duty_frac) {
 }
 
 void picoemp_disable_pwm() {
+    uint32_t slice = pwm_gpio_to_slice_num(PIN_OUT_HVPWM);
+    pwm_set_enabled(slice, false);
     pwm_enabled = false;
     gpio_init(PIN_OUT_HVPWM);
     gpio_set_dir(PIN_OUT_HVPWM, GPIO_OUT);

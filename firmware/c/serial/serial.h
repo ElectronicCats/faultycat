@@ -16,6 +16,11 @@
 #define SERIAL_CMD_config_pulse_delay_cycles 12
 #define SERIAL_CMD_config_pulse_time_cycles 13
 #define SERIAL_CMD_config_trigger_type 14
+#define SERIAL_CMD_config_serial_baud 15
+#define SERIAL_CMD_config_serial_pin 16
+#define SERIAL_CMD_glitch 17
+#define SERIAL_CMD_config_glitch_output 18
+#define SERIAL_CMD_config_trigger_pull 19
 
 #define return_ok 0
 #define return_failed 1

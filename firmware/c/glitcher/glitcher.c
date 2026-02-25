@@ -12,8 +12,8 @@
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
+#include "hardware/uart.h"
 #include "pico/time.h"
-
 #include "board_config.h"
 
 // Original code had PIN_LED1 10, PIN_LED2 9. 
@@ -73,7 +73,6 @@ void glitcher_init() {
 
   glitcher_set_default_config();
 }
-
 void glitcher_set_default_config() {
   glitcher_set_config(TriggersType_TRIGGER_RISING_EDGE, GlitchOutput_LP, 1000, 2500);
 }
@@ -93,24 +92,13 @@ void glitcher_get_config(struct glitcher_configuration* config) {
   config->pulse_width = glitcher.pulse_width;
 }
 
-#include "uart_rx.pio.h"
-
-#define GLITCHER_SERIAL_BAUD 115200
-
 // Global static to track the loaded PIO program
 static struct ft_pio_program current_program = {0};
-// Global static to track loaded UART program offset
-static uint uart_rx_program_offset = 0;
-static bool uart_rx_program_loaded = false;
 
 bool glitcher_configure() {
   struct ft_pio_program *program = &current_program;
 
   if (current_program.loaded) ft_pio_remove_program(&current_program);
-  if (uart_rx_program_loaded) {
-      pio_remove_program(pio0, &uart_rx_program, uart_rx_program_offset);
-      uart_rx_program_loaded = false;
-  }
   
   // Clean up ALL previous programs to avoid memory leak or collisions with fast_trigger
   pio_clear_instruction_memory(pio0);
@@ -141,18 +129,11 @@ bool glitcher_configure() {
       trigger_pulse_negative(program);
       break;
     case TriggersType_TRIGGER_SERIAL:
-      // For serial, SM0 waits for a manual trigger (CPU writes to TX FIFO)
-      // This is effectively "pull block"
+      // HW UART doesn't need a hardware trigger program. 
+      // Emulate a trigger by waiting for a CPU manual push via FIFO.
       {
-         uint16_t instr = pio_encode_pull(false, true); 
+         uint16_t instr = pio_encode_pull(false, true); // wait for CPU push
          ft_pio_program_add_inst(program, instr);
-         
-         // Also load and configure UART RX on SM 1
-         if (!uart_rx_program_loaded) {
-             uart_rx_program_offset = pio_add_program(pio0, &uart_rx_program);
-             uart_rx_program_loaded = true;
-         }
-         uart_rx_program_init(pio0, 1, uart_rx_program_offset, glitcher.serial_pin, GLITCHER_SERIAL_BAUD);
       }
       break;
 
@@ -221,10 +202,12 @@ bool glitcher_configure() {
         gpio_pull_down(trigger_pin);
         break;
     }
-
-    sm_config_set_in_pins(&c, trigger_pin);
+    
     pio_gpio_init(pio0, trigger_pin);
     pio_sm_set_consecutive_pindirs(pio0, 0, trigger_pin, 1, false);
+
+    // Always map the IN pin to the SM config so `wait` instructions don't crash
+    sm_config_set_in_pins(&c, trigger_pin);
   }
 
   // If glitch output is HP type
@@ -344,108 +327,111 @@ bool glitcher_run() {
 
   prepare_adc();
 
-  // Load FIFO pre-emptively ONLY if not using serial trigger.
-  // Secret is: Serial trigger uses an artificial PULL BLOCK as trigger, 
-  // so if we preload the FIFO now, it will think the "delay_before_pulse" is the Go-signal!
-  if (glitcher.trigger_type != TriggersType_TRIGGER_SERIAL) {
-      if (glitcher.power_cycle_output != GlitchOutput_OUT_NONE) {
-         pio_sm_put_blocking(pio0, 0, glitcher.power_cycle_length);
-      }
-      pio_sm_put_blocking(pio0, 0, glitcher.delay_before_pulse);
-      if (glitcher.glitch_output != GlitchOutput_None) {
-          printf("Glitching...\n");
-          pio_sm_put_blocking(pio0, 0, glitcher.pulse_width);
-      }
+  if (glitcher.power_cycle_output != GlitchOutput_OUT_NONE) {
+     pio_sm_put_blocking(pio0, 0, glitcher.power_cycle_length);
+  }
+  pio_sm_put_blocking(pio0, 0, glitcher.delay_before_pulse);
+  if (glitcher.glitch_output != GlitchOutput_None) {
+      printf("Glitching...\n");
+      pio_sm_put_blocking(pio0, 0, glitcher.pulse_width);
   }
   
-  // Serial Trigger Pattern Matching
+  // Wait for Trigger (with 3-second timeout for normal, indefinite for serial)
+  adc_run(true);
+
+  uint32_t start_time = time_us_32();
+  bool trigger_timeout = false;
+  
   if (glitcher.trigger_type == TriggersType_TRIGGER_SERIAL) {
-      // Ensure null termination of serial pattern
-      glitcher.serial_pattern[sizeof(glitcher.serial_pattern) - 1] = '\0';
-      printf("Waiting for serial pattern \"%s\" on GP%d...\n", glitcher.serial_pattern, glitcher.serial_pin);
-      fflush(stdout);
+      // Determine UART instance based on pin
+      uart_inst_t *uart_inst = (glitcher.serial_pin == 1) ? uart0 : uart1;
       
+      uart_init(uart_inst, glitcher.serial_baud);
+      gpio_set_function(glitcher.serial_pin, GPIO_FUNC_UART);
+      uart_set_hw_flow(uart_inst, false, false);
+      uart_set_format(uart_inst, 8, 1, UART_PARITY_NONE);
+      uart_set_fifo_enabled(uart_inst, true);
+      
+      // Flush RX FIFO
+      while (uart_is_readable(uart_inst)) {
+          uart_getc(uart_inst);
+      }
+      
+      glitcher.serial_pattern[sizeof(glitcher.serial_pattern) - 1] = '\0';
       uint32_t pattern_len = strlen(glitcher.serial_pattern);
       uint32_t match_idx = 0;
-      bool timeout = false;
       uint32_t last_print = 0;
       
-      while (!timeout) {
-          tud_task(); // Maintain USB connection
+      printf("Waiting for serial pattern \"%s\" on GP%d (%d baud)...\n", glitcher.serial_pattern, glitcher.serial_pin, glitcher.serial_baud);
+      
+      while (true) {
+          tud_task();
+          
+          // Ensure button is initialized for manual override
+          // (PULSE button is active low, pull up, and then we invert it to read active-high)
+          gpio_init(PIN_BTN_PULSE);
+          gpio_set_dir(PIN_BTN_PULSE, GPIO_IN);
+          gpio_set_pulls(PIN_BTN_PULSE, true, false);
+          gpio_set_inover(PIN_BTN_PULSE, GPIO_OVERRIDE_INVERT);
           
           uint32_t now = time_us_32();
-          
-          // Visual heartbeat
           if (now - last_print > 1000000) {
               printf(".");
               fflush(stdout);
               last_print = now;
           }
           
-          // Manual Trigger Override
-          if (!gpio_get(GLITCHER_TRIGGER_PIN)) {
+          // Manual Trigger Override via button (PIN_BTN_PULSE)
+          // `main.c` checks `if (gpio_get(PIN_BTN_PULSE))` for active high button
+          if (gpio_get(PIN_BTN_PULSE)) {
               printf("\nManual Trigger!\n");
-              pio_sm_put_blocking(pio0, 0, 0); // Fake trigger signal
-              if (glitcher.power_cycle_output != GlitchOutput_OUT_NONE) {
-                 pio_sm_put_blocking(pio0, 0, glitcher.power_cycle_length);
-              }
-              pio_sm_put_blocking(pio0, 0, glitcher.delay_before_pulse); // Wait
-              if (glitcher.glitch_output != GlitchOutput_None) pio_sm_put_blocking(pio0, 0, glitcher.pulse_width); // Fault
+              pio_sm_put_blocking(pio0, 0, 0); // Unblock PIO PULL instruction
               break;
           }
-
-          // Check RX FIFO
-          if (!pio_sm_is_rx_fifo_empty(pio0, 1)) {
-              char c = uart_rx_program_getc(pio0, 1);
-              
+          
+          if (uart_is_readable(uart_inst)) {
+              char c = uart_getc(uart_inst);
               if (c == glitcher.serial_pattern[match_idx]) {
                   match_idx++;
                   if (match_idx >= pattern_len) {
                       // Pattern matched, trigger glitch
-                      pio_sm_put_blocking(pio0, 0, 0); // Fake trigger signal
-                      if (glitcher.power_cycle_output != GlitchOutput_OUT_NONE) {
-                         pio_sm_put_blocking(pio0, 0, glitcher.power_cycle_length);
-                      }
-                      pio_sm_put_blocking(pio0, 0, glitcher.delay_before_pulse); // Wait
-                      if (glitcher.glitch_output != GlitchOutput_None) pio_sm_put_blocking(pio0, 0, glitcher.pulse_width); // Fault
+                      pio_sm_put_blocking(pio0, 0, 0); // Unblock PIO PULL instruction
                       break;
                   }
               } else {
                    // Reset match
-                   match_idx = 0;
-                   if (c == glitcher.serial_pattern[0]) match_idx = 1;
+                   match_idx = (c == glitcher.serial_pattern[0]) ? 1 : 0;
               }
           }
       }
       
-      if (timeout) {
-         printf("\nSerial trigger timeout\n");
-          // Cleanup on timeout
-          pio_sm_set_enabled(pio0, 0, false);
-          pio_sm_set_enabled(pio0, 1, false);
-          dma_channel_abort(ADC_DMA_CHANNEL);
-          
-          if (current_program.loaded) ft_pio_remove_program(&current_program);
-          if (uart_rx_program_loaded) {
-              pio_remove_program(pio0, &uart_rx_program, uart_rx_program_offset);
-              uart_rx_program_loaded = false;
-          }
-          gpio_put(PIN_LED1, 0);
-          gpio_put(PIN_LED2, 0);
-          return false;
+      // Cleanup UART
+      uart_deinit(uart_inst);
+      gpio_set_function(glitcher.serial_pin, GPIO_FUNC_NULL);
+      
+      // Since we bypassed the natural PIO IRQ by using Manual push, wait for the PIO program to process it
+      while (!pio_interrupt_get(pio0, PIO_IRQ_TRIGGERED)) { }
+      
+  } else {
+      // Standard Trigger IRQ wait
+      while (!pio_interrupt_get(pio0, PIO_IRQ_TRIGGERED)) {
+         tud_task();
+         if ((time_us_32() - start_time) > 3000000) { // 3 seconds timeout
+             trigger_timeout = true;
+             break;
+         }
       }
   }
 
-  // Wait for Trigger indefinitely
-  // Start continuous ADC *before* trigger
-  adc_run(true);
-
-  while (!pio_interrupt_get(pio0, PIO_IRQ_TRIGGERED)) {
-     tud_task();
-  }
-  
-  if (glitcher.trigger_type == TriggersType_TRIGGER_SERIAL) {
-      pio_sm_set_enabled(pio0, 1, false);
+  if (trigger_timeout) {
+      printf("Trigger wait timed out\n");
+      adc_run(false);
+      dma_channel_abort(ADC_DMA_CHANNEL);
+      pio_sm_set_enabled(pio0, 0, false);
+      if (current_program.loaded) ft_pio_remove_program(&current_program);
+      gpio_put(PIN_LED1, 0);
+      gpio_put(PIN_LED2, 0);
+      return false;
   }
 
   printf("Trigger successful\n");
@@ -454,7 +440,7 @@ bool glitcher_run() {
   gpio_put(PIN_LED2, 1);
   
   // Wait for glitch completion
-  if (!pio_interrupt_get_timeout_us(pio0, PIO_IRQ_GLITCHED, 3000000)) {
+  if (!pio_interrupt_get_timeout_us(pio0, PIO_IRQ_GLITCHED, 500000)) { // 500ms timeout for glitch
       printf("Glitch wait timed out\n");
   }
 
@@ -471,10 +457,6 @@ bool glitcher_run() {
   // Final Cleanup
   if (current_program.loaded) {
       ft_pio_remove_program(&current_program);
-  }
-  if (uart_rx_program_loaded) {
-      pio_remove_program(pio0, &uart_rx_program, uart_rx_program_offset);
-      uart_rx_program_loaded = false;
   }
   
   gpio_put(PIN_LED1, 0);

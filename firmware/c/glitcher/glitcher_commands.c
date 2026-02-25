@@ -27,8 +27,9 @@ void print_trigger_type(TriggersType trigger_type) {
       printf("Pulse Negative\n");
       break;
     case TriggersType_TRIGGER_SERIAL:
-      printf("Serial\n");
+      printf("Serial (HW UART)\n");
       break;
+
     default:
       printf("Unknown\n");
   }
@@ -82,6 +83,6 @@ void glitcher_commands_get_config() {
   printf("- Delay before pulse: %d cycles\n", config.delay_before_pulse);
   printf("- Pulse width: %d cycles\n", config.pulse_width);
   if (config.trigger_type == TriggersType_TRIGGER_SERIAL) {
-      printf("- Serial pattern: \"%s\" on GP%d\n", glitcher.serial_pattern, glitcher.serial_pin);
+      printf("- HW Serial pattern: \"%s\" on GP%d at %d baud\n", glitcher.serial_pattern, glitcher.serial_pin, glitcher.serial_baud);
   }
 }

@@ -12,6 +12,7 @@
 #include "glitcher.h"
 #include "glitcher_commands.h"
 #include "serial_utils.h"
+#include "board_config.h"
 
 #define FIRMWARE_VERSION "2.1.0.0"
 
@@ -262,7 +263,7 @@ bool handle_fast_trigger_configure(void) {
   printf("Select the signal transition on the Trigger Input pin that will fire the glitch.\n");
   printf("  0: Rising Edge (Low -> High)\n");
   printf("  1: Falling Edge (High -> Low)\n");
-  printf("  2: Serial Pattern on GPO0\n");
+  printf("  2: Serial Pattern on RX PIN\n");
   
   const char* current_type_str = "Rising";
   if (glitcher.trigger_type == TriggersType_TRIGGER_FALLING_EDGE) current_type_str = "Falling";
@@ -291,7 +292,7 @@ bool handle_fast_trigger_configure(void) {
   uint32_t trigger_type;
   if (edge_val == 0) trigger_type = 3; // 3=Rising
   else if (edge_val == 1) trigger_type = 4; // 4=Falling
-  else trigger_type = 7; // 7=Serial
+  else trigger_type = TriggersType_TRIGGER_SERIAL;
   
   const char* new_type_str = "Rising";
   if (edge_val == 1) new_type_str = "Falling";
@@ -299,9 +300,9 @@ bool handle_fast_trigger_configure(void) {
   
   printf("Selected: %s\n", new_type_str);
 
-  if (trigger_type == 7) { // Serial
+  if (trigger_type == TriggersType_TRIGGER_SERIAL) { // Serial
       char temp_pattern[32] = {0};
-      printf("     Enter serial pattern to wait for on GPO0 (Rx) (Current: \"%s\"): ", glitcher.serial_pattern);
+      printf("     Enter serial pattern to wait for on RX PIN (Current: \"%s\"): ", glitcher.serial_pattern);
       int i = 0;
       while (i < 31) {
           int c = getchar();
@@ -317,12 +318,44 @@ bool handle_fast_trigger_configure(void) {
       temp_pattern[i] = '\0';
       if (i > 0) {
           printf("\n     Pattern set to: \"%s\"\n", temp_pattern);
-          glitcher.serial_pin = 0; // Hardcoded GPO0 (PIN_GATE)
           strncpy(glitcher.serial_pattern, temp_pattern, sizeof(glitcher.serial_pattern) - 1);
       } else {
           printf("\n     Keeping current pattern.\n");
       }
+      
+      printf("\n     Enter HW UART RX Pin [1 (UART0) or 5 (UART1)] (Current: GP%d, Default: GP5): ", glitcher.serial_pin);
+      read_command();
+      printf("\n");
+      if (serial_buffer[0] != 0) {
+          uint32_t val;
+          if (safe_strtoul(serial_buffer, &val) && (val == 1 || val == 5)) {
+              glitcher.serial_pin = val;
+              printf("     Serial input pin set to: GP%u\n", glitcher.serial_pin);
+          } else {
+              printf("     Invalid pin (must be 1 or 5). Keeping current: GP%u\n", glitcher.serial_pin);
+          }
+      } else {
+          if (glitcher.serial_pin == 0) glitcher.serial_pin = 5;
+          printf("     Keeping current serial pin: GP%u\n", glitcher.serial_pin);
+      }
+      
+      printf("\n     Enter baud rate (Current: %u): ", glitcher.serial_baud);
+      read_command();
+      printf("\n");
+      if (serial_buffer[0] != 0) {
+          uint32_t val;
+          if (safe_strtoul(serial_buffer, &val) && val >= 300 && val <= 1000000) {
+              glitcher.serial_baud = val;
+              printf("     Baud rate set to: %u\n", glitcher.serial_baud);
+          } else {
+              printf("     Invalid baud rate. Keeping current: %u\n", glitcher.serial_baud);
+          }
+      } else {
+          if (glitcher.serial_baud == 0) glitcher.serial_baud = 115200;
+          printf("     Keeping current baud rate: %u\n", glitcher.serial_baud);
+      }
   }
+
 
   // 2. Pulse Delay
   printf("\n[2/3] Pulse Delay (Cycles)\n");
@@ -379,6 +412,25 @@ bool handle_fast_trigger_configure(void) {
   multicore_fifo_push_blocking(SERIAL_CMD_config_trigger_type);
   multicore_fifo_push_blocking(trigger_type);
   if (!multicore_fifo_pop_safe(NULL)) printf("Error: Timeout syncing trigger_type.\n");
+
+  multicore_fifo_push_blocking(SERIAL_CMD_config_trigger_pull);
+  multicore_fifo_push_blocking(glitcher.trigger_pull_configuration);
+  if (!multicore_fifo_pop_safe(NULL)) printf("Error: Timeout syncing trigger_pull.\n");
+
+  multicore_fifo_push_blocking(SERIAL_CMD_config_glitch_output);
+  multicore_fifo_push_blocking(glitcher.glitch_output);
+  if (!multicore_fifo_pop_safe(NULL)) printf("Error: Timeout syncing glitch_output.\n");
+
+  
+  if (trigger_type == TriggersType_TRIGGER_SERIAL) {
+      multicore_fifo_push_blocking(SERIAL_CMD_config_serial_baud);
+      multicore_fifo_push_blocking(glitcher.serial_baud);
+      if (!multicore_fifo_pop_safe(NULL)) printf("Error: Timeout syncing serial_baud.\n");
+
+      multicore_fifo_push_blocking(SERIAL_CMD_config_serial_pin);
+      multicore_fifo_push_blocking(glitcher.serial_pin);
+      if (!multicore_fifo_pop_safe(NULL)) printf("Error: Timeout syncing serial_pin.\n");
+  }
 
   printf("\n=== Configuration Complete ===\n");
   printf("Summary:\n");
@@ -463,9 +515,21 @@ bool handle_configure(void) {
 }
 
 bool handle_glitch(void) {
-  glitcher_run();
-  printf("\n[AUTO] Disarming Device...\n");
-  handle_disarm();
+  multicore_fifo_push_blocking(SERIAL_CMD_glitch);
+  
+  uint32_t resp1 = multicore_fifo_pop_blocking();
+  if (resp1 != return_ok) {
+    printf("Glitch command rejected by core0.\n");
+    return false;
+  }
+  
+  // Wait for the trigger to finish or timeout
+  uint32_t resp2 = multicore_fifo_pop_blocking();
+  if (resp2 == return_ok) {
+      printf("\n[AUTO] Glitch complete.\n");
+  } else {
+      printf("\n[AUTO] Glitch failed or timed out.\n");
+  }
   return true;
 }
 
@@ -478,7 +542,6 @@ const char* get_trigger_type_str(TriggersType type) {
     case TriggersType_TRIGGER_FALLING_EDGE: return "Falling Edge";
     case TriggersType_TRIGGER_PULSE_POSITIVE: return "Pulse Positive";
     case TriggersType_TRIGGER_PULSE_NEGATIVE: return "Pulse Negative";
-    case TriggersType_TRIGGER_SERIAL: return "Serial";
     default: return "Unknown";
   }
 }
@@ -507,14 +570,18 @@ bool handle_configure_glitcher(void) {
   
   // 1. Trigger Type
   printf("\n[1/5] Trigger Type\n");
-  printf("  0: None\n  1: High\n  2: Low\n  3: Rising Edge\n  4: Falling Edge\n  5: Pulse Positive\n  6: Pulse Negative\n  7: Serial\n");
+  printf("  0: None\n  1: High\n  2: Low\n  3: Rising Edge\n  4: Falling Edge\n  5: Pulse Positive\n  6: Pulse Negative\n  7: Serial (HW UART)\n");
   printf("  Current: %s\n  > ", get_trigger_type_str(glitcher.trigger_type));
   read_command();
   printf("\n");
   if (serial_buffer[0] != 0) {
     uint32_t val;
     if (safe_strtoul(serial_buffer, &val) && val <= 7) {
-      glitcher.trigger_type = (TriggersType)val;
+      if (val == 7) {
+        glitcher.trigger_type = TriggersType_TRIGGER_SERIAL;
+      } else {
+        glitcher.trigger_type = (TriggersType)val;
+      }
     } else {
       printf("  Invalid. Keeping current.\n");
     }
@@ -522,7 +589,7 @@ bool handle_configure_glitcher(void) {
 
   if (glitcher.trigger_type == TriggersType_TRIGGER_SERIAL) {
       char temp_pattern[32] = {0};
-      printf("     Enter serial pattern to wait for on GPO0 (Rx) (Current: \"%s\"): ", glitcher.serial_pattern);
+      printf("     Enter serial pattern to wait for on RX PIN (Current: \"%s\"): ", glitcher.serial_pattern);
       int i = 0;
       while (i < 31) {
           int c = getchar();
@@ -538,12 +605,44 @@ bool handle_configure_glitcher(void) {
       temp_pattern[i] = '\0';
       if (i > 0) {
           printf("\n     Pattern set to: \"%s\"\n", temp_pattern);
-          glitcher.serial_pin = 0; // Hardcoded GPO0 (PIN_GATE)
           strncpy(glitcher.serial_pattern, temp_pattern, sizeof(glitcher.serial_pattern) - 1);
       } else {
           printf("\n     Keeping current pattern.\n");
       }
+      
+      printf("\n     Enter HW UART RX Pin [1 (UART0) or 5 (UART1)] (Current: GP%d, Default: GP5): ", glitcher.serial_pin);
+      read_command();
+      printf("\n");
+      if (serial_buffer[0] != 0) {
+          uint32_t val;
+          if (safe_strtoul(serial_buffer, &val) && (val == 1 || val == 5)) {
+              glitcher.serial_pin = val;
+              printf("     Serial input pin set to: GP%u\n", glitcher.serial_pin);
+          } else {
+              printf("     Invalid pin (must be 1 or 5). Keeping current: GP%u\n", glitcher.serial_pin);
+          }
+      } else {
+          if (glitcher.serial_pin == 0) glitcher.serial_pin = 5;
+          printf("     Keeping current serial pin: GP%u\n", glitcher.serial_pin);
+      }
+      
+      printf("\n     Enter baud rate (Current: %u): ", glitcher.serial_baud);
+      read_command();
+      printf("\n");
+      if (serial_buffer[0] != 0) {
+          uint32_t val;
+          if (safe_strtoul(serial_buffer, &val) && val >= 300 && val <= 1000000) {
+              glitcher.serial_baud = val;
+              printf("     Baud rate set to: %u\n", glitcher.serial_baud);
+          } else {
+              printf("     Invalid baud rate. Keeping current: %u\n", glitcher.serial_baud);
+          }
+      } else {
+          if (glitcher.serial_baud == 0) glitcher.serial_baud = 115200;
+          printf("     Keeping current baud rate: %u\n", glitcher.serial_baud);
+      }
   }
+
 
   // 2. Trigger Pull Configuration
   printf("\n[2/5] Trigger Pull Configuration\n");
@@ -606,6 +705,38 @@ bool handle_configure_glitcher(void) {
   printf("\n=== Glitcher Configured ===\n");
   printf("     Configuring glitcher internally...\n");
   glitcher_set_config(glitcher.trigger_type, glitcher.glitch_output, glitcher.delay_before_pulse, glitcher.pulse_width);
+  
+  // Synchronize ALL parameters with Core 0
+  multicore_fifo_push_blocking(SERIAL_CMD_config_trigger_type);
+  multicore_fifo_push_blocking(glitcher.trigger_type);
+  if (!multicore_fifo_pop_safe(NULL)) printf("     Error: Timeout syncing trigger_type.\n");
+
+  multicore_fifo_push_blocking(SERIAL_CMD_config_trigger_pull);
+  multicore_fifo_push_blocking(glitcher.trigger_pull_configuration);
+  if (!multicore_fifo_pop_safe(NULL)) printf("     Error: Timeout syncing trigger_pull.\n");
+
+  multicore_fifo_push_blocking(SERIAL_CMD_config_glitch_output);
+  multicore_fifo_push_blocking(glitcher.glitch_output);
+  if (!multicore_fifo_pop_safe(NULL)) printf("     Error: Timeout syncing glitch_output.\n");
+
+  multicore_fifo_push_blocking(SERIAL_CMD_config_pulse_delay_cycles);
+  multicore_fifo_push_blocking(glitcher.delay_before_pulse);
+  if (!multicore_fifo_pop_safe(NULL)) printf("     Error: Timeout syncing pulse_delay.\n");
+
+  multicore_fifo_push_blocking(SERIAL_CMD_config_pulse_time_cycles);
+  multicore_fifo_push_blocking(glitcher.pulse_width);
+  if (!multicore_fifo_pop_safe(NULL)) printf("     Error: Timeout syncing pulse_width.\n");
+
+  if (glitcher.trigger_type == TriggersType_TRIGGER_SERIAL) {
+      multicore_fifo_push_blocking(SERIAL_CMD_config_serial_baud);
+      multicore_fifo_push_blocking(glitcher.serial_baud);
+      if (!multicore_fifo_pop_safe(NULL)) printf("     Error: Timeout syncing serial_baud.\n");
+
+      multicore_fifo_push_blocking(SERIAL_CMD_config_serial_pin);
+      multicore_fifo_push_blocking(glitcher.serial_pin);
+      if (!multicore_fifo_pop_safe(NULL)) printf("     Error: Timeout syncing serial_pin.\n");
+  }
+  
   printf("     Glitcher configured successfully\n");
 
   printf("\n[AUTO] Arming Device and Waiting for Trigger...\n");
@@ -658,39 +789,6 @@ bool handle_configure_faultier(void) {
     else printf("  Invalid. Keeping current.\n");
   }
 
-  // 1.5 Trigger Type (Add Serial Trigger selection for Faultier)
-  printf("\n[Optional] Faultier Trigger Type\n");
-  printf("  0: Inherit from Glitcher (Default)\n  7: Serial (GPO0)\n");
-  printf("  Current Master Type: %d\n  > ", glitcher.trigger_type);
-  read_command();
-  printf("\n");
-  if (serial_buffer[0] != 0) {
-    uint32_t val;
-    if (safe_strtoul(serial_buffer, &val)) {
-        if (val == 7) {
-            glitcher.trigger_type = TriggersType_TRIGGER_SERIAL;
-            
-            char temp_pattern[32] = {0};
-            printf("     Enter serial pattern to wait for on GPO0 (Rx): ");
-            int i = 0;
-            while (i < 31) {
-                int c = getchar();
-                if (c == '\r' || c == '\n') {
-                    if (i > 0) break;
-                } else if (c == '\b' || c == 127) {
-                    if (i > 0) { i--; printf("\b \b"); }
-                } else {
-                    temp_pattern[i++] = (char)c;
-                    putchar(c);
-                }
-            }
-            temp_pattern[i] = '\0';
-            printf("\n     Pattern set to: \"%s\"\n", temp_pattern);
-            glitcher.serial_pin = 0; // Hardcoded GPO0 (PIN_GATE)
-            strncpy(glitcher.serial_pattern, temp_pattern, sizeof(glitcher.serial_pattern) - 1);
-        }
-    }
-  }
   
   // 2. Power Cycle Output
   printf("\n[2/3] Power Cycle Output (Target to cut power to)\n");
