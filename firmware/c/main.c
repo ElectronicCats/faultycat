@@ -34,21 +34,59 @@ static uint offset = 0xFFFFFFFF;
 static uint32_t pulse_time;
 static uint32_t pulse_delay_cycles;
 static uint32_t pulse_time_cycles;
-static union float_union {
+union float_union {
   float f;
   uint32_t ui32;
 } pulse_power;
 
 void arm() {
   gpio_put(PIN_LED_CHARGE_ON, true);
+  gpio_put(PIN_LED_STATUS, true);
   armed = true;
 }
 
 void disarm() {
   gpio_put(PIN_LED_CHARGE_ON, false);
   gpio_put(PIN_LED_HV, false);
+  gpio_put(PIN_LED_STATUS, false);
   armed = false;
-  picoemp_disable_pwm();
+  picoemp_shutdown_pwm();
+}
+
+static uint32_t last_charged_time = 0;
+#define HV_LED_HOLD_MS 500
+
+void picoemp_process_charging() {
+    uint32_t now = to_ms_since_boot(get_absolute_time());
+    if (armed) {
+      bool is_charged = gpio_get(PIN_IN_CHARGED);
+      
+      // Hysteresis for the LED to prevent blinking
+      if (is_charged) {
+          gpio_put(PIN_LED_HV, true);
+          last_charged_time = now;
+      } else {
+          // Only turn off if we haven't seen "charged" in the last HV_LED_HOLD_MS
+          if (now - last_charged_time > HV_LED_HOLD_MS) {
+              gpio_put(PIN_LED_HV, false);
+          }
+      }
+
+      if (!is_charged) {
+        if (!picoemp_is_pwm_enabled()) {
+          picoemp_enable_pwm(pulse_power.f);
+        }
+      } else {
+        if (picoemp_is_pwm_enabled()) {
+          picoemp_disable_pwm();
+        }
+      }
+    } else {
+      gpio_put(PIN_LED_HV, false);
+      if (picoemp_is_pwm_enabled()) {
+        picoemp_disable_pwm();
+      }
+    }
 }
 
 uint32_t get_status() {
@@ -331,17 +369,7 @@ int main() {
       sleep_ms(100);
     }
 
-    if (armed) {
-      gpio_put(PIN_LED_HV, gpio_get(PIN_IN_CHARGED));
-      if (!gpio_get(PIN_IN_CHARGED)) {
-        picoemp_enable_pwm(pulse_power.f);
-      } else {
-        picoemp_disable_pwm();
-      }
-    } else {
-      gpio_put(PIN_LED_HV, false);
-      picoemp_disable_pwm();
-    }
+    picoemp_process_charging();
 
     if (timeout_active && (get_absolute_time() > timeout_time) && armed) {
       disarm();
