@@ -290,6 +290,7 @@ int main() {
               disarm(); // Turn off charging so it doesn't blink the CHG LED
               multicore_fifo_push_blocking(return_ok);
           } else {
+              disarm(); // Turn off charging on timeout too
               multicore_fifo_push_blocking(return_failed); // Or any non-ok value to signal timeout
           }
           break;
@@ -300,6 +301,7 @@ int main() {
               disarm(); // Turn off charging
               multicore_fifo_push_blocking(return_ok);
           } else {
+              disarm(); // Turn off charging on timeout too
               multicore_fifo_push_blocking(return_failed); 
           }
           break;

@@ -299,9 +299,9 @@ bool handle_fast_trigger_configure(void) {
   // Configuración interactiva del Serial Trigger (Añadido)
   if (trigger_type == TriggersType_TRIGGER_SERIAL) {
       char temp_pattern[32] = {0};
-      printf("     Enter serial pattern to wait for on RX PIN (Current: \"%s\"): ", glitcher.serial_pattern);
+      printf("     Enter serial pattern to wait for on RX PIN (Max 8 chars. Current: \"%s\"): ", glitcher.serial_pattern);
       int i = 0;
-      while (i < 31) {
+      while (i < 8) {
           int c = getchar();
           if (c == '\r' || c == '\n') {
               break;
@@ -588,9 +588,9 @@ bool handle_configure_glitcher(void) {
   // Configuración interactiva del menú para Serial Trigger (Añadido)
   if (glitcher.trigger_type == TriggersType_TRIGGER_SERIAL) {
       char temp_pattern[32] = {0};
-      printf("     Enter serial pattern to wait for on RX PIN (Current: \"%s\"): ", glitcher.serial_pattern);
+      printf("     Enter serial pattern to wait for on RX PIN (Max 8 chars. Current: \"%s\"): ", glitcher.serial_pattern);
       int i = 0;
-      while (i < 31) {
+      while (i < 8) {
           int c = getchar();
           if (c == '\r' || c == '\n') {
               break;

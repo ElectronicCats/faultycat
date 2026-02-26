@@ -233,6 +233,12 @@ bool glitcher_configure() {
   }
 
   pio_sm_init(pio0, 0, program->loaded_offset, &c);
+  
+  // Clear any residual state in the state machine and interrupts before enabling
+  pio_sm_clear_fifos(pio0, 0);
+  pio_interrupt_clear(pio0, PIO_IRQ_TRIGGERED);
+  pio_interrupt_clear(pio0, PIO_IRQ_GLITCHED);
+
   pio_sm_set_enabled(pio0, 0, true);
 
   printf("Glitcher configured successfully\n");
@@ -430,7 +436,7 @@ bool glitcher_run() {
       while (!pio_interrupt_get(pio0, PIO_IRQ_TRIGGERED)) {
          picoemp_process_charging();
          tud_task();
-         if ((time_us_32() - start_time) > 3000000) { // 3 seconds timeout
+         if ((time_us_32() - start_time) > 10000000) { // 10 seconds timeout
              trigger_timeout = true;
              break;
          }
