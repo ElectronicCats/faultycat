@@ -124,13 +124,9 @@ void read_command() {
       if (strlen(serial_buffer) > 0) {
           return;
       } else {
-          // Ignore empty lines if we want, or return empty command.
-          // Better logic: if we have chars, return. If empty (just newline), maybe return empty to refresh prompt?
-          // Existing code returned on \r.
-          return;
+          return; // Ignore empty lines and return to refresh prompt
       }
     }
-    // if (c == '\n') { continue; } // Removed this
 
     // buffer full, just return.
     if (strlen(serial_buffer) >= 255) {
@@ -300,7 +296,8 @@ bool handle_fast_trigger_configure(void) {
   
   printf("Selected: %s\n", new_type_str);
 
-  if (trigger_type == TriggersType_TRIGGER_SERIAL) { // Serial
+  // Configuración interactiva del Serial Trigger (Añadido)
+  if (trigger_type == TriggersType_TRIGGER_SERIAL) {
       char temp_pattern[32] = {0};
       printf("     Enter serial pattern to wait for on RX PIN (Current: \"%s\"): ", glitcher.serial_pattern);
       int i = 0;
@@ -422,6 +419,7 @@ bool handle_fast_trigger_configure(void) {
   if (!multicore_fifo_pop_safe(NULL)) printf("Error: Timeout syncing glitch_output.\n");
 
   
+  // Sincronización de parámetros de Serial con Core 0 (Añadido)
   if (trigger_type == TriggersType_TRIGGER_SERIAL) {
       multicore_fifo_push_blocking(SERIAL_CMD_config_serial_baud);
       multicore_fifo_push_blocking(glitcher.serial_baud);
@@ -587,6 +585,7 @@ bool handle_configure_glitcher(void) {
     }
   }
 
+  // Configuración interactiva del menú para Serial Trigger (Añadido)
   if (glitcher.trigger_type == TriggersType_TRIGGER_SERIAL) {
       char temp_pattern[32] = {0};
       printf("     Enter serial pattern to wait for on RX PIN (Current: \"%s\"): ", glitcher.serial_pattern);
@@ -727,6 +726,7 @@ bool handle_configure_glitcher(void) {
   multicore_fifo_push_blocking(glitcher.pulse_width);
   if (!multicore_fifo_pop_safe(NULL)) printf("     Error: Timeout syncing pulse_width.\n");
 
+  // Envío de parámetros Serial al otro núcleo (Añadido)
   if (glitcher.trigger_type == TriggersType_TRIGGER_SERIAL) {
       multicore_fifo_push_blocking(SERIAL_CMD_config_serial_baud);
       multicore_fifo_push_blocking(glitcher.serial_baud);

@@ -367,11 +367,7 @@ bool glitcher_run() {
       uint32_t pattern_len = strlen(glitcher.serial_pattern);
       uint32_t match_idx = 0;
       uint32_t last_print = 0;
-      uint32_t toggle_count = 0;
-      bool last_gpio_state = gpio_get(glitcher.serial_pin);
-      
       printf("Waiting for serial pattern \"%s\" on GP%d (%d baud)...\n", glitcher.serial_pattern, glitcher.serial_pin, glitcher.serial_baud);
-      printf("(Monitoring GP%d for any electrical activity...)\n", glitcher.serial_pin);
       
       // Ensure pulse button is initialized for manual override
       gpio_init(PIN_BTN_PULSE);
@@ -384,23 +380,9 @@ bool glitcher_run() {
           
           picoemp_process_charging();
 
-          // Electrical Signal Monitor
-          bool current_gpio_state = gpio_get(glitcher.serial_pin);
-          if (current_gpio_state != last_gpio_state) {
-              toggle_count++;
-              last_gpio_state = current_gpio_state;
-          }
-
           uint32_t now = time_us_32();
-          if (now - last_print > 1000000) { // Every 1 second
-              bool pin_state = gpio_get(glitcher.serial_pin);
-              if (toggle_count > 0) {
-                  printf("\n[SIGNAL DETECTED] Pin GP%d toggled %d times in 1s. Current: %d\n", 
-                         glitcher.serial_pin, toggle_count, pin_state);
-                  toggle_count = 0;
-              } else {
-                  printf("%d", pin_state);
-              }
+          if (now - last_print > 1000000) {
+              printf(".");
               fflush(stdout);
               last_print = now;
           }
@@ -416,28 +398,10 @@ bool glitcher_run() {
           }
           
           if (uart_is_readable(uart_inst)) {
-              // Check for errors first
-              uint32_t errors = uart_get_hw(uart_inst)->rsr & 0xF;
-              if (errors) {
-                  printf("\n[UART ERROR] 0x%X (Framing:%d Overrun:%d Parity:%d Break:%d)\n", 
-                         errors, errors&1, (errors>>1)&1, (errors>>2)&1, (errors>>3)&1);
-                  uart_get_hw(uart_inst)->rsr = 0xF; // Clear errors
-              }
-
               char c = uart_getc(uart_inst);
               
-              if (c >= 32 && c <= 126) {
-                  printf("[%c]", c);
-              } else {
-                  printf("[0x%02X]", (uint8_t)c);
-              }
-              fflush(stdout);
-
               if (c == glitcher.serial_pattern[match_idx]) {
                   match_idx++;
-                  printf(" (Match: %d/%d)\n", match_idx, pattern_len);
-                  fflush(stdout);
-                  
                   if (match_idx >= pattern_len) {
                       // Pattern matched, trigger glitch
                       printf("\nPattern matched! Triggering...\n");
@@ -449,10 +413,6 @@ bool glitcher_run() {
                   }
               } else {
                    // Partially reset match: if current char matches start of pattern, start over at 1
-                   if (match_idx > 0) {
-                       printf(" (Reset match)\n");
-                       fflush(stdout);
-                   }
                    match_idx = (c == glitcher.serial_pattern[0]) ? 1 : 0;
               }
           }
