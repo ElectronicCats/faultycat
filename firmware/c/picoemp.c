@@ -3,6 +3,8 @@
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
+#include "hardware/sync.h"
+#include "hardware/timer.h"
 #include "pico/stdlib.h"
 
 #include <stdio.h>
@@ -100,9 +102,11 @@ bool picoemp_is_pwm_enabled() {
 }
 
 void picoemp_pulse(uint32_t pulse_time) {
+    uint32_t ints = save_and_disable_interrupts();
     gpio_put(PIN_OUT_HVPULSE, true);
-    sleep_us(pulse_time);
+    busy_wait_us_32(pulse_time);
     gpio_put(PIN_OUT_HVPULSE, false);
+    restore_interrupts(ints);
     sleep_ms(250);
 }
 
