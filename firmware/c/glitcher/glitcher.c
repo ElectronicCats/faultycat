@@ -58,20 +58,6 @@ void glitcher_init() {
   gpio_set_dir(PIN_LED1, GPIO_OUT);
   gpio_put(PIN_LED1, 0);
 
-  // gpio_init(PIN_LED2);
-  // gpio_set_dir(PIN_LED2, GPIO_OUT);
-  // gpio_put(PIN_LED2, 0);
-
-  // Initialize ADC pins
-  // gpio_init(ADC_MUX_PIN);
-  // gpio_set_dir(ADC_MUX_PIN, GPIO_IN);
-
-  // gpio_init(ADC_EXT_PIN);
-  // gpio_set_dir(ADC_EXT_PIN, GPIO_IN);
-
-  // gpio_init(ADC_CB_PIN);
-  // gpio_set_dir(ADC_CB_PIN, GPIO_IN);
-
   glitcher_set_default_config();
 }
 void glitcher_set_default_config() {
