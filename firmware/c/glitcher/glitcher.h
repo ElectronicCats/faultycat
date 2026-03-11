@@ -9,10 +9,16 @@
 
 #include "faultier.pb.h"
 
+#define TriggersType_TRIGGER_SERIAL 100
+#define GlitchOutput_OUT_EMP 7
+
+#define CAPTURE_DEPTH 8192 // 8KB Memory, must be power of 2 for DMA ring
+
 typedef enum _GlitchOutput_t {
   GlitchOutput_None = 0,
   GlitchOutput_LP,
   GlitchOutput_HP,
+  GlitchOutput_EMP, // Drives PIN_HV_PULSE (GP14)
 } GlitchOutput_t;
 
 struct glitcher_configuration {
@@ -21,7 +27,19 @@ struct glitcher_configuration {
   GlitchOutput_t glitch_output;
   uint32_t delay_before_pulse;
   uint32_t pulse_width;
+  
+  // Hardware UART Trigger Config
+  uint8_t serial_pin;
+  char serial_pattern[32];
+  uint32_t serial_baud;
+  
+  // Advanced Faultier Attributes
+  TriggerSource trigger_source;
+  GlitchOutput power_cycle_output;
+  uint32_t power_cycle_length;
 };
+
+extern struct glitcher_configuration glitcher;
 
 void glitcher_init();
 
@@ -74,6 +92,6 @@ uint32_t adc_get_sample_count();
  *
  * @note This function will block until the glitch is done or timed out
  *
- * @return void
+ * @return true if triggered successfully, false if timed out
  */
-void glitcher_run();
+bool glitcher_run();

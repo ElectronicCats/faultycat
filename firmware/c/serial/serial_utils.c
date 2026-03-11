@@ -1,65 +1,71 @@
 #include "serial_utils.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #define CR 13
 #define LF 10
 
-int stringToInt(char* str) {
-  char* endptr;
-  long int num;
-  int res = 0;
-  num = strtol(str, &endptr, 10);
-  if (endptr == str) {
-    return 0;
-  } else if (*endptr != '\0') {
-    return 0;
-  } else {
-    return ((int)num);
+bool safe_strtoul(const char *str, uint32_t *out) {
+  char *endptr;
+  unsigned long val = strtoul(str, &endptr, 10);
+  
+  // Check for empty string or no conversion
+  if (endptr == str) return false;
+  // Check for remaining invalid characters
+  if (*endptr != '\0' && *endptr != '\r' && *endptr != '\n') return false;
+  
+  *out = (uint32_t)val;
+  return true;
+}
+
+bool safe_read_int(int32_t *out, uint8_t max_digits) {
+  if (max_digits < 1) max_digits = 1;
+  if (max_digits > 10) max_digits = 10;
+  
+  char strg[12] = {0}; 
+  char chr;
+  int index = 0;
+
+  // Discard leading whitespace/newlines
+  while (1) {
+    chr = getc(stdin);
+    if (chr != CR && chr != LF && chr != ' ' && chr != '\t') {
+      ungetc(chr, stdin);
+      break;
+    }
   }
-  return 0;
+  
+  while (index < max_digits) {
+    chr = getc(stdin);
+    // Echo
+    printf("%c", chr);
+    
+    if (chr == CR || chr == LF) {
+      break;
+    }
+    
+    // Check digit (allow negative? existing code used strtol but loop checked '0'-'9')
+    // Existing code disallowed negative signs in the loop `if (chr < '0' || chr > '9') break;`
+    // So we strictly read unsigned digits for now to match behavior, 
+    // BUT strtol allows negative.
+    // Let's allow only digits for safety for now as most params are unsigned.
+    if (chr < '0' || chr > '9') {
+      // Invalid char encountered
+       return false;
+    }
+    
+    strg[index++] = chr;
+  }
+  printf("\n");
+  
+  return safe_strtoul(strg, (uint32_t*)out);
 }
 
 int getIntFromSerial(uint8_t max_digits) {
-  // Ensure max_digits is reasonable
-  if (max_digits < 1) {
-    max_digits = 1;
-  } else if (max_digits > 10) {  // Prevent int overflow (max 32-bit int is 10 digits)
-    max_digits = 10;
-  }
-  
-  char strg[11] = {0}; // Max 10 digits for 32-bit int, plus null terminator
-  char chr;
-  int index = 0;
-  int value = 0;
-
-  // Discard leading newline characters
-  while (1) {
-    chr = getc(stdin);
-    if (chr != CR && chr != LF) {
-      ungetc(chr, stdin); // Push back non-newline character
-      break;
+    int32_t val = 0;
+    if (safe_read_int(&val, max_digits)) {
+        return (int)val;
     }
-  }
-  
-  // Read characters one by one
-  while (index < max_digits) {
-    chr = getc(stdin);
-    printf("%c", chr); // Echo the character
-    
-    // Stop if CR, LF, or non-digit
-    if (chr == CR || chr == LF || chr < '0' || chr > '9') {
-      break;
-    }
-    
-    // Add the digit to our string
-    strg[index] = chr;
-    index++;
-  }
-  
-  // Convert to integer
-  value = stringToInt(strg);
-  
-  printf("\n");
-  return value;
+    return 0; // Usage in legacy code expects 0 on failure usually
 }

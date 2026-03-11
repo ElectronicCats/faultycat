@@ -36,7 +36,6 @@ pico_generate_pio_header(faultycat ${CMAKE_CURRENT_LIST_DIR}/trigger_basic.pio)
 # Add additional PIO headers from faultier
 pico_generate_pio_header(faultycat ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier/pio/spi.pio)
 pico_generate_pio_header(faultycat ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier/pio/i2c.pio)
-pico_generate_pio_header(faultycat ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier/pio/uart_rx.pio)
 pico_generate_pio_header(faultycat ${CMAKE_CURRENT_LIST_DIR}/faultier/faultier/pio/uart_tx.pio)
 pico_generate_pio_header(faultycat ${CMAKE_CURRENT_LIST_DIR}/faultier/swd/probe.pio)
 

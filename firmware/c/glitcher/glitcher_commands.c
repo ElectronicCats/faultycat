@@ -26,6 +26,10 @@ void print_trigger_type(TriggersType trigger_type) {
     case TriggersType_TRIGGER_PULSE_NEGATIVE:
       printf("Pulse Negative\n");
       break;
+    case TriggersType_TRIGGER_SERIAL:
+      printf("Serial (HW UART)\n");
+      break;
+
     default:
       printf("Unknown\n");
   }
@@ -55,79 +59,15 @@ void print_glitch_output(GlitchOutput_t glitch_output) {
     case GlitchOutput_HP:
       printf("HP\n");
       break;
+    case GlitchOutput_EMP:
+      printf("EMP (Antenna)\n");
+      break;
     case GlitchOutput_None:
       printf("None\n");
       break;
     default:
       printf("Unknown\n");
   }
-}
-
-void glitcher_commands_configure() {
-  printf("     Enter trigger type (0-6):\n");
-  printf("     0: None\n");
-  printf("     1: High\n");
-  printf("     2: Low\n");
-  printf("     3: Rising Edge\n");
-  printf("     4: Falling Edge\n");
-  printf("     5: Pulse Positive\n");
-  printf("     6: Pulse Negative\n");
-  printf("     > ");
-  int trigger_type_int = getIntFromSerial(1);
-  while (trigger_type_int < 0 || trigger_type_int > 6) {
-    printf("     Enter a valid value: ");
-    trigger_type_int = getIntFromSerial(1);
-  }
-  TriggersType trigger_type = (TriggersType)trigger_type_int;
-  printf("     Trigger type set to: ", trigger_type_int);
-  print_trigger_type(trigger_type);
-
-  printf("     Enter trigger pull configuration (0-2):\n");
-  printf("     0: None\n");
-  printf("     1: Pull Up\n");
-  printf("     2: Pull Down\n");
-  printf("     > ");
-  int trigger_pull_configuration_int = getIntFromSerial(1);
-  while (trigger_pull_configuration_int < 0 || trigger_pull_configuration_int > 2) {
-    printf("     Enter a valid value: ");
-    trigger_pull_configuration_int = getIntFromSerial(1);
-  }
-  TriggerPullConfiguration trigger_pull_configuration = (TriggerPullConfiguration)trigger_pull_configuration_int;
-  printf("     Trigger pull configuration set to: ", trigger_pull_configuration_int);
-  print_trigger_pull_configuration(trigger_pull_configuration);
-
-  printf("     Enter glitch output (0-2):\n");
-  printf("     0: None\n");
-  printf("     1: LP\n");
-  printf("     2: HP\n");
-  printf("     > ");
-  int glitch_output_int = getIntFromSerial(1);
-  while (glitch_output_int < 0 || glitch_output_int > 2) {
-    printf("     Enter a valid value: ");
-    glitch_output_int = getIntFromSerial(1);
-  }
-  GlitchOutput_t glitch_output = (GlitchOutput_t)glitch_output_int;
-  printf("     Glitch output set to: ", glitch_output_int);
-  print_glitch_output(glitch_output);
-
-  printf("     Enter delay before pulse (in cycles): ");
-  int delay_before_pulse = getIntFromSerial(10);
-  while (delay_before_pulse < 0) {
-    printf("     Enter a valid value: ");
-    delay_before_pulse = getIntFromSerial(10);
-  }
-  printf("     Delay before pulse set to: %d cycles\n", delay_before_pulse);
-
-  printf("     Enter pulse width (in cycles): ");
-  int pulse_width = getIntFromSerial(10);
-  while (pulse_width < 0) {
-    printf("     Enter a valid value: ");
-    pulse_width = getIntFromSerial(10);
-  }
-  printf("     Pulse width set to: %d cycles\n", pulse_width);
-  printf("     Configuring glitcher...\n");
-  glitcher_set_config(trigger_type, glitch_output, delay_before_pulse, pulse_width);
-  printf("     Glitcher configured successfully\n");
 }
 
 void glitcher_commands_get_config() {
@@ -142,4 +82,7 @@ void glitcher_commands_get_config() {
   print_glitch_output(config.glitch_output);
   printf("- Delay before pulse: %d cycles\n", config.delay_before_pulse);
   printf("- Pulse width: %d cycles\n", config.pulse_width);
+  if (config.trigger_type == TriggersType_TRIGGER_SERIAL) {
+      printf("- HW Serial pattern: \"%s\" on GP%d at %d baud\n", glitcher.serial_pattern, glitcher.serial_pin, glitcher.serial_baud);
+  }
 }

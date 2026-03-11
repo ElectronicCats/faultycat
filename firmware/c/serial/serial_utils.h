@@ -8,14 +8,23 @@
  * @return The converted integer
  *         Returns 0 if the string is not a valid integer
  */
-int stringToInt(char* str);
+#include <stdbool.h>
 
 /**
- * @brief Get an integer from the serial input
- * 
- * @param max_digits The maximum number of digits to read
- * 
- * @return The integer read from the serial input
- *         Returns 0 if the input is not a valid integer
+ * @brief Convert a string to an integer safely
+ * @param str The string to convert
+ * @param out Pointer to store the result
+ * @return true if successful, false if invalid
  */
+bool safe_strtoul(const char *str, uint32_t *out);
+
+/**
+ * @brief Get an integer from serial input safely
+ * @param out Pointer to store the result
+ * @param max_digits Maximum digits to read
+ * @return true if successful, false if invalid input
+ */
+bool safe_read_int(int32_t *out, uint8_t max_digits);
+
+// Deprecate old function but keep for compatibility
 int getIntFromSerial(uint8_t max_digits);

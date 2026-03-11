@@ -16,6 +16,9 @@ extern const uint32_t PIN_BTN_ARM;
 
 void picoemp_enable_pwm(float duty_frac);
 void picoemp_disable_pwm();
+void picoemp_shutdown_pwm();
+void picoemp_process_charging();
+bool picoemp_is_pwm_enabled();
 void picoemp_pulse(uint32_t pulse_time);
 void picoemp_configure_pulse_output();
 void picoemp_configure_pulse_external();

@@ -7,6 +7,7 @@
 #include "picoemp.h"
 #include "serial.h"
 #include "trigger_basic.pio.h"
+#include "board_config.h"
 
 /**
  * @brief Flag to indicate whether we are testing hardware or not.
@@ -21,7 +22,7 @@
 
 static bool armed = false;
 static bool timeout_active = true;
-static bool hvp_internal = true;
+static bool hvp_internal = true; 
 static absolute_time_t timeout_time;
 static uint offset = 0xFFFFFFFF;
 
@@ -33,20 +34,59 @@ static uint offset = 0xFFFFFFFF;
 static uint32_t pulse_time;
 static uint32_t pulse_delay_cycles;
 static uint32_t pulse_time_cycles;
-static union float_union {
+union float_union {
   float f;
   uint32_t ui32;
 } pulse_power;
 
 void arm() {
   gpio_put(PIN_LED_CHARGE_ON, true);
+  gpio_put(PIN_LED_STATUS, true);
   armed = true;
 }
 
 void disarm() {
   gpio_put(PIN_LED_CHARGE_ON, false);
+  gpio_put(PIN_LED_HV, false);
+  gpio_put(PIN_LED_STATUS, false);
   armed = false;
-  picoemp_disable_pwm();
+  picoemp_shutdown_pwm();
+}
+
+static uint32_t last_charged_time = 0;
+#define HV_LED_HOLD_MS 500
+
+void picoemp_process_charging() {
+    uint32_t now = to_ms_since_boot(get_absolute_time());
+    if (armed) {
+      bool is_charged = gpio_get(PIN_IN_CHARGED);
+      
+      // Hysteresis for the LED to prevent blinking
+      if (is_charged) {
+          gpio_put(PIN_LED_HV, true);
+          last_charged_time = now;
+      } else {
+          // Only turn off if we haven't seen "charged" in the last HV_LED_HOLD_MS
+          if (now - last_charged_time > HV_LED_HOLD_MS) {
+              gpio_put(PIN_LED_HV, false);
+          }
+      }
+
+      if (!is_charged) {
+        if (!picoemp_is_pwm_enabled()) {
+          picoemp_enable_pwm(pulse_power.f);
+        }
+      } else {
+        if (picoemp_is_pwm_enabled()) {
+          picoemp_disable_pwm();
+        }
+      }
+    } else {
+      gpio_put(PIN_LED_HV, false);
+      if (picoemp_is_pwm_enabled()) {
+        picoemp_disable_pwm();
+      }
+    }
 }
 
 uint32_t get_status() {
@@ -94,7 +134,7 @@ void fast_trigger() {
 #ifdef TEST_HARDWARE
 void test_hardware() {
   // For testing purposes, blink GPIOs 0-7 infinitely
-  uint8_t trigger_pin = 8;
+  uint8_t trigger_pin = PIN_TRIGGER;
 
   // Variable to switch the glitch type
   bool switch_glitch_type = false;
@@ -104,8 +144,8 @@ void test_hardware() {
 
   // Configure ADC
   adc_init();
-  adc_gpio_init(29);
-  adc_select_input(3);  // ADC3 corresponds to GPIO29
+  adc_gpio_init(PIN_ADC_INPUT);
+  adc_select_input(ADC_CHANNEL_NUM);  // ADC channel corresponding to PIN_ADC_INPUT
 
   for (uint i = 0; i < 8; i++) {
     gpio_init(i);
@@ -173,78 +213,142 @@ int main() {
 #endif
 
   while (1) {
-    gpio_put(PIN_LED_HV, gpio_get(PIN_IN_CHARGED));
-
     // Handle serial commands (if any)
     while (multicore_fifo_rvalid()) {
       uint32_t command = multicore_fifo_pop_blocking();
+      uint32_t val; // Fix undeclared variable
       switch (command) {
-        case cmd_arm:
+        case SERIAL_CMD_arm:
           arm();
           update_timeout();
           multicore_fifo_push_blocking(return_ok);
           break;
-        case cmd_disarm:
+        case SERIAL_CMD_disarm:
           disarm();
           multicore_fifo_push_blocking(return_ok);
           break;
-        case cmd_pulse:
-          picoemp_pulse(pulse_time);
-          update_timeout();
-          multicore_fifo_push_blocking(return_ok);
+        case SERIAL_CMD_pulse:
+          if (armed) {
+            picoemp_pulse(pulse_time);
+            update_timeout();
+            disarm();
+            multicore_fifo_push_blocking(return_ok);
+          } else {
+            multicore_fifo_push_blocking(return_failed);
+          }
           break;
-        case cmd_status:
-          multicore_fifo_push_blocking(return_ok);
-          multicore_fifo_push_blocking(get_status());
-          break;
-        case cmd_enable_timeout:
+        case SERIAL_CMD_enable_timeout:
           timeout_active = true;
           update_timeout();
           multicore_fifo_push_blocking(return_ok);
           break;
-        case cmd_disable_timeout:
+        case SERIAL_CMD_disable_timeout:
           timeout_active = false;
           multicore_fifo_push_blocking(return_ok);
           break;
-        case cmd_config_pulse_delay_cycles:
-          pulse_delay_cycles = multicore_fifo_pop_blocking();
-          multicore_fifo_push_blocking(return_ok);
-          break;
-        case cmd_config_pulse_time_cycles:
-          pulse_time_cycles = multicore_fifo_pop_blocking();
-          multicore_fifo_push_blocking(return_ok);
-          break;
-        case cmd_fast_trigger:
-          fast_trigger();
-          multicore_fifo_push_blocking(return_ok);
-          while (!pio_interrupt_get(pio0, 0));
-          multicore_fifo_push_blocking(return_ok);
-          pio_sm_set_enabled(pio0, 0, false);
-          picoemp_configure_pulse_output();
-          break;
-        case cmd_internal_hvp:
+        case SERIAL_CMD_internal_hvp:
           picoemp_configure_pulse_output();
           hvp_internal = true;
           multicore_fifo_push_blocking(return_ok);
           break;
-        case cmd_external_hvp:
+        case SERIAL_CMD_external_hvp:
           picoemp_configure_pulse_external();
           hvp_internal = false;
           multicore_fifo_push_blocking(return_ok);
           break;
-        case cmd_config_pulse_time:
+        case SERIAL_CMD_status:
+          multicore_fifo_push_blocking(return_ok);
+          multicore_fifo_push_blocking(get_status());
+          break;
+        case SERIAL_CMD_config_pulse_time:
           pulse_time = multicore_fifo_pop_blocking();
           multicore_fifo_push_blocking(return_ok);
           break;
-        case cmd_config_pulse_power:
+        case SERIAL_CMD_config_pulse_power:
           pulse_power.ui32 = multicore_fifo_pop_blocking();
           multicore_fifo_push_blocking(return_ok);
           break;
-        case cmd_toggle_gp_all:
-          // Toggle GPIOs 0-7 (mask = 0xFF = 0b11111111)
+        case SERIAL_CMD_toggle_gp_all:
           gpio_xor_mask(0xFF);
           multicore_fifo_push_blocking(return_ok);
           break;
+
+        case SERIAL_CMD_fast_trigger:
+          // Configure glitcher for fast trigger operation
+          // If user hasn't configured, we should probably default to RISING if NONE.
+          if (glitcher.trigger_type == TriggersType_TRIGGER_NONE) {
+              glitcher.trigger_type = TriggersType_TRIGGER_RISING_EDGE;
+          }
+          
+          // Set Output to EMP (GP14) for fast trigger compatibility
+          glitcher.glitch_output = GlitchOutput_EMP; 
+          
+          multicore_fifo_push_blocking(return_ok);
+          bool triggered = glitcher_run();
+          
+          if (triggered) {
+              disarm(); // Turn off charging so it doesn't blink the CHG LED
+              multicore_fifo_push_blocking(return_ok);
+          } else {
+              disarm(); // Turn off charging on timeout too
+              multicore_fifo_push_blocking(return_failed); // Or any non-ok value to signal timeout
+          }
+          break;
+
+        case SERIAL_CMD_glitch:
+          multicore_fifo_push_blocking(return_ok);
+          if (glitcher_run()) {
+              disarm(); // Turn off charging
+              multicore_fifo_push_blocking(return_ok);
+          } else {
+              disarm(); // Turn off charging on timeout too
+              multicore_fifo_push_blocking(return_failed); 
+          }
+          break;
+
+
+        case SERIAL_CMD_config_pulse_delay_cycles:
+          pulse_delay_cycles = multicore_fifo_pop_blocking();
+          glitcher.delay_before_pulse = pulse_delay_cycles;
+          multicore_fifo_push_blocking(return_ok);
+          break;
+
+        case SERIAL_CMD_config_pulse_time_cycles:
+          pulse_time_cycles = multicore_fifo_pop_blocking();
+          glitcher.pulse_width = pulse_time_cycles;
+          multicore_fifo_push_blocking(return_ok);
+          break;
+          
+        case SERIAL_CMD_config_trigger_type:
+          val = multicore_fifo_pop_blocking();
+          glitcher.trigger_type = (TriggersType)val;
+          multicore_fifo_push_blocking(return_ok);
+          break;
+
+        case SERIAL_CMD_config_glitch_output:
+          val = multicore_fifo_pop_blocking();
+          glitcher.glitch_output = (GlitchOutput_t)val;
+          multicore_fifo_push_blocking(return_ok);
+          break;
+
+        case SERIAL_CMD_config_trigger_pull:
+          val = multicore_fifo_pop_blocking();
+          glitcher.trigger_pull_configuration = (TriggerPullConfiguration)val;
+          multicore_fifo_push_blocking(return_ok);
+          break;
+          
+        case SERIAL_CMD_config_serial_baud:
+          val = multicore_fifo_pop_blocking();
+          glitcher.serial_baud = val;
+          multicore_fifo_push_blocking(return_ok);
+          break;
+
+        case SERIAL_CMD_config_serial_pin:
+          val = multicore_fifo_pop_blocking();
+          glitcher.serial_pin = val;
+          multicore_fifo_push_blocking(return_ok);
+          break;
+
       }
     }
 
@@ -252,6 +356,7 @@ int main() {
     if (gpio_get(PIN_BTN_PULSE)) {
       update_timeout();
       picoemp_pulse(pulse_time);
+      disarm();
     }
 
     if (gpio_get(PIN_BTN_ARM)) {
@@ -266,9 +371,7 @@ int main() {
       sleep_ms(100);
     }
 
-    if (!gpio_get(PIN_IN_CHARGED) && armed) {
-      picoemp_enable_pwm(pulse_power.f);
-    }
+    picoemp_process_charging();
 
     if (timeout_active && (get_absolute_time() > timeout_time) && armed) {
       disarm();

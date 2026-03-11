@@ -3,22 +3,47 @@
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
+#include "hardware/sync.h"
+#include "hardware/timer.h"
 #include "pico/stdlib.h"
 
 #include <stdio.h>
 
-const uint32_t PIN_IN_TRIGGER = 0; // also GP0 on the board
-const uint32_t PIN_LED_HV = 9;
-const uint32_t PIN_BTN_PULSE = 11;
-const uint32_t PIN_OUT_HVPULSE = 14;
-const uint32_t PIN_IN_CHARGED = 18;
-const uint32_t PIN_OUT_HVPWM = 20;
-const uint32_t PIN_LED_CHARGE_ON = 27;
-const uint32_t PIN_BTN_ARM = 28;
+#include "board_config.h"
 
+// Mappings to board_config via constants for compatibility
+const uint32_t PIN_IN_TRIGGER = PIN_TRIGGER;
+const uint32_t PIN_LED_HV = PIN_LED_HV_ARMED;
+
+// Fix PIN_BTN_PULSE macro conflict
+#ifdef PIN_BTN_PULSE
+const uint32_t _PIN_BTN_PULSE = PIN_BTN_PULSE;
+#undef PIN_BTN_PULSE
+const uint32_t PIN_BTN_PULSE = _PIN_BTN_PULSE;
+#endif
+
+const uint32_t PIN_OUT_HVPULSE = PIN_HV_PULSE;
+const uint32_t PIN_IN_CHARGED = PIN_HV_FB_IN;
+const uint32_t PIN_OUT_HVPWM = PIN_HV_PWM;
+
+// Fix conflict with macros: use a different name for the constant or undef macro
+// PIN_LED_CHARGE_ON is defined in board_config.h
+#ifdef PIN_LED_CHARGE_ON
+const uint32_t _PIN_LED_CHARGE_ON = PIN_LED_CHARGE_ON;
+#undef PIN_LED_CHARGE_ON
+const uint32_t PIN_LED_CHARGE_ON = _PIN_LED_CHARGE_ON;
+#endif
+
+// PIN_BTN_ARM is defined in board_config.h
+#ifdef PIN_BTN_ARM
+const uint32_t _PIN_BTN_ARM = PIN_BTN_ARM;
+#undef PIN_BTN_ARM
+const uint32_t PIN_BTN_ARM = _PIN_BTN_ARM;
+#endif
+
+static bool pwm_hardware_initialized = false;
 static bool pwm_enabled = false;
 
-// Code from https://www.i-programmer.info/programming/hardware/14849-the-pico-in-c-basic-pwm.html?start=2
 uint32_t pwm_set_freq_duty(uint slice_num,
        uint chan, uint32_t f, float d)
 {
@@ -38,40 +63,50 @@ uint32_t pwm_set_freq_duty(uint slice_num,
 }
 
 void picoemp_enable_pwm(float duty_frac) {
-    if(pwm_enabled) {
-        return;
+    uint32_t slice = pwm_gpio_to_slice_num(PIN_OUT_HVPWM);
+    
+    if (!pwm_hardware_initialized) {
+        gpio_set_function(PIN_OUT_HVPWM, GPIO_FUNC_PWM);
+        pwm_config config = pwm_get_default_config();
+        pwm_init(slice, &config, false);
+        pwm_hardware_initialized = true;
     }
 
-    // Get PWM slice
-    uint32_t slice = pwm_gpio_to_slice_num(PIN_OUT_HVPWM);
-    gpio_set_function(PIN_OUT_HVPWM, GPIO_FUNC_PWM);
-    
-    // Set up clock divider
-    float target_frequency = 25;
-    float divider = clock_get_hz(clk_sys) / target_frequency;
-    pwm_config config = pwm_get_default_config();
-    pwm_config_set_clkdiv(&config, divider);
-    pwm_config_set_wrap(&config, UINT16_MAX);
+    if (pwm_enabled) return;
 
-    // Init PWM, but don't start it yet
-    pwm_init(slice, &config, false);
-    // pwm_set_chan_level(slice, PWM_CHAN_A, 800); // pretty sure this line is pointless
     pwm_set_freq_duty(slice, PWM_CHAN_A, 2500, duty_frac);
     pwm_set_enabled(slice, true);
     pwm_enabled = true;
 }
 
 void picoemp_disable_pwm() {
+    if (!pwm_enabled) return;
+    uint32_t slice = pwm_gpio_to_slice_num(PIN_OUT_HVPWM);
+    pwm_set_enabled(slice, false);
     pwm_enabled = false;
-    gpio_init(PIN_OUT_HVPWM);
-    gpio_set_dir(PIN_OUT_HVPWM, GPIO_OUT);
-    gpio_put(PIN_OUT_HVPWM, false);
+    // Don't re-init GPIO here, it's too expensive for a loop.
+}
+
+void picoemp_shutdown_pwm() {
+    picoemp_disable_pwm();
+    if (pwm_hardware_initialized) {
+        gpio_init(PIN_OUT_HVPWM);
+        gpio_set_dir(PIN_OUT_HVPWM, GPIO_OUT);
+        gpio_put(PIN_OUT_HVPWM, false);
+        pwm_hardware_initialized = false;
+    }
+}
+
+bool picoemp_is_pwm_enabled() {
+    return pwm_enabled;
 }
 
 void picoemp_pulse(uint32_t pulse_time) {
+    uint32_t ints = save_and_disable_interrupts();
     gpio_put(PIN_OUT_HVPULSE, true);
-    sleep_us(pulse_time);
+    busy_wait_us_32(pulse_time);
     gpio_put(PIN_OUT_HVPULSE, false);
+    restore_interrupts(ints);
     sleep_ms(250);
 }
 
@@ -99,8 +134,10 @@ void picoemp_init() {
     // Initialize LED GPIOs
     gpio_init(PIN_LED_HV);
     gpio_init(PIN_LED_CHARGE_ON);
+    gpio_init(PIN_LED_STATUS);
     gpio_set_dir(PIN_LED_HV, GPIO_OUT);
     gpio_set_dir(PIN_LED_CHARGE_ON, GPIO_OUT);
+    gpio_set_dir(PIN_LED_STATUS, GPIO_OUT);
 
     // Initialize button GPIOs
     gpio_init(PIN_BTN_ARM);
