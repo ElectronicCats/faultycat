@@ -19,6 +19,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  host-tests:
+    name: Host tests (HAL fakes, Unity)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build
+
+      - name: Configure (host-tests preset)
+        run: cmake --preset host-tests
+
+      - name: Build
+        run: cmake --build build/host-tests --parallel
+
+      - name: Run tests
+        run: ctest --preset host-tests --output-on-failure
+
   build:
     name: Build UF2 (RP2040, release)
     runs-on: ubuntu-24.04
@@ -29,7 +55,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          # lfs not needed — we don't use LFS
           fetch-depth: 1
 
       - name: Install toolchain
