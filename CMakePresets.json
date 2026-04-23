@@ -1,0 +1,53 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "fw-debug",
+      "displayName": "Firmware — Debug (RP2040)",
+      "description": "Debug build of the FaultyCat v3 firmware for HW v2.x.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/fw-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "FAULTYCAT_BUILD_FIRMWARE": "ON",
+        "FAULTYCAT_BUILD_TESTS": "OFF",
+        "PICO_BOARD": "pico"
+      }
+    },
+    {
+      "name": "fw-release",
+      "displayName": "Firmware — Release (RP2040)",
+      "description": "Size-optimized UF2 for release flashing.",
+      "inherits": "fw-debug",
+      "binaryDir": "${sourceDir}/build/fw-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel"
+      }
+    },
+    {
+      "name": "host-tests",
+      "displayName": "Host Tests — native toolchain",
+      "description": "Native build of HAL-fake unit tests. No firmware target.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/host-tests",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "FAULTYCAT_BUILD_FIRMWARE": "OFF",
+        "FAULTYCAT_BUILD_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "fw-debug",   "configurePreset": "fw-debug"   },
+    { "name": "fw-release", "configurePreset": "fw-release" },
+    { "name": "host-tests", "configurePreset": "host-tests" }
+  ],
+  "testPresets": [
+    {
+      "name": "host-tests",
+      "configurePreset": "host-tests",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}
