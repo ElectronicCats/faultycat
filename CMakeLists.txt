@@ -48,9 +48,7 @@ endif()
 # -----------------------------------------------------------------------------
 if(FAULTYCAT_BUILD_TESTS)
     enable_testing()
-    message(STATUS
-        "FaultyCat: host-test mode active. No tests wired yet — F1 will "
-        "add the HAL fakes + unit tests under tests/.")
+    add_subdirectory(tests)
 endif()
 
 # -----------------------------------------------------------------------------

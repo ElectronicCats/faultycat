@@ -17,6 +17,7 @@ This directory holds:
 | `third_party/free-dap`       | BSD-3-Clause     | `UPSTREAM-free-dap.txt`              |
 | `third_party/cmsis-dap/`     | Apache-2.0 (ARM) | `UPSTREAM-cmsis-dap-headers.txt`     |
 | `third_party/faultier`       | **NONE** ⚠︎      | see `NOTICE-faultier.md`             |
+| `third_party/Unity`          | MIT              | `UPSTREAM-Unity.txt`                 |
 
 ## The hardware itself
 

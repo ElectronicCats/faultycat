@@ -20,3 +20,6 @@
 [submodule "third_party/free-dap"]
 	path = third_party/free-dap
 	url = https://github.com/ataradov/free-dap.git
+[submodule "third_party/Unity"]
+	path = third_party/Unity
+	url = https://github.com/ThrowTheSwitch/Unity.git
