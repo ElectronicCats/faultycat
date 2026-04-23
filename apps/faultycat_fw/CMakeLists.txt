@@ -8,6 +8,7 @@ target_link_libraries(faultycat PRIVATE
     hal_rp2040
     driver_ui_leds
     driver_ui_buttons
+    driver_target_monitor
 )
 
 # F0/F1 kept stdio off to avoid depending on tinyusb. F2 turns USB-CDC

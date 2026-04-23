@@ -13,3 +13,4 @@ target_include_directories(board_v2_header
 # Register drivers. Add new drivers here as their commits land.
 add_subdirectory(ui_leds)
 add_subdirectory(ui_buttons)
+add_subdirectory(target_monitor)

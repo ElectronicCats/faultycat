@@ -5,6 +5,7 @@
 add_library(hal_rp2040 STATIC
     src/rp2040/gpio.c
     src/rp2040/time.c
+    src/rp2040/adc.c
 )
 
 target_include_directories(hal_rp2040
@@ -16,4 +17,5 @@ target_link_libraries(hal_rp2040
     PUBLIC
         pico_stdlib
         hardware_gpio
+        hardware_adc
 )

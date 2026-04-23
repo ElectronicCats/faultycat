@@ -43,5 +43,6 @@ faultycat_add_test(test_gpio)
 faultycat_add_test(test_time)
 
 # F2a — driver unit tests
-faultycat_add_driver_test(test_ui_leds    ui_leds)
-faultycat_add_driver_test(test_ui_buttons ui_buttons)
+faultycat_add_driver_test(test_ui_leds        ui_leds)
+faultycat_add_driver_test(test_ui_buttons     ui_buttons)
+faultycat_add_driver_test(test_target_monitor target_monitor)

@@ -1,45 +1,42 @@
 // FaultyCat v3 — firmware entrypoint.
 //
-// F2a commit 2 introduces ui_buttons and a USB-serial diag loop so
-// the maintainer can verify the button wiring by watching events on
-// /dev/ttyACM0. The STATUS LED also mirrors "either button pressed"
-// as a pure-optical fallback if the serial is unavailable.
+// F2a commit 3 extends the diag loop with target_monitor: GP29 ADC
+// readings print every 500 ms so the maintainer can verify the analog
+// input is alive and sane.
 //
-// TEMPORARY — `pico_enable_stdio_usb(1)` uses the pico-sdk default
-// single-CDC descriptor. F3 replaces this with the real composite
-// descriptor (4× CDC + vendor + HID), at which point the diag moves
-// to the scanner CDC and the VID:PID switches to 1209:FA17. Treat
-// this file as a scaffold that will be re-written once the USB
-// layer lands.
+// TEMPORARY stdio_usb setup (carries over from F2a-2). F3 replaces
+// it with the proper USB composite descriptor.
 
 #include <stdio.h>
 
-#include "pico/stdlib.h"   // for stdio_init_all — scoped to F2 diag, see above
+#include "pico/stdlib.h"
 
 #include "hal/time.h"
+#include "target_monitor.h"
 #include "ui_buttons.h"
 #include "ui_leds.h"
 
-#define POLL_PERIOD_MS 20u
+#define BUTTON_POLL_PERIOD_MS 20u
+#define ADC_PRINT_PERIOD_MS   500u
 
 static void print_button_transition(const char *name, bool pressed) {
     printf("%s %s\n", name, pressed ? "PRESSED" : "RELEASED");
 }
 
 int main(void) {
-    // pico-sdk USB stdio: re-enabled from F0/F1's off state specifically
-    // for the F2 diag loop. Pre-F3 scaffolding only.
     stdio_init_all();
 
     ui_leds_init();
     ui_buttons_init();
+    target_monitor_init();
 
-    bool last_arm   = false;
-    bool last_pulse = false;
+    bool     last_arm           = false;
+    bool     last_pulse         = false;
+    uint32_t last_adc_print_ms  = 0;
 
-    printf("\nFaultyCat v3 — F2a diag (ui_buttons)\n");
-    printf("Press ARM and PULSE; each transition prints here.\n");
-    printf("STATUS LED lights while either is pressed.\n\n");
+    printf("\nFaultyCat v3 — F2a diag (buttons + target_monitor)\n");
+    printf("Buttons: events on change. Target ADC (GP29): raw 12-bit every %u ms.\n\n",
+           ADC_PRINT_PERIOD_MS);
 
     while (true) {
         bool arm   = ui_buttons_is_pressed(UI_BTN_ARM);
@@ -56,6 +53,14 @@ int main(void) {
             last_pulse = pulse;
         }
 
-        hal_sleep_ms(POLL_PERIOD_MS);
+        uint32_t now = hal_now_ms();
+        if ((now - last_adc_print_ms) >= ADC_PRINT_PERIOD_MS) {
+            uint16_t raw = target_monitor_read_raw();
+            printf("ADC raw=%4u (%.2f %% of 3.3V)\n",
+                   raw, (float)raw * 100.0f / 4095.0f);
+            last_adc_print_ms = now;
+        }
+
+        hal_sleep_ms(BUTTON_POLL_PERIOD_MS);
     }
 }
