@@ -5,3 +5,18 @@
 [submodule "firmware/c/faultier"]
 	path = firmware/c/faultier
 	url = https://github.com/hextreeio/faultier.git
+[submodule "third_party/pico-sdk"]
+	path = third_party/pico-sdk
+	url = https://github.com/raspberrypi/pico-sdk.git
+[submodule "third_party/debugprobe"]
+	path = third_party/debugprobe
+	url = https://github.com/raspberrypi/debugprobe.git
+[submodule "third_party/faultier"]
+	path = third_party/faultier
+	url = https://github.com/hextreeio/faultier.git
+[submodule "third_party/blueTag"]
+	path = third_party/blueTag
+	url = https://github.com/Aodrulez/blueTag.git
+[submodule "third_party/free-dap"]
+	path = third_party/free-dap
+	url = https://github.com/ataradov/free-dap.git
