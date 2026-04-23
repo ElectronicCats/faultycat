@@ -1,0 +1,66 @@
+name: firmware
+
+on:
+  push:
+    branches: [ "rewrite/v3" ]
+    paths-ignore:
+      - "docs/**"
+      - "Hardware/**"
+      - "README.md"
+      - "LICENSES/**"
+      - "LICENSE"
+      - "FAULTYCAT_REFACTOR_PLAN.md"
+  pull_request:
+    branches: [ "rewrite/v3", "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: firmware-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build UF2 (RP2040, release)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          # lfs not needed — we don't use LFS
+          fetch-depth: 1
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build gcc-arm-none-eabi libnewlib-arm-none-eabi
+
+      - name: Show toolchain versions
+        run: |
+          cmake --version | head -1
+          ninja --version
+          arm-none-eabi-gcc --version | head -1
+
+      - name: Configure (fw-release preset)
+        run: cmake --preset fw-release
+
+      - name: Build
+        run: cmake --build build/fw-release --parallel
+
+      - name: Inspect artifact
+        run: |
+          ls -la build/fw-release/apps/faultycat_fw/
+          arm-none-eabi-size build/fw-release/apps/faultycat_fw/faultycat.elf
+
+      - name: Upload UF2
+        uses: actions/upload-artifact@v4
+        with:
+          name: faultycat-uf2-${{ github.sha }}
+          path: |
+            build/fw-release/apps/faultycat_fw/faultycat.uf2
+            build/fw-release/apps/faultycat_fw/faultycat.elf
+          retention-days: 30
+          if-no-files-found: error
