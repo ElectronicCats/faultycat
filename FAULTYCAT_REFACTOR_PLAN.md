@@ -1,0 +1,661 @@
+# FaultyCat v3 — Plan Maestro (v3 final, corregido)
+
+> Rewrite total desde cero del firmware de FaultyCat sobre el **hardware v2.x existente** (sin diseñar board nuevo). Arquitectura en capas, dependencias vendorizadas, multi-ataque (EMFI + crowbar), pinout scanner (blueTag), CMSIS-DAP expuesto (debugprobe), USB composite multi-CDC, host tool en Rust con TUI.
+
+> **Nota de versioning:** el firmware se numera `v3.0` por el rewrite; el hardware sigue siendo `v2.1`/`v2.2`. Son versiones independientes.
+
+---
+
+## 1. Decisiones congeladas
+
+| # | Decisión | Valor |
+|---|----------|-------|
+| 1 | "daplink" | **DAPLink / CMSIS-DAP** (protocolo ARM de referencia) |
+| 2 | Refactor | **Rewrite total desde cero**, arquitectura en capas |
+| 3 | Dependencias | **Vendored total** en `third_party/`, submódulos pineados |
+| 4 | Integración SWD | **Dual:** CMSIS-DAP expuesto por USB + hooks internos al glitch engine |
+| 5 | MCU del propio device | **RP2040** únicamente |
+| 6 | Host tool `faultycmd` | **Rust**, workspace multi-crate, CLI + TUI ratatui |
+| 7 | Features extra | **Solo SWD** (blueTag trae JTAG + multi-protocolo gratis) |
+| 8 | Backward compat | **Romper si hace falta** (firmware nuevo, protocolo nuevo) |
+| 9 | Hardware dev | **FaultyCat v2.x real + target disponibles** |
+| 10 | Base del glitch engine | **faultier (hextree)** — crowbar, mux, trigger |
+| 11 | Base del pinout scanner | **blueTag (Aodrulez)** — JTAGulator + multi-protocol |
+| 12 | CMSIS-DAP implementation | **debugprobe (RPi)** primario, **free-dap (ataradov)** solo referencia |
+| 13 | Base EMFI/voltage/scanner legacy | **faultycat/firmware/c** (HV charger, EMFI pulse, voltage glitching actual, scanner v2.x) |
+| 14 | Separación USB CDCs | **Por tipo de ataque:** CDC `emfi` + CDC `crowbar` (+ `scanner` + `target-uart`) |
+| 15 | blueTag en el HW | **Usa el pinout dedicado que YA existe en v2.x** (scanner JTAG/SWD introducido en v2.1). No requiere HW nuevo. |
+| 16 | Hardware target del rewrite | **FaultyCat v2.x** (v2.1 / v2.2). **No se diseña board v3.** Firmware v3 corre sobre HW v2.x. |
+
+### Qué provee el HW v2.x (según README oficial y store Electronic Cats)
+
+El **v2.1** introdujo respecto al v1.x:
+- Voltage glitching (MOSFET integrado para crowbar).
+- Trigger usando pines dedicados (pinout nuevo).
+- Trigger voltage reference (referencia para voltage glitching preciso).
+- Analog input para monitorear el estado del target.
+- **JTAG/SWD scanner** (pinout dedicado para scanner tipo JTAGulator).
+
+El **v2.2** es un hardware update menor sobre v2.1.
+
+**Consecuencia:** todo el hardware necesario para EMFI + crowbar + scanner + trigger + target-monitor ya está en el board. El número exacto de canales del scanner se documentará en F0 leyendo el KiCad.
+
+---
+
+## 2. Repos base y cómo se combinan
+
+| Repo | Licencia | Aporta | Ubicación en `third_party/` |
+|------|----------|--------|----------------------------|
+| `raspberrypi/pico-sdk` | BSD-3 | HAL RP2040, tinyusb wrapper, build system | `pico-sdk/` (submódulo, tag fijo) |
+| `hathach/tinyusb` | MIT | USB stack (traído por pico-sdk) | via pico-sdk |
+| `ARM-software/CMSIS_5` | Apache-2.0 | headers CMSIS-DAP | `cmsis-dap/` (copia de headers) |
+| `raspberrypi/debugprobe` | BSD-3 | **CMSIS-DAP v2 sobre RP2040 (primario)** — PIO SWD, PIO UART | `debugprobe/` (submódulo ref) |
+| `ataradov/free-dap` | MIT | CMSIS-DAP referencia cruzada | `free-dap/` (submódulo ref) |
+| `Aodrulez/blueTag` | MIT | **JTAGulator + multi-protocolo** — scanner, BusPirate OpenOCD, flashrom serprog | `blueTag/` (submódulo ref) |
+| `hextreeio/faultier` | (verificar en F0) | **Arquitectura de glitcher** — crowbar MOSFET, voltage mux, trigger externo, SWD de verificación | `faultier/` (submódulo ref) |
+| `ElectronicCats/faultycat` | CC-BY-SA-3.0 (HW) | **HV charger + EMFI pulse + voltage glitching v2.1 + scanner v2.x** (el firmware C actual ya tiene mucho de esto) | rama `main` del propio repo para consulta histórica |
+
+### Cómo se combinan (mental model)
+
+- **faultier** es la columna vertebral de la arquitectura moderna del glitcher ("configure → arm → fire con trigger externo → verificar por SWD"). Portamos su arquitectura a la nueva estructura de capas.
+- **faultycat/firmware/c** (el firmware actual v2.x) es la referencia crítica porque ya implementó voltage glitching y scanner sobre el pinout real del v2.x. Hay que leerlo antes de portar para no reinventar el pinout.
+- **blueTag** se porta como servicio `pinout_scanner` + `buspirate_compat` + `flashrom_serprog`, usando el pinout de scanner que ya trae el v2.x (decisión 15).
+- **debugprobe** se porta como `swd_core` (capa física SWD) + `daplink_usb` (CMSIS-DAP v2 vendor IF + HID v1 fallback).
+- **free-dap** queda como referencia para contrastar implementación cuando haya dudas, sin build.
+
+### Licencias
+
+Todas compatibles entre sí (MIT, BSD-3, Apache-2.0). El firmware nuevo bajo **BSD-3-Clause** (recomendado, estándar embedded, compatible con todos los deps). La licencia CC BY-SA 3.0 del HW del FaultyCat original se conserva para la parte hardware (KiCad), no para firmware.
+
+---
+
+## 3. Arquitectura objetivo
+
+```
+faultycat/
+├── apps/
+│   └── faultycat_fw/               # entrypoint único (main)
+│       ├── main.c
+│       └── CMakeLists.txt
+│
+├── services/                       # lógica de alto nivel
+│   ├── glitch_engine/
+│   │   ├── emfi/                   # EMFI (faultycat origin, HV pulse)
+│   │   └── crowbar/                # voltage glitching (faultier + faultycat v2.1)
+│   ├── swd_core/                   # debugprobe-derived
+│   ├── jtag_core/                  # blueTag-derived
+│   ├── pinout_scanner/             # JTAGulator-like (blueTag sobre pinout v2.x)
+│   ├── daplink_usb/                # CMSIS-DAP v2 + HID v1
+│   ├── buspirate_compat/           # OpenOCD via BusPirate binary (blueTag)
+│   ├── flashrom_serprog/           # flashrom serprog (blueTag)
+│   └── host_proto/
+│       ├── emfi_proto/             # binario sobre CDC emfi
+│       ├── crowbar_proto/          # binario sobre CDC crowbar
+│       └── campaign_proto/         # streaming de resultados
+│
+├── drivers/                        # HW del FaultyCat v2.x
+│   ├── ui_leds/
+│   ├── ui_buttons/
+│   ├── hv_charger/                 # flyback ~250V (faultycat origin)
+│   ├── emfi_pulse/                 # PIO pulse gen (faultycat origin)
+│   ├── crowbar_mosfet/             # N-MOSFET voltage crowbar (ya en v2.1)
+│   ├── voltage_mux/                # si existe en v2.x (verificar F0)
+│   ├── ext_trigger/                # trigger in (pines dedicados v2.1)
+│   ├── target_monitor/             # ADC del target (v2.1)
+│   └── scanner_io/                 # GPIOs dedicados scanner (v2.1 pinout)
+│
+├── hal/                            # thin wrapper sobre pico-sdk
+│   ├── include/hal/
+│   └── src/rp2040/
+│
+├── usb/                            # composite descriptor (carpeta propia)
+│   ├── include/usb_descriptors.h
+│   ├── src/usb_descriptors.c
+│   └── src/usb_composite.c
+│
+├── third_party/                    # VENDORED, commits congelados
+│   ├── pico-sdk/
+│   ├── cmsis-dap/
+│   ├── debugprobe/
+│   ├── free-dap/
+│   ├── blueTag/
+│   └── faultier/
+│
+├── host/
+│   └── faultycmd-rs/               # Rust workspace
+│       ├── Cargo.toml
+│       ├── crates/
+│       │   ├── faultycmd-core/
+│       │   ├── faultycmd-emfi/
+│       │   ├── faultycmd-crowbar/
+│       │   ├── faultycmd-scanner/
+│       │   ├── faultycmd-dap/
+│       │   ├── faultycmd-cli/
+│       │   └── faultycmd-tui/
+│       └── tests/
+│
+├── tests/
+│   ├── glitch_engine_test.c
+│   ├── swd_protocol_test.c
+│   └── CMakeLists.txt
+│
+├── hardware/                       # KiCad v2.x ORIGINAL se conserva intacto
+│   └── v2.x/                       # (copiado del repo main, solo referencia)
+│
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── HARDWARE_V2.md              # mapeo del pinout v2.x (F0 obligatorio)
+│   ├── USB_COMPOSITE.md
+│   ├── PROTOCOLS.md
+│   ├── SWD_INTERNALS.md
+│   ├── JTAG_INTERNALS.md
+│   ├── SAFETY.md                   # review HV, firmada
+│   └── PORTING.md
+│
+├── tools/
+│   ├── bootstrap.sh
+│   └── flash.sh
+│
+├── .github/workflows/
+│   ├── firmware.yml
+│   └── faultycmd.yml
+│
+├── CMakeLists.txt
+├── CMakePresets.json
+└── README.md
+```
+
+### Principios de capas
+
+1. **HAL** abstrae RP2040 sobre pico-sdk. No conoce nada de FaultyCat.
+2. **drivers/** conoce pinout/periféricos del board v2.x. No conoce política.
+3. **services/** orquesta. Ensambla drivers para funciones coherentes.
+4. **usb/** configura el composite — transversal, consumido por varios services.
+5. **apps/** ensambla todo en un binario.
+
+---
+
+## 4. USB Composite — descriptor definitivo
+
+**Device class:** Miscellaneous Device (IAD-based composite)
+**VID:PID:** reservar uno nuevo (NO reutilizar `2e8a:000c` de debugprobe)
+
+```
+Configuration Descriptor
+├── IAD + CDC 0   "EMFI Control"        → IF 0 (notif) + IF 1 (data)
+├── IAD + CDC 1   "Crowbar Control"     → IF 2 (notif) + IF 3 (data)
+├── IAD + CDC 2   "Scanner Shell"       → IF 4 (notif) + IF 5 (data)
+├── IAD + CDC 3   "Target UART"         → IF 6 (notif) + IF 7 (data)
+├── Vendor IF     "CMSIS-DAP v2"        → IF 8 (2 bulk endpoints)
+└── HID IF        "CMSIS-DAP v1"        → IF 9 (1 interrupt endpoint)
+```
+
+**Endpoints usados** (RP2040 hard-limit: 16 endpoints incluyendo IN/OUT):
+
+- 4× CDC = 12 endpoints
+- Vendor CMSIS-DAP v2 = 2 endpoints
+- HID CMSIS-DAP v1 = 1 endpoint
+- EP0 control = 1 endpoint
+- **Total: 16** — justo en el límite
+
+**Plan B** si no entra: eliminar HID v1 (la mayoría de hosts modernos soportan v2).
+**Plan C:** fusionar Target UART dentro de CDC scanner.
+
+**TinyUSB config (`tusb_config.h`):**
+
+```c
+#define CFG_TUD_CDC              4
+#define CFG_TUD_VENDOR           1
+#define CFG_TUD_HID              1
+#define CFG_TUD_CDC_RX_BUFSIZE   256
+#define CFG_TUD_CDC_TX_BUFSIZE   256
+#define CFG_TUD_VENDOR_RX_BUFSIZE 1024
+#define CFG_TUD_VENDOR_TX_BUFSIZE 1024
+```
+
+**Ownership de cada CDC:**
+
+| CDC | Service responsable | Protocolo | Cliente típico |
+|-----|--------------------|-----------|----------------|
+| emfi | `services/glitch_engine/emfi/` | binario (`emfi_proto`) | `faultycmd emfi …` |
+| crowbar | `services/glitch_engine/crowbar/` | binario (`crowbar_proto`) | `faultycmd crowbar …` |
+| scanner | `services/pinout_scanner/` + `buspirate_compat/` + `flashrom_serprog/` | texto (shell blueTag) + modos binarios | Terminal, `openocd -f interface/buspirate.cfg`, `flashrom -p serprog:...` |
+| target-uart | pass-through vía PIO UART | raw | `minicom` |
+| cmsis-dap v2 | `services/daplink_usb/` | CMSIS-DAP v2 | OpenOCD, pyOCD, probe-rs |
+| cmsis-dap v1 | `services/daplink_usb/` | CMSIS-DAP v1 HID | hosts antiguos |
+
+### Mutex de bus SWD
+
+Tres consumidores pueden querer SWD simultáneamente: `daplink_usb` (host externo), `glitch_engine/*` (verificación post-glitch), `pinout_scanner` (durante scan).
+
+Política propuesta (detallada en F9):
+1. **Prioridad estática**: campaña activa > scanner > daplink host externo.
+2. **Exclusión mutua** con `mutex_t` del pico-sdk + timeout explícito.
+3. Si `daplink_usb` recibe comando con bus tomado → responde `DAP_ERROR` / status=busy. Host reintenta.
+
+---
+
+## 5. Vendoring
+
+### Submódulos
+
+```
+# .gitmodules
+[submodule "third_party/pico-sdk"]
+    path = third_party/pico-sdk
+    url  = https://github.com/raspberrypi/pico-sdk.git
+[submodule "third_party/debugprobe"]
+    path = third_party/debugprobe
+    url  = https://github.com/raspberrypi/debugprobe.git
+[submodule "third_party/free-dap"]
+    path = third_party/free-dap
+    url  = https://github.com/ataradov/free-dap.git
+[submodule "third_party/blueTag"]
+    path = third_party/blueTag
+    url  = https://github.com/Aodrulez/blueTag.git
+[submodule "third_party/faultier"]
+    path = third_party/faultier
+    url  = https://github.com/hextreeio/faultier.git
+```
+
+Todos pineados a un **tag/commit específico** en F0.
+
+### CMSIS-DAP headers (copia, no submódulo)
+
+Copiamos `DAP.h`, `DAP_config.h` template en `third_party/cmsis-dap/` con `LICENSE` de ARM junto.
+
+### `tools/bootstrap.sh`
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+git submodule update --init --recursive
+(cd third_party/pico-sdk && git submodule update --init --recursive)
+echo "✓ third_party populated"
+```
+
+### LICENSES directory
+
+`LICENSES/` con copia de cada licencia upstream + `FaultyCat-LICENSE` del proyecto.
+
+---
+
+## 6. Plan por fases (Superpowers)
+
+**Regla maestra:** cada fase termina con commit anotado y tag `v3.0-fN`. Claude Code **para** y espera validación humana antes de la siguiente.
+
+### F0 — Bootstrap + vendoring + mapeo del HW v2.x + CI mínimo
+
+**Entregables:**
+- Árbol de directorios completo (carpetas vacías con `.gitkeep`).
+- `.gitmodules` con los 5 submódulos pineados a versiones concretas (Claude Code propone, tú apruebas).
+- `third_party/cmsis-dap/` con headers copiados.
+- `CMakeLists.txt` raíz + `CMakePresets.json` (presets `fw-debug`, `fw-release`, `host-tests`).
+- `tools/bootstrap.sh` funcional.
+- `apps/faultycat_fw/main.c` = blink del LED (validación del pipeline).
+- GitHub Action que compila UF2 en cada push.
+- `docs/ARCHITECTURE.md` con diagrama de bloques.
+- **`docs/HARDWARE_V2.md`** con mapeo EXHAUSTIVO del pinout v2.x leyendo el KiCad original:
+  - qué GPIO del RP2040 va a cada función (HV, pulse, crowbar MOSFET, trigger in, trigger out, target ADC, scanner channels, botones, LEDs)
+  - número exacto de canales del scanner JTAG/SWD
+  - confirmación de qué tiene v2.1 vs v2.2
+  - notas de safety sobre los pines HV
+- Análisis breve del `firmware/c` actual documentado en `docs/PORTING.md` — qué se porta, qué se reemplaza.
+- `LICENSES/` poblado.
+
+**Criterio:**
+- Clone limpio + bootstrap + cmake + build → produce UF2 que blinkea al flashear.
+- `HARDWARE_V2.md` completo y revisado.
+
+**Checkpoint humano:** flasheas UF2 al FaultyCat físico, confirmas blink. Revisas `HARDWARE_V2.md` contra el board real.
+
+---
+
+### F1 — HAL
+
+**Entregables:**
+- `hal/include/hal/{gpio,pio,dma,time,usb,adc,pwm}.h`.
+- `hal/src/rp2040/*.c`.
+- Tests unitarios host-side con fakes (`tests/hal_fake/`).
+
+**Criterio:** blink de F0 reescrito sobre HAL, sigue funcionando. Tests pasan.
+
+---
+
+### F2 — Drivers HW (según pinout documentado en F0)
+
+**Orden estricto (de bajo riesgo a alto):**
+1. `ui_leds` + `ui_buttons`
+2. `target_monitor` (ADC)
+3. `scanner_io` (GPIOs dedicados del v2.x — N exactos según F0)
+4. `ext_trigger` (pines dedicados del v2.1)
+5. `crowbar_mosfet` (N-MOSFET ya montado en v2.1)
+6. `voltage_mux` si existe en v2.x (si no, driver se queda como stub)
+7. `hv_charger` (flyback ~250V, **safety-first**)
+8. `emfi_pulse` (PIO pulse)
+
+Cada driver expone comando `diag <driver>` por UART serial (temporal, antes de USB) para testing aislado.
+
+**Criterio:** cada `diag <X>` funciona y se validó físicamente. Review de safety del `hv_charger` firmada en `docs/SAFETY.md`.
+
+**Checkpoint humano:** probar cada driver, medir con osciloscopio los críticos (HV, pulse EMFI, pulse crowbar).
+
+---
+
+### F3 — USB composite (4 CDC + vendor + HID)
+
+**Por qué es fase propia:** el descriptor con 10 interfaces es donde más falla el scaffold.
+
+**Entregables:**
+- `usb/src/usb_descriptors.c` con composite completo.
+- `usb/src/usb_composite.c` con callbacks TinyUSB.
+- Cada CDC en modo echo.
+- Vendor IF responde a `DAP_Info` básico.
+- HID IF stub.
+- `docs/USB_COMPOSITE.md` con descriptor completo anotado.
+
+**Criterio:**
+- Linux: `lsusb -v` muestra 10 interfaces y los 4 CDCs aparecen como `/dev/ttyACM{0,1,2,3}`.
+- macOS: `/dev/cu.usbmodem*` × 4.
+- Windows: 4 COM ports.
+- Echo funciona en los 4.
+- `openocd -f interface/cmsis-dap.cfg -c "cmsis_dap_backend usb_bulk; init; shutdown"` identifica el probe.
+
+**Checkpoint humano:** 3 OSs si es posible, mínimo Linux.
+
+---
+
+### F4 — Glitch engine EMFI (port refactorizado del firmware v2.x)
+
+**Entregables:**
+- `services/glitch_engine/emfi/` — API `emfi_configure`, `emfi_arm`, `emfi_fire`, `emfi_status`.
+- Usa `drivers/hv_charger` + `drivers/emfi_pulse` + `drivers/ext_trigger`.
+- `services/host_proto/emfi_proto/` — protocolo binario sobre CDC emfi.
+- Integrado en `main.c`, disparable desde host.
+
+**Criterio:** paridad funcional con FaultyCat v2.2 en EMFI. Pulso verificable con osciloscopio.
+
+---
+
+### F5 — Glitch engine crowbar (faultier arch + faultycat v2.1 pinout)
+
+**Entregables:**
+- `services/glitch_engine/crowbar/` — API inspirada en faultier: `crowbar_configure(trigger_source, trigger_type, glitch_output)`, `crowbar_glitch(delay, pulse_width)`.
+- Usa `drivers/crowbar_mosfet` + `drivers/voltage_mux` (si aplica) + `drivers/ext_trigger`.
+- `services/host_proto/crowbar_proto/` sobre CDC crowbar.
+- Test target: reproducir el tutorial de faultier (nRF52 APPROTECT bypass o equivalente).
+
+**Criterio:** campaña simple de crowbar sobre un target conocido detecta diferencias de comportamiento. Paridad o superación del voltage glitching que ya trae el firmware v2.x actual.
+
+---
+
+### F6 — SWD core (debugprobe port)
+
+**Entregables:**
+- `services/swd_core/` portado desde `third_party/debugprobe/` en la nueva arquitectura.
+- SWD phy via PIO, DP/AP/memory-AP/flash RP2040-specific.
+- API interna: `swd_connect`, `swd_read32`, `swd_write32`, `swd_halt`, `swd_resume`, etc.
+- Comando de diagnóstico por CDC scanner: `swd probe` lee DPIDR del target.
+
+**Criterio:** `swd probe` conectado a target Pico retorna `0x0bc12477`. `swd read32 <addr>` funciona.
+
+---
+
+### F7 — CMSIS-DAP v2 + v1 (daplink_usb layer)
+
+**Entregables:**
+- `services/daplink_usb/cmsis_dap_v2/` — parser CMSIS-DAP sobre vendor IF bulk.
+- `services/daplink_usb/cmsis_dap_v1_hid/` — sobre HID IF.
+- Tabla de comandos soportados en `docs/PROTOCOLS.md`.
+
+**Criterio:**
+- `openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "program blink.elf verify reset exit"` funciona.
+- `probe-rs list` muestra FaultyCat.
+- `pyocd list` muestra FaultyCat.
+
+**Checkpoint humano:** flashear un target con el probe integrado del FaultyCat.
+
+---
+
+### F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag port)
+
+**Entregables:**
+- `services/jtag_core/` — JTAG state machine + bitbang via PIO (blueTag-derived).
+- `services/pinout_scanner/` — JTAGulator algorithm sobre `drivers/scanner_io` (N canales según HARDWARE_V2.md).
+- `services/buspirate_compat/` — BusPirate binary protocol para OpenOCD JTAG via FaultyCat.
+- `services/flashrom_serprog/` — flashrom serprog protocol.
+- Shell interactivo sobre CDC scanner (menú texto estilo blueTag).
+- Boot mode por GPIO dedicado (tipo blueTag).
+
+**Nota sobre canales:** blueTag standalone escanea 16 canales. El v2.x puede tener menos — el algoritmo se adapta al N disponible. Esto queda documentado en `HARDWARE_V2.md` (F0).
+
+**Criterio:**
+- `openocd -f interface/buspirate.cfg -c "buspirate_port /dev/ttyACM2" -f target/stm32fX.cfg` flashea target JTAG.
+- `flashrom -p serprog:dev=/dev/ttyACM2 -r dump.bin` dumpea flash SPI.
+- Scanner detecta pinout JTAG de un target conocido.
+
+---
+
+### F9 — Integración: campaign manager + mutex SWD
+
+**Entregables:**
+- Mutex de bus SWD entre `daplink_usb`, `glitch_engine/*` y `pinout_scanner` (pico-sdk `mutex_t`).
+- Campaign manager: sweep de (delay, width, power) con verificación SWD post-glitch y streaming de resultados.
+- `services/host_proto/campaign_proto/` — streaming binario de resultados.
+- State machine del mutex documentado en `docs/ARCHITECTURE.md`.
+
+**Criterio:** campaña real detecta glitches exitosos. Killer feature validado.
+
+---
+
+### F10 — faultycmd en Rust (workspace multi-crate)
+
+**Entregables:**
+- `faultycmd-core` — tipos comunes, USB enumeration, logger.
+- `faultycmd-emfi`, `faultycmd-crowbar`, `faultycmd-scanner` — clients por CDC.
+- `faultycmd-dap` — thin wrapper de `probe-rs`.
+- `faultycmd-cli` — `clap`-based CLI.
+- `faultycmd-tui` — `ratatui`-based TUI (paneles HV, trigger, SWD, campaign log).
+- CI compila binarios release para Linux/macOS/Windows.
+
+**Criterio:** TUI interactiva cubre 100% del `faultycmd` viejo + campañas + switch entre EMFI/crowbar/scanner.
+
+---
+
+### F11 — Hardening, docs, release
+
+**Entregables:**
+- `docs/` completa: ARCHITECTURE, HARDWARE_V2, USB_COMPOSITE, PROTOCOLS, SWD_INTERNALS, JTAG_INTERNALS, SAFETY, PORTING.
+- Benchmarks: latencia trigger-a-pulso (EMFI y crowbar), throughput SWD (MB/s en flash), overhead del mutex.
+- Safety review firmada del path HV (`docs/SAFETY.md`).
+- CHANGELOG completo + migration guide desde firmware v2.x.
+- Release v3.0.0 con UF2 + binarios Rust adjuntos.
+
+---
+
+## 7. Prompt inicial para Claude Code
+
+Pega esto como **primer mensaje** después de crear la rama `rewrite/v3`:
+
+```
+Vamos a hacer un rewrite total desde cero del firmware de FaultyCat
+sobre el hardware v2.x EXISTENTE. No se diseña board nuevo.
+Todo el plan, decisiones y arquitectura están en
+FAULTYCAT_REFACTOR_PLAN.md en la raíz del repo — léelo ENTERO antes
+de escribir una línea de código.
+
+Resumen de decisiones irrevocables (no las re-litigues):
+  - Rewrite total con arquitectura en capas (hal/drivers/services/apps).
+  - Target HARDWARE: FaultyCat v2.x (v2.1/v2.2). NO hay board v3.
+    El firmware se numera v3.0 pero el HW sigue siendo v2.x.
+  - El HW v2.x YA TIENE todo lo necesario:
+      * MOSFET crowbar (voltage glitching, nuevo en v2.1)
+      * Trigger pins dedicados (nuevo en v2.1)
+      * Analog input target monitor (nuevo en v2.1)
+      * Pinout dedicado scanner JTAG/SWD (nuevo en v2.1)
+      * HV charger flyback ~250V (desde v1)
+      * EMFI pulse via PIO (desde v1)
+  - Dependencias vendorizadas como submódulos pineados en third_party/:
+    pico-sdk, debugprobe (primario CMSIS-DAP), free-dap (ref),
+    blueTag (scanner), faultier (glitcher arch ref).
+  - USB composite con 4 CDC + Vendor (CMSIS-DAP v2) + HID (v1):
+      CDC emfi, CDC crowbar, CDC scanner, CDC target-uart.
+  - Separación por tipo de ataque, NO por nivel:
+      emfi = electromagnético (FaultyCat origin)
+      crowbar = voltage glitching (faultier arch + pinout v2.1).
+  - blueTag usa el pinout dedicado que ya existe en v2.x. El número
+    exacto de canales se determina en F0 leyendo el KiCad original.
+  - CMSIS-DAP: debugprobe primario, free-dap solo referencia
+    (no compilar ambos).
+  - faultycmd host = Rust workspace: crates por CDC + CLI + TUI ratatui.
+  - Target MCU: RP2040. Romper backward compat del protocolo viejo.
+  - Hardware real disponible (FaultyCat v2.x + Pico target).
+
+Metodología (Superpowers):
+  1. Trabajamos fase por fase F0→F11 del plan.
+  2. Cada fase termina con commit + tag anotado (v3.0-fN).
+  3. Al final de cada fase paras y reportas:
+     (a) entregables,
+     (b) checkpoints físicos que debo correr yo,
+     (c) dudas abiertas.
+     Esperas mi confirmación antes de F(N+1).
+  4. No saltas fases. Si F(N) no está verde, no tocas F(N+1).
+  5. Tests pasan siempre antes de commitear.
+  6. Cualquier commit que toque hv_charger requiere checklist de
+     safety firmado por mí en ese mismo commit.
+
+Empieza con F0. Primero:
+  1. Léeme el plan resumido estructurado.
+  2. Confírmame que entendiste las 16 decisiones de la sección 1.
+  3. Analiza el KiCad y el firmware C actual del repo original
+     (ElectronicCats/faultycat rama main) y propón el contenido
+     inicial de docs/HARDWARE_V2.md (mapeo de pinout) y
+     docs/PORTING.md (qué se porta del firmware actual vs qué
+     se reemplaza desde cero).
+  4. Propón el plan DETALLADO de F0 sin escribir código:
+     - commits/tags exactos de cada submódulo
+     - contenido propuesto de CMakeLists.txt raíz y bootstrap.sh
+     - estructura de CMakePresets.json
+     - licencia del firmware (recomendado BSD-3 — justifica)
+     - nombre de rama (sugerido: rewrite/v3)
+  5. Yo apruebo o ajusto, y recién ahí ejecutas.
+
+Preguntas que quiero que me respondas en tu propuesta de F0:
+  a. ¿pico-sdk 2.1.x última o 2.0.0 estable? ¿Por qué?
+  b. VID:PID del composite — pid.codes o rango dev.
+  c. ¿Incluimos HID CMSIS-DAP v1 desde F3 o diferimos si hay
+     presión de endpoints?
+  d. ¿git submodule vs git subtree para los 5 repos?
+  e. ¿Las refs (free-dap, blueTag, faultier) como submódulo
+     completo o sparse-checkout?
+  f. Licencia upstream de faultier (hextreeio) — verifica y
+     dime si podemos portar código literal o solo usar la
+     arquitectura como referencia.
+  g. ¿Cuántos canales exactos tiene el scanner en v2.x según
+     el KiCad?
+```
+
+---
+
+## 8. Superpowers: skill del proyecto
+
+Crea `.claude/skills/faultycat-fase-actual/SKILL.md` y actualízalo al inicio de cada fase. Ejemplo durante F3:
+
+```markdown
+---
+name: faultycat-fase-actual
+description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar antes de cualquier commit, creación de archivo, o cambio de dirección.
+---
+
+# Fase actual: F3 — USB composite
+
+## Qué está hecho
+- v3.0-f0: bootstrap + vendoring + HARDWARE_V2.md + blink
+- v3.0-f1: HAL con fakes
+- v3.0-f2: 8 drivers con diag commands + safety review HV
+
+## En qué estamos
+Descriptor USB composite con 4 CDC + vendor + HID.
+CDC emfi y CDC crowbar pasan echo. CDC scanner y target-uart pendientes.
+Issue abierto: Windows no enumera bien el 4to CDC — investigar IAD order.
+
+## Qué NO tocar
+- services/glitch_engine/ (F4–F5)
+- services/swd_core/ (F6)
+- blueTag port (F8)
+
+## Salida de F3
+[x] lsusb -v muestra 10 interfaces
+[x] ttyACM0..3 aparecen en Linux
+[ ] COM0..3 aparecen en Windows
+[ ] /dev/cu.usbmodem*×4 en macOS
+[ ] openocd responde a DAP_Info
+[ ] docs/USB_COMPOSITE.md completo
+
+## Reglas extra de esta fase
+- NO agregar servicios encima. Solo echo y stubs.
+- Cualquier cambio al descriptor requiere diff documentado.
+```
+
+---
+
+## 9. Riesgos y decisiones pendientes
+
+### R1 — Endpoints USB al límite (alto)
+RP2040 tiene 16 endpoints físicos; nuestra config usa los 16 exactos. Cualquier feature USB adicional requiere sacrificar algo. **Plan:** validar con un firmware mínimo de F3 antes de construir servicios. Plan B: eliminar HID v1.
+
+### R2 — Mutex SWD (medio, decidir en F9)
+3 consumidores potenciales. Política propuesta: prioridad estática campaña > scanner > daplink host externo, con timeout explícito.
+
+### R3 — Scanner con menos de 16 canales (bajo)
+Si el pinout v2.x ofrece menos de 16 pines dedicados para scanner, el JTAGulator tiene menos throughput que blueTag standalone. Mitigable: el algoritmo se adapta. Documentado en HARDWARE_V2.md (F0).
+
+### R4 — Licencia del firmware (bajo, decidir en F0)
+Recomendación: **BSD-3-Clause**. Alternativa: MIT. NO usar CC-BY-SA para código.
+
+### R5 — `faultier` upstream licencia (verificar en F0)
+Claude Code debe verificar la licencia del repo `hextreeio/faultier` antes de portar código. Si no es compatible, solo usar como referencia arquitectural (ideas, no código literal).
+
+### R6 — VID:PID (bajo)
+Sugerencia: solicitar PID a `pid.codes` (gratis, comunidad open source) bajo un VID existente (ej. `1209:XXXX`). Alternativa: rango dev `1234:5678` solo en desarrollo y migrar antes de release.
+
+### R7 — Falta de rig HIL automático (bajo)
+Los checkpoints físicos los corres tú. Aceptable. Post v3.0 se puede construir un rig con Pi + relés para CI HIL.
+
+---
+
+## 10. Relación con el firmware actual (v2.x)
+
+El firmware actual en `ElectronicCats/faultycat/firmware/c` es la referencia crítica — ya implementó EMFI + voltage glitching + scanner sobre el HW v2.x. En F0 Claude Code debe leerlo y producir `docs/PORTING.md` con:
+
+- **Qué se porta (adaptado a la nueva arquitectura):** rutinas HV charge, PIO pulse EMFI, trigger handling, scanner de pinout.
+- **Qué se reemplaza (rewrite):** estructura del main, protocolo serial, bucle principal, drivers (todos los drivers se reescriben sobre HAL).
+- **Qué se descarta:** código dead o ad-hoc que ya no aplica.
+
+El firmware actual **NO se modifica** — se usa sólo como referencia. Los usuarios con board v2.x existente pueden:
+- Seguir usando el firmware v2.x (el que viene de fábrica) sin cambios.
+- Flashear el firmware v3.0 nuevo para obtener todas las features (EMFI + crowbar + SWD + scanner + CMSIS-DAP + multi-CDC).
+
+---
+
+## 11. Resumen de entregables de esta conversación
+
+1. **Este documento** (`FAULTYCAT_REFACTOR_PLAN.md`) — commitear en la raíz del repo, actualizar por fase.
+2. **Prompt inicial** (sección 7) — copia-pega en el primer mensaje a Claude Code.
+3. **Template de skill** (sección 8) — crear `.claude/skills/faultycat-fase-actual/SKILL.md`.
+4. **Árbol de directorios** (sección 3) — objetivo de F0.
+5. **Descriptor USB** (sección 4) — spec de F3.
+6. **Repos base y cómo se combinan** (sección 2) — reference card para cada fase.
+
+## 12. Decisiones que Claude Code resolverá en F0
+
+- Tag/commit exactos de los 5 submódulos.
+- Licencia del firmware nuevo (recomendado BSD-3).
+- VID:PID inicial (dev o pid.codes).
+- HID CMSIS-DAP v1: incluir en F3 o diferir.
+- Submódulo completo vs sparse-checkout para `free-dap`/`blueTag`/`faultier`.
+- Nombre exacto de la rama.
+- **Número exacto de canales scanner en v2.x** (leyendo KiCad).
+- **Mapeo completo del pinout v2.x** (`docs/HARDWARE_V2.md`).
+- **Análisis de lo portable vs lo reescribible** del firmware v2.x actual (`docs/PORTING.md`).
+- Licencia upstream de `hextreeio/faultier` y qué implica (ref o port).
