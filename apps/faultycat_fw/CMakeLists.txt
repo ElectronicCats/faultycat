@@ -10,6 +10,7 @@ target_link_libraries(faultycat PRIVATE
     driver_ui_buttons
     driver_target_monitor
     driver_scanner_io
+    driver_ext_trigger
 )
 
 # F0/F1 kept stdio off to avoid depending on tinyusb. F2 turns USB-CDC

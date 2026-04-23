@@ -1,18 +1,17 @@
 // FaultyCat v3 — firmware entrypoint.
 //
-// F2a commit 4 adds scanner_io: 8 channels (GP0..GP7) initialized as
-// inputs with pullups. The periodic diag snapshot now also prints a
-// binary view of all 8 scanner channels, LSB = CH0. With nothing
-// attached, pullups keep it at "11111111"; grounding a channel flips
-// its bit to 0.
+// F2a commit 5 (last of F2a) adds ext_trigger on GP8. Snapshot now
+// also shows the trigger level. Default pull is DOWN so a floating
+// trigger input reads 0 — same default the legacy firmware used for
+// the "pull none" case wouldn't have survived open-wire noise.
 //
-// TEMPORARY stdio_usb (still on pico-sdk's single-CDC default; F3
-// moves this onto the real composite descriptor's scanner CDC).
+// TEMPORARY stdio_usb (moves to the composite scanner CDC in F3).
 
 #include <stdio.h>
 
 #include "pico/stdlib.h"
 
+#include "ext_trigger.h"
 #include "hal/time.h"
 #include "scanner_io.h"
 #include "target_monitor.h"
@@ -27,18 +26,18 @@ static void print_button_transition(const char *name, bool pressed) {
 }
 
 static void print_snapshot(void) {
-    uint16_t adc  = target_monitor_read_raw();
-    uint8_t  scan = scanner_io_read_all();
+    uint16_t adc     = target_monitor_read_raw();
+    uint8_t  scan    = scanner_io_read_all();
+    bool     trigger = ext_trigger_level();
 
-    // Binary, MSB first (CH7..CH0) for human-legible "which pin is low".
     char bits[SCANNER_IO_CHANNEL_COUNT + 1];
     for (unsigned i = 0; i < SCANNER_IO_CHANNEL_COUNT; i++) {
         bits[i] = (scan & (1u << (SCANNER_IO_CHANNEL_COUNT - 1 - i))) ? '1' : '0';
     }
     bits[SCANNER_IO_CHANNEL_COUNT] = '\0';
 
-    printf("ADC=%4u (%5.2f%%)  SCAN[CH7..CH0]=%s (0x%02X)\n",
-           adc, (float)adc * 100.0f / 4095.0f, bits, scan);
+    printf("ADC=%4u (%5.2f%%)  SCAN[CH7..CH0]=%s (0x%02X)  TRIG=%d\n",
+           adc, (float)adc * 100.0f / 4095.0f, bits, scan, trigger ? 1 : 0);
 }
 
 int main(void) {
@@ -48,14 +47,15 @@ int main(void) {
     ui_buttons_init();
     target_monitor_init();
     scanner_io_init();
+    ext_trigger_init(EXT_TRIGGER_PULL_DOWN);
 
     bool     last_arm          = false;
     bool     last_pulse        = false;
     uint32_t last_snapshot_ms  = 0;
 
-    printf("\nFaultyCat v3 — F2a diag (buttons + adc + scanner_io)\n");
-    printf("ADC: raw 12-bit on GP29. SCAN: GP0..GP7 pullup-input.\n");
-    printf("Ground a scanner channel to watch its bit flip to 0.\n\n");
+    printf("\nFaultyCat v3 — F2a diag (all low-risk drivers)\n");
+    printf("SCAN (GP0..GP7) = pullup input. TRIG (GP8) = pulldown input.\n");
+    printf("Ground / drive pins to watch the bits flip.\n\n");
 
     while (true) {
         bool arm   = ui_buttons_is_pressed(UI_BTN_ARM);
