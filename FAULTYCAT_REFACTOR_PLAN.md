@@ -36,7 +36,11 @@ El **v2.1** introdujo respecto al v1.x:
 - Analog input para monitorear el estado del target.
 - **JTAG/SWD scanner** (pinout dedicado para scanner tipo JTAGulator).
 
-El **v2.2** es un hardware update menor sobre v2.1.
+El **v2.2** es un hardware update menor sobre v2.1. **v2.2 es el único
+hardware que salió a producción** (confirmado por el maintainer el
+2026-04-23); v2.1 → v2.2 fue cambio de etiquetas, no de nets. El
+firmware v3.0 targets v2.2 explícitamente; el pinout documentado en
+`docs/HARDWARE_V2.md` aplica tal cual a ambas revisiones.
 
 **Consecuencia:** todo el hardware necesario para EMFI + crowbar + scanner + trigger + target-monitor ya está en el board. El número exacto de canales del scanner se documentará en F0 leyendo el KiCad.
 
@@ -49,10 +53,10 @@ El **v2.2** es un hardware update menor sobre v2.1.
 | `raspberrypi/pico-sdk` | BSD-3 | HAL RP2040, tinyusb wrapper, build system | `pico-sdk/` (submódulo, tag fijo) |
 | `hathach/tinyusb` | MIT | USB stack (traído por pico-sdk) | via pico-sdk |
 | `ARM-software/CMSIS_5` | Apache-2.0 | headers CMSIS-DAP | `cmsis-dap/` (copia de headers) |
-| `raspberrypi/debugprobe` | BSD-3 | **CMSIS-DAP v2 sobre RP2040 (primario)** — PIO SWD, PIO UART | `debugprobe/` (submódulo ref) |
+| `raspberrypi/debugprobe` | MIT | **CMSIS-DAP v2 sobre RP2040 (primario)** — PIO SWD, PIO UART | `debugprobe/` (submódulo ref) |
 | `ataradov/free-dap` | MIT | CMSIS-DAP referencia cruzada | `free-dap/` (submódulo ref) |
 | `Aodrulez/blueTag` | MIT | **JTAGulator + multi-protocolo** — scanner, BusPirate OpenOCD, flashrom serprog | `blueTag/` (submódulo ref) |
-| `hextreeio/faultier` | (verificar en F0) | **Arquitectura de glitcher** — crowbar MOSFET, voltage mux, trigger externo, SWD de verificación | `faultier/` (submódulo ref) |
+| `hextreeio/faultier` | **NONE** (verified 2026-04-23 — "all rights reserved" por defecto) | **Arquitectura de glitcher** (reference-only, NO port literal) — crowbar MOSFET, voltage mux, trigger externo, SWD de verificación | `faultier/` (submódulo ref, `EXCLUDE_FROM_ALL`) |
 | `ElectronicCats/faultycat` | CC-BY-SA-3.0 (HW) | **HV charger + EMFI pulse + voltage glitching v2.1 + scanner v2.x** (el firmware C actual ya tiene mucho de esto) | rama `main` del propio repo para consulta histórica |
 
 ### Cómo se combinan (mental model)
@@ -647,15 +651,38 @@ El firmware actual **NO se modifica** — se usa sólo como referencia. Los usua
 5. **Descriptor USB** (sección 4) — spec de F3.
 6. **Repos base y cómo se combinan** (sección 2) — reference card para cada fase.
 
-## 12. Decisiones que Claude Code resolverá en F0
+## 12. Decisiones resueltas en F0 (2026-04-23)
 
-- Tag/commit exactos de los 5 submódulos.
-- Licencia del firmware nuevo (recomendado BSD-3).
-- VID:PID inicial (dev o pid.codes).
-- HID CMSIS-DAP v1: incluir en F3 o diferir.
-- Submódulo completo vs sparse-checkout para `free-dap`/`blueTag`/`faultier`.
-- Nombre exacto de la rama.
-- **Número exacto de canales scanner en v2.x** (leyendo KiCad).
-- **Mapeo completo del pinout v2.x** (`docs/HARDWARE_V2.md`).
-- **Análisis de lo portable vs lo reescribible** del firmware v2.x actual (`docs/PORTING.md`).
-- Licencia upstream de `hextreeio/faultier` y qué implica (ref o port).
+Todas cerradas durante F0. Consolidadas aquí como referencia:
+
+- ✓ **Rama**: `rewrite/v3`.
+- ✓ **Licencia del firmware**: `BSD-3-Clause` (root `LICENSE`).
+- ✓ **VID:PID dev (F0–F10)**: `1209:FA17` (pid.codes dev range).
+  Antes de release v3.0.0 (F11): solicitar PID oficial a pid.codes.
+- ✓ **HID CMSIS-DAP v1**: **incluir stub desde F3** para validar
+  presupuesto de endpoints 16/16; parser real en F7.
+- ✓ **Submódulos vs subtree**: `git submodule` para los cinco.
+- ✓ **Refs en sparse-checkout?**: **No** — submódulo completo con
+  shallow clone (`--depth=1`) vía `bootstrap.sh`.
+- ✓ **Producción HW**: `v2.2` es el único que salió a producción; v2.1
+  → v2.2 fue cambio de etiquetas únicamente.
+- ✓ **Canales scanner en v2.x**: **8** (GP0–GP7) vía `Conn_01x10`
+  (8 signal + VCC + GND). GP10 es LED STATUS, **no** es scanner.
+- ✓ **Pinout completo**: documentado en `docs/HARDWARE_V2.md`.
+- ✓ **Portable vs reescribible**: documentado en `docs/PORTING.md`.
+- ✓ **Licencia `hextreeio/faultier`**: **NONE** (verificado 2026-04-23
+  vía GitHub REST API — `license` field = `null`, no `LICENSE*` /
+  `COPYING` en root). Consecuencia: `third_party/faultier/` es
+  **solo referencia arquitectural**, con `EXCLUDE_FROM_ALL` en CMake.
+  Ninguna línea se porta literal al v3. Ver
+  `LICENSES/NOTICE-faultier.md`.
+- ✓ **Commits/tags de submódulos pineados en F0**:
+    - `third_party/pico-sdk`   → tag `2.1.1` (`bddd20f`)
+    - `third_party/debugprobe` → tag `debugprobe-v2.3.0` (`780b827`)
+    - `third_party/blueTag`    → tag `v2.1.2` (`887fc83`)
+    - `third_party/free-dap`   → HEAD de `master` (`49a30aa`) al
+      2026-04-23 (referencia cruzada, no compila)
+    - `third_party/faultier`   → commit `1c78f3e` (referencia, no
+      compila, sin licencia — ver NOTICE)
+- ✓ **Corrección al §2**: `debugprobe` es **MIT** (no BSD-3 como
+  figuraba originalmente).
