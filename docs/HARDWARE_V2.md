@@ -26,14 +26,14 @@ Authoritative sources used for this map:
 | GP7  | GP7             | Scanner CH7                      | `scanner_io`      | last of the 8 scanner channels |
 | GP8  | TRIGGER_IN      | External trigger in (v2.1+)      | `ext_trigger`     | level-shifted via TRIGGER_VREF |
 | GP9  | —               | LED "HV ARMED"                   | `ui_leds`         | |
-| GP10 | —               | LED "STATUS"                     | `ui_leds`         | **NOT** a scanner channel (2026-04-23 confirmed) |
+| GP10 | —               | LED "STATUS"                     | `ui_leds`         | **NOT** a scanner channel. Used by the F0 blink (physically verified on v2.2, 2026-04-23). |
 | GP11 | —               | BTN "PULSE"                      | `ui_buttons`      | active-low, pullup + input-invert |
 | GP14 | HVPULSE         | EMFI HV pulse out (PIO-driven)   | `emfi_pulse`      | **HV domain — see §3** |
 | GP16 | LPGLITCH2       | Crowbar low-power path           | `crowbar_mosfet`  | |
 | GP17 | HPGLITCH2       | Crowbar N-MOSFET gate (IRLML0060)| `crowbar_mosfet`  | **the real voltage glitch path** |
 | GP18 | CHARGED         | HV feedback "charged" (act-low)  | `hv_charger`      | **HV domain** |
 | GP20 | HVPWM           | HV flyback PWM ~2.5 kHz          | `hv_charger`      | **HV domain** |
-| GP25 | —               | LED onboard (status)             | `ui_leds`         | used by F0 blink |
+| GP25 | —               | NOT CONNECTED on v2.x            | —                 | legacy `board_config.h` has `PIN_LED_STATUS = 25` — that is a Pico-module relic; the v2.x PCB wires RP2040 directly and GP25 goes nowhere. Do not use. |
 | GP27 | —               | LED "CHARGE ON"                  | `ui_leds`         | see §4 quirk |
 | GP28 | —               | BTN "ARM"                        | `ui_buttons`      | active-high, pulldown |
 | GP29 | ANALOG (ADC3)   | Target monitor analog in (v2.1+) | `target_monitor`  | |
@@ -76,6 +76,11 @@ HV driver lands.)
   charge-on LED (confirmed by the maintainer on 2026-04-23). The
   legacy constant is a stale upstream faultier relic; v3 does not port
   `PIN_EXT1` at all. Crowbar uses GP17 (`HPGLITCH2`).
+- `firmware/c/board_config.h` has `PIN_LED_STATUS = 25`, but on v2.x
+  **GP25 is not connected to anything** — the Pico-module assumption
+  is stale (FaultyCat v2.x uses bare RP2040). The real STATUS LED is
+  on GP10. Confirmed by flashing the F0 blink on both pins against a
+  physical v2.2 board on 2026-04-23 — GP25 was dark, GP10 blinks.
 - `firmware/c/picoemp.c` unrolls `#undef` macro hacks to rename pins
   from `board_config.h` — those disappear in v3 because each driver
   owns its pin set directly.
