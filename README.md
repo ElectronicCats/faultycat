@@ -1,5 +1,26 @@
 # Faulty Cat
 
+> ## 🚧 Firmware v3 rewrite in progress
+>
+> This branch (`rewrite/v3`) hosts a from-scratch firmware rewrite for
+> the **existing FaultyCat v2.x hardware** — no new board. The plan,
+> phases, and frozen decisions live in
+> [`FAULTYCAT_REFACTOR_PLAN.md`](FAULTYCAT_REFACTOR_PLAN.md), the
+> layering in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), the pin
+> map in [`docs/HARDWARE_V2.md`](docs/HARDWARE_V2.md), and the
+> legacy-vs-rewrite diff in [`docs/PORTING.md`](docs/PORTING.md).
+>
+> The legacy v2.x firmware (in `firmware/c/`) remains on `main` and
+> keeps working on shipped devices. Pick what you need.
+>
+> Quickstart (after clone):
+> ```
+> tools/bootstrap.sh            # populate third_party/
+> cmake --preset fw-debug
+> cmake --build build/fw-debug
+> tools/flash.sh                # flashes build/fw-debug/apps/faultycat_fw/faultycat.uf2
+> ```
+
 Faulty Cat is a low-cost Electromagnetic Fault Injection (EMFI) tool, designed specifically for self-study and hobbiest research.
 
 <a href="https://github.com/ElectronicCats/FaultyCat/wiki">
