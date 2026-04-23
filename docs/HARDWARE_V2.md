@@ -25,8 +25,8 @@ Authoritative sources used for this map:
 | GP6  | GP6             | Scanner CH6                      | `scanner_io`      | |
 | GP7  | GP7             | Scanner CH7                      | `scanner_io`      | last of the 8 scanner channels |
 | GP8  | TRIGGER_IN      | External trigger in (v2.1+)      | `ext_trigger`     | level-shifted via TRIGGER_VREF |
-| GP9  | —               | LED "HV ARMED"                   | `ui_leds`         | |
-| GP10 | —               | LED "STATUS"                     | `ui_leds`         | **NOT** a scanner channel. Used by the F0 blink (physically verified on v2.2, 2026-04-23). |
+| GP9  | —               | LED "HV DETECTED"                | `ui_leds`         | lights while the HV capacitor is charged — driven by the `CHARGED` feedback (GP18) with a 500 ms hold to avoid flicker. Legacy `board_config.h` mis-names it `PIN_LED_HV_ARMED`; v3 renames to reflect actual behaviour. Physically confirmed on v2.2, 2026-04-23. |
+| GP10 | —               | LED "STATUS"                     | `ui_leds`         | **NOT** a scanner channel. Used by the F0 blink. Physically confirmed on v2.2, 2026-04-23. |
 | GP11 | —               | BTN "PULSE"                      | `ui_buttons`      | active-low, pullup + input-invert |
 | GP14 | HVPULSE         | EMFI HV pulse out (PIO-driven)   | `emfi_pulse`      | **HV domain — see §3** |
 | GP16 | LPGLITCH2       | Crowbar low-power path           | `crowbar_mosfet`  | |
@@ -34,7 +34,7 @@ Authoritative sources used for this map:
 | GP18 | CHARGED         | HV feedback "charged" (act-low)  | `hv_charger`      | **HV domain** |
 | GP20 | HVPWM           | HV flyback PWM ~2.5 kHz          | `hv_charger`      | **HV domain** |
 | GP25 | —               | NOT CONNECTED on v2.x            | —                 | legacy `board_config.h` has `PIN_LED_STATUS = 25` — that is a Pico-module relic; the v2.x PCB wires RP2040 directly and GP25 goes nowhere. Do not use. |
-| GP27 | —               | LED "CHARGE ON"                  | `ui_leds`         | see §4 quirk |
+| GP27 | —               | LED "CHARGE ON"                  | `ui_leds`         | on while the flyback PWM on GP20 is actively charging. Physically confirmed on v2.2, 2026-04-23. See §4 quirk. |
 | GP28 | —               | BTN "ARM"                        | `ui_buttons`      | active-high, pulldown |
 | GP29 | ANALOG (ADC3)   | Target monitor analog in (v2.1+) | `target_monitor`  | |
 
@@ -90,7 +90,23 @@ HV driver lands.)
   behaviour driven by an explicit `pinout_scanner` call, not a
   hard-coded init.
 
-## 5. Confirmations open
+## 5. LEDs summary (the full set on v2.2)
+
+Only **three** LEDs exist on the FaultyCat v2.2 physical board — all
+three confirmed by the maintainer on 2026-04-23 by flashing F0 test
+blinks:
+
+| GPIO | Silk / function | When it lights |
+|------|-----------------|----------------|
+| GP9  | HV DETECTED     | capacitor is charged to HV threshold (hysteresis 500 ms). |
+| GP10 | STATUS          | free-form status indicator; F0 blink uses this. |
+| GP27 | CHARGE ON       | flyback PWM is actively pushing into the capacitor. |
+
+The legacy `firmware/c/board_config.h` references a `PIN_LED_STATUS =
+25` that does **not** exist on the v2.x PCB (see §4). v3 drivers will
+not initialise GP25 for any purpose.
+
+## 6. Confirmations open
 
 None for HW v2.x pinout as of 2026-04-23. This document is **closed for
 F0**; future amendments ride along with the driver work in F2.
