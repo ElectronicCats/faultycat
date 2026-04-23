@@ -5,12 +5,16 @@
 # "init was called for pin N with dir OUT" etc. See per-module header
 # comments for the available probes.
 
-# F1-1 scaffolding: interface target until a real fake source lands.
-# F1-2 converts this to `add_library(hal_fake STATIC ...)` once
-# gpio_fake.c and time_fake.c exist.
-add_library(hal_fake INTERFACE)
+# Native-side fakes of the HAL. Real sources land as the corresponding
+# hal/include/hal/*.h gets an implementation.
+
+add_library(hal_fake STATIC
+    gpio_fake.c
+    time_fake.c
+)
 
 target_include_directories(hal_fake
-    INTERFACE
+    PUBLIC
         ${CMAKE_SOURCE_DIR}/hal/include
+        ${CMAKE_CURRENT_SOURCE_DIR}
 )
