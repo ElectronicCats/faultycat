@@ -14,3 +14,4 @@ target_include_directories(board_v2_header
 add_subdirectory(ui_leds)
 add_subdirectory(ui_buttons)
 add_subdirectory(target_monitor)
+add_subdirectory(scanner_io)
