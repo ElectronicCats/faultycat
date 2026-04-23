@@ -7,11 +7,13 @@ add_executable(faultycat
 target_link_libraries(faultycat PRIVATE
     hal_rp2040
     driver_ui_leds
+    driver_ui_buttons
 )
 
-# F0 kept stdio off so we didn't depend on tinyusb; same policy in F1.
-# F3 brings up the real USB composite.
-pico_enable_stdio_usb(faultycat  0)
+# F0/F1 kept stdio off to avoid depending on tinyusb. F2 turns USB-CDC
+# stdio on for the diag loop (temporary — the F3 USB composite
+# descriptor will replace this single-CDC pico-sdk default).
+pico_enable_stdio_usb(faultycat  1)
 pico_enable_stdio_uart(faultycat 0)
 
 # Generates .uf2, .hex, .bin, map/lst/dis alongside the ELF.
