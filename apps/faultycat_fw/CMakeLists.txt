@@ -2,14 +2,14 @@ add_executable(faultycat
     main.c
 )
 
+# Link the HAL only. hal_rp2040 transitively pulls pico_stdlib and the
+# hardware_* libs it wraps — main.c never sees pico-sdk symbols.
 target_link_libraries(faultycat PRIVATE
-    pico_stdlib
+    hal_rp2040
 )
 
-# F0 keeps stdio off: the blink doesn't need printf, and avoiding USB
-# stdio means we don't depend on pico-sdk's tinyusb submodule at this
-# stage. F3 adds the real USB composite (4× CDC + vendor + HID) once
-# the nested tinyusb submodule is populated by tools/bootstrap.sh.
+# F0 kept stdio off so we didn't depend on tinyusb; same policy in F1.
+# F3 brings up the real USB composite.
 pico_enable_stdio_usb(faultycat  0)
 pico_enable_stdio_uart(faultycat 0)
 

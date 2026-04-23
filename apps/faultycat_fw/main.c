@@ -1,34 +1,26 @@
 // FaultyCat v3 — firmware entrypoint.
 //
-// F0 scope: blink the STATUS LED on GP10 so we can prove the pipeline
-// (submodules → cmake → cross-compile → UF2 → BOOTSEL flash → blinking
-// board) end-to-end on real hardware. Every following phase replaces
-// this file with a more substantive main:
+// F1 rewrites the F0 blink on top of the HAL. No pico-sdk symbols
+// appear in this file any more — the only way to reach hardware is
+// through hal/*. This is the template for every future app: drivers
+// and services provide the features, the app composes them.
 //
-//   F1 — same blink, but via the HAL wrapper we write.
-//   F2 — driver diag menu over UART.
-//   F3 — USB composite with 4× CDC, first byte echoed.
-//   …
-//
-// Pin choice: FaultyCat v2.x mounts the RP2040 **directly** (no Pico
-// module), so GP25 (Pico's "onboard LED") is NOT connected on this
-// board. The legacy firmware/c/board_config.h's `PIN_LED_STATUS = 25`
-// is a Pico-module relic that never applied to the v2.x PCB. The
-// real STATUS LED is wired to GP10 — confirmed by the maintainer on
-// 2026-04-23 against a physical v2.2 board.
+// F0 chose GP10 as the STATUS LED (the v2.x PCB's actual one; GP25 is
+// not connected). The choice is still hard-coded here; later phases
+// promote it to a board descriptor the drivers share.
 
-#include "pico/stdlib.h"
+#include "hal/gpio.h"
+#include "hal/time.h"
 
 #define STATUS_LED_PIN 10
 
 int main(void) {
-    gpio_init(STATUS_LED_PIN);
-    gpio_set_dir(STATUS_LED_PIN, GPIO_OUT);
+    hal_gpio_init(STATUS_LED_PIN, HAL_GPIO_DIR_OUT);
 
     while (true) {
-        gpio_put(STATUS_LED_PIN, 1);
-        sleep_ms(500);
-        gpio_put(STATUS_LED_PIN, 0);
-        sleep_ms(500);
+        hal_gpio_put(STATUS_LED_PIN, true);
+        hal_sleep_ms(500);
+        hal_gpio_put(STATUS_LED_PIN, false);
+        hal_sleep_ms(500);
     }
 }
