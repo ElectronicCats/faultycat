@@ -48,3 +48,6 @@ faultycat_add_driver_test(test_ui_buttons     ui_buttons)
 faultycat_add_driver_test(test_target_monitor target_monitor)
 faultycat_add_driver_test(test_scanner_io     scanner_io)
 faultycat_add_driver_test(test_ext_trigger    ext_trigger)
+
+# F2b — driver unit tests (HV domain)
+faultycat_add_driver_test(test_crowbar_mosfet crowbar_mosfet)
