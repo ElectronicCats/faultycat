@@ -6,6 +6,7 @@ add_executable(faultycat
 # hardware_* libs it wraps — main.c never sees pico-sdk symbols.
 target_link_libraries(faultycat PRIVATE
     hal_rp2040
+    driver_ui_leds
 )
 
 # F0 kept stdio off so we didn't depend on tinyusb; same policy in F1.

@@ -1,26 +1,36 @@
 // FaultyCat v3 — firmware entrypoint.
 //
-// F1 rewrites the F0 blink on top of the HAL. No pico-sdk symbols
-// appear in this file any more — the only way to reach hardware is
-// through hal/*. This is the template for every future app: drivers
-// and services provide the features, the app composes them.
+// F2a commit 1 replaces the F1 single-LED blink with a sweep across
+// the three LEDs on v2.2, using the new drivers/ui_leds/ API. Nothing
+// but the driver and the HAL is linked in — same layering rule as
+// before.
 //
-// F0 chose GP10 as the STATUS LED (the v2.x PCB's actual one; GP25 is
-// not connected). The choice is still hard-coded here; later phases
-// promote it to a board descriptor the drivers share.
+// The visible pattern for this phase is a left-to-right chase:
+//   HV_DETECTED on → STATUS on → CHARGE_ON on → pause → repeat.
+// When you flash this UF2, every LED should blink in turn; if one
+// stays dark, that's a pin-mapping bug — tell the maintainer.
 
-#include "hal/gpio.h"
 #include "hal/time.h"
+#include "ui_leds.h"
 
-#define STATUS_LED_PIN 10
+#define CHASE_STEP_MS 300u
 
 int main(void) {
-    hal_gpio_init(STATUS_LED_PIN, HAL_GPIO_DIR_OUT);
+    ui_leds_init();
 
     while (true) {
-        hal_gpio_put(STATUS_LED_PIN, true);
-        hal_sleep_ms(500);
-        hal_gpio_put(STATUS_LED_PIN, false);
-        hal_sleep_ms(500);
+        ui_leds_set(UI_LED_HV_DETECTED, true);
+        hal_sleep_ms(CHASE_STEP_MS);
+        ui_leds_set(UI_LED_HV_DETECTED, false);
+
+        ui_leds_set(UI_LED_STATUS, true);
+        hal_sleep_ms(CHASE_STEP_MS);
+        ui_leds_set(UI_LED_STATUS, false);
+
+        ui_leds_set(UI_LED_CHARGE_ON, true);
+        hal_sleep_ms(CHASE_STEP_MS);
+        ui_leds_set(UI_LED_CHARGE_ON, false);
+
+        hal_sleep_ms(CHASE_STEP_MS);
     }
 }

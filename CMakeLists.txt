@@ -41,6 +41,7 @@ project(faultycat
 if(FAULTYCAT_BUILD_FIRMWARE)
     pico_sdk_init()
     add_subdirectory(hal)
+    add_subdirectory(drivers)
     add_subdirectory(apps/faultycat_fw)
 endif()
 

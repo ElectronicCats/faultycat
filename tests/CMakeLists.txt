@@ -15,9 +15,32 @@ add_subdirectory(hal_fake)
 function(faultycat_add_test name)
     add_executable(${name} ${name}.c)
     target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_include_directories(${name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/drivers/include
+    )
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+# Driver tests compile the driver source into the test binary so it
+# links against hal_fake (not hal_rp2040). The driver source lives at
+# drivers/<driver_name>/<driver_name>.c and its public header at
+# drivers/<driver_name>/<driver_name>.h.
+function(faultycat_add_driver_test name driver_name)
+    add_executable(${name}
+        ${name}.c
+        ${CMAKE_SOURCE_DIR}/drivers/${driver_name}/${driver_name}.c
+    )
+    target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_include_directories(${name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/drivers/include
+        ${CMAKE_SOURCE_DIR}/drivers/${driver_name}
+    )
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
 # F1 — HAL unit tests
 faultycat_add_test(test_gpio)
 faultycat_add_test(test_time)
+
+# F2a — driver unit tests
+faultycat_add_driver_test(test_ui_leds ui_leds)
