@@ -2562,6 +2562,10 @@ bool emfi_capture_init(void) {
     s_dma = hal_dma_claim_unused();
     if (s_dma < 0) return false;
 
+    // Idempotent — matches pico-sdk adc_init semantics. Ensures the ADC
+    // peripheral is up even when no other driver (e.g. target_monitor)
+    // has run yet — F4-5 orchestration doesn't depend on caller order.
+    hal_adc_init();
     hal_adc_select_input(EMFI_CAPTURE_ADC_CHANNEL);
     hal_adc_fifo_setup(&(hal_adc_fifo_cfg_t){
         .enable_fifo      = true,
