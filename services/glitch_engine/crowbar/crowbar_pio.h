@@ -73,7 +73,7 @@ bool crowbar_pio_is_done(void);
 // Clear IRQ 1 so the next start() sees a fresh line.
 void crowbar_pio_clear_done(void);
 
-// PIO ticks per nanosecond at the compile-time clock divisor. For the
-// fixed 125 MHz / 1.0 setup this returns 1 tick per 8 ns. Exposed for
-// tests and for the campaign layer's status reports.
-uint32_t crowbar_pio_ticks_per_8ns(void);
+// Nanoseconds per PIO tick at the compile-time clock divisor. For the
+// fixed 125 MHz / 1.0 setup this returns 8 (i.e. one tick = 8 ns).
+// Exposed for tests and for the campaign layer's status reports.
+uint32_t crowbar_pio_ns_per_tick(void);

@@ -91,3 +91,28 @@ faultycat_add_service_emfi_test(test_emfi_capture)
 faultycat_add_service_emfi_test(test_emfi_campaign)
 # F4-6 — emfi_proto host framing
 faultycat_add_service_emfi_test(test_emfi_proto)
+
+# Crowbar test helper: links the crowbar service + its drivers and
+# the host_proto/crowbar_proto layer. Mirrors the EMFI helper above.
+function(faultycat_add_service_crowbar_test name)
+    add_executable(${name}
+        ${name}.c
+        ${CMAKE_SOURCE_DIR}/drivers/crowbar_mosfet/crowbar_mosfet.c
+        ${CMAKE_SOURCE_DIR}/drivers/ext_trigger/ext_trigger.c
+        ${CMAKE_SOURCE_DIR}/services/glitch_engine/crowbar/crowbar_pio.c
+        ${CMAKE_SOURCE_DIR}/services/glitch_engine/crowbar/crowbar_campaign.c
+        ${CMAKE_SOURCE_DIR}/services/host_proto/crowbar_proto/crowbar_proto.c
+    )
+    target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_include_directories(${name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/drivers/include
+        ${CMAKE_SOURCE_DIR}/drivers/crowbar_mosfet
+        ${CMAKE_SOURCE_DIR}/drivers/ext_trigger
+        ${CMAKE_SOURCE_DIR}/services/glitch_engine/crowbar
+        ${CMAKE_SOURCE_DIR}/services/host_proto/crowbar_proto
+    )
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+# F5-2 — crowbar_pio service unit tests
+faultycat_add_service_crowbar_test(test_crowbar_pio)
