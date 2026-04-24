@@ -58,3 +58,24 @@ void emfi_pulse_force_low(void);
 // min/max safety rails and the post-fire cool-down. Returns true
 // if the pulse was emitted, false if the width was rejected.
 bool emfi_pulse_fire_manual(uint32_t width_us);
+
+// Forward decl — the opaque HAL PIO handle.
+typedef struct hal_pio_inst hal_pio_inst_t;
+
+// Hand GP14 over to PIO. While attached, emfi_pulse_fire_manual
+// refuses to fire (returns false) so the CPU path and the PIO path
+// never contend for the pin. The service layer (F4-3/F4-5) is
+// responsible for the pio_gpio_init + pindir setup before this call.
+//
+// SAFETY: a caller that attaches while the HV charger is armed
+// transfers control of the HV pulse MOSFET to the PIO program —
+// make sure the PIO program holds GP14 LOW until the trigger/delay
+// phase completes. docs/SAFETY.md §3 #5 invariant fires in F4-5.
+bool emfi_pulse_attach_pio(hal_pio_inst_t *pio, uint32_t sm);
+
+// Return GP14 to plain-GPIO ownership driven LOW. Safe from any
+// state. No-op if not attached.
+void emfi_pulse_detach_pio(void);
+
+// True iff GP14 currently belongs to PIO.
+bool emfi_pulse_is_attached_to_pio(void);

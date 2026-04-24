@@ -43,6 +43,9 @@
 // External trigger (v2.1+)
 // -----------------------------------------------------------------------------
 #define BOARD_GP_TRIGGER_IN         8u   // level-shifted via TRIGGER_VREF
+// Alias used by services/glitch_engine/emfi/emfi_pio for PIO in-pin
+// binding. Same physical net as BOARD_GP_TRIGGER_IN.
+#define BOARD_GP_EXT_TRIGGER        BOARD_GP_TRIGGER_IN
 
 // -----------------------------------------------------------------------------
 // Crowbar — voltage glitching paths (v2.1+). Software selects between

@@ -38,6 +38,23 @@ function(faultycat_add_driver_test name driver_name)
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
+# Service tests need driver + service sources compiled natively
+# against hal_fake. For F4-3 this is just emfi_pio + emfi_pulse.
+function(faultycat_add_service_emfi_test name)
+    add_executable(${name}
+        ${name}.c
+        ${CMAKE_SOURCE_DIR}/drivers/emfi_pulse/emfi_pulse.c
+        ${CMAKE_SOURCE_DIR}/services/glitch_engine/emfi/emfi_pio.c
+    )
+    target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_include_directories(${name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/drivers/include
+        ${CMAKE_SOURCE_DIR}/drivers/emfi_pulse
+        ${CMAKE_SOURCE_DIR}/services/glitch_engine/emfi
+    )
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
 # F1 — HAL unit tests
 faultycat_add_test(test_gpio)
 faultycat_add_test(test_time)
@@ -59,3 +76,6 @@ faultycat_add_driver_test(test_ext_trigger    ext_trigger)
 faultycat_add_driver_test(test_crowbar_mosfet crowbar_mosfet)
 faultycat_add_driver_test(test_hv_charger     hv_charger)
 faultycat_add_driver_test(test_emfi_pulse     emfi_pulse)
+
+# F4-3 — emfi_pio service unit tests
+faultycat_add_service_emfi_test(test_emfi_pio)

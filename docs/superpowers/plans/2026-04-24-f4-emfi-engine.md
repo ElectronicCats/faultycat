@@ -2896,6 +2896,28 @@ Single SIGNED commit. Activates SAFETY.md §3 invariant 5 (HV charged
 within the last 100 ms before PIO fire). Sabas must approve the
 filled-in checklist before the commit runs.
 
+### Carried over from F4-3 code review
+
+F4-3's code review flagged two items that this phase must address in
+addition to Tasks 5.1–5.7:
+
+- **PC-reset primitive needed for re-fire.** `emfi_pio_clear_done`
+  disables the SM but does not reset the program counter. A subsequent
+  `emfi_pio_start` resumes from wherever the program stopped (past
+  `IRQ 0`), so the waveform never re-executes from offset 0. F4-5's
+  teardown (FIRED → IDLE) calls `emfi_pio_deinit` + next run calls
+  `emfi_pio_init` + `emfi_pio_load`, which does fully reload the
+  program. That covers the happy path. If F4-5 ever tries to re-fire
+  without deinit/reload, it MUST add a PC-reset primitive — either
+  `hal_pio_sm_exec(pio, sm, JMP offset)` (new HAL surface) or
+  `hal_pio_sm_restart` + `hal_pio_sm_set_enabled(false/true)` with a
+  program-start offset push. Pick the approach during F4-5.1; don't
+  defer further.
+
+- **`emfi_pio_ticks_per_us` docstring** promises "at the configured
+  clock divisor" but the divisor is `#define`d. Fix the docstring or
+  expose configurability while you're here.
+
 ### Task 5.1: Write `services/glitch_engine/emfi/emfi_campaign.h`
 
 **Files:**
