@@ -116,3 +116,5 @@ endfunction()
 
 # F5-2 — crowbar_pio service unit tests
 faultycat_add_service_crowbar_test(test_crowbar_pio)
+# F5-3 — crowbar_campaign state machine
+faultycat_add_service_crowbar_test(test_crowbar_campaign)

@@ -33,8 +33,11 @@ typedef struct {
 
 typedef enum {
     CROWBAR_STATE_IDLE    = 0,
-    CROWBAR_STATE_ARMING  = 1,   // path validation + driver set_path(NONE)
-    CROWBAR_STATE_ARMED   = 2,   // ready to fire
+    CROWBAR_STATE_ARMING  = 1,   // reserved — never visited today; left in
+                                 // the wire enum for future async setup
+                                 // (e.g. settling delay) without breaking
+                                 // the host_proto STATUS reply layout.
+    CROWBAR_STATE_ARMED   = 2,
     CROWBAR_STATE_WAITING = 3,   // PIO running; trigger wait + pulse
     CROWBAR_STATE_FIRED   = 4,
     CROWBAR_STATE_ERROR   = 5,
