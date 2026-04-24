@@ -1,2 +1,2 @@
 add_subdirectory(emfi)
-# crowbar wired in F5.
+add_subdirectory(crowbar)
