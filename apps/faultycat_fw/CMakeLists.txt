@@ -2,8 +2,7 @@ add_executable(faultycat
     main.c
 )
 
-# Link the HAL only. hal_rp2040 transitively pulls pico_stdlib and the
-# hardware_* libs it wraps — main.c never sees pico-sdk symbols.
+# Link the HAL + drivers + USB composite.
 target_link_libraries(faultycat PRIVATE
     hal_rp2040
     driver_ui_leds
@@ -15,6 +14,15 @@ target_link_libraries(faultycat PRIVATE
     driver_hv_charger
     driver_emfi_pulse
     usb_composite
+)
+
+# tusb_config.h must be visible to the tinyusb sources that pico-sdk
+# compiles directly into THIS target. `usb_composite` marks its
+# include/ PUBLIC but pico-sdk's tinyusb_device INTERFACE adds its
+# sources before that propagation completes — so we also attach the
+# path to the faultycat target explicitly.
+target_include_directories(faultycat PRIVATE
+    ${CMAKE_SOURCE_DIR}/usb/include
 )
 
 # F3 turns stdio_usb OFF: our own composite owns the USB stack now.

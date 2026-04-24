@@ -47,11 +47,36 @@ static void echo_cdc(uint8_t cdc_idx) {
     tud_cdc_n_write_flush(cdc_idx);
 }
 
+// CMSIS-DAP v2 stub: pull a request packet off the vendor IF, hand
+// it to dap_stub_handle, push the response back. F7 replaces this
+// with services/daplink_usb/ which streams SWD transfers and talks
+// to the real glitch-engine mutex.
+static void pump_vendor(void) {
+    uint32_t avail = tud_vendor_available();
+    if (avail == 0u) {
+        return;
+    }
+    uint8_t req[64];
+    uint32_t n = tud_vendor_read(req, sizeof(req));
+    if (n == 0u) {
+        return;
+    }
+
+    uint8_t resp[64];
+    size_t resp_len = dap_stub_handle(req, (size_t)n, resp, sizeof(resp));
+    if (resp_len == 0u) {
+        return;
+    }
+    tud_vendor_write(resp, (uint32_t)resp_len);
+    tud_vendor_write_flush();
+}
+
 void usb_composite_task(void) {
     tud_task();
     for (uint8_t i = 0; i < USB_CDC_COUNT; i++) {
         echo_cdc(i);
     }
+    pump_vendor();
 }
 
 bool usb_composite_cdc_connected(usb_cdc_index_t idx) {

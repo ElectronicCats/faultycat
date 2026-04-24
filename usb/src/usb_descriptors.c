@@ -7,6 +7,10 @@
 // 0x81..0x88 for notification + data IN, leaving 0x06/0x86 free for
 // the F3-2 vendor IF and 0x87 for the F3-3 HID IF.
 
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+
 #include "tusb.h"
 #include "pico/unique_id.h"
 
@@ -29,7 +33,9 @@
 static const tusb_desc_device_t s_device_desc = {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0200,
+    // bcdUSB 2.01 advertises BOS descriptor support so Windows
+    // queries the MS OS 2.0 descriptor set we provide.
+    .bcdUSB             = 0x0201,
     .bDeviceClass       = TUSB_CLASS_MISC,
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
@@ -58,6 +64,7 @@ enum {
     ITF_CDC1_NOTIF,     ITF_CDC1_DATA,
     ITF_CDC2_NOTIF,     ITF_CDC2_DATA,
     ITF_CDC3_NOTIF,     ITF_CDC3_DATA,
+    ITF_VENDOR,         // F3-2 — CMSIS-DAP v2 stub
     ITF_TOTAL
 };
 
@@ -74,20 +81,22 @@ enum {
 //
 // Note: the RP2040 has 16 physical endpoints counting IN and OUT
 // halves of EP0 once. The arithmetic in plan §4 is the same.
-#define EP_CDC0_NOTIF   0x81
-#define EP_CDC0_DATA_IN 0x82
-#define EP_CDC0_DATA_OUT 0x02
-#define EP_CDC1_NOTIF   0x83
-#define EP_CDC1_DATA_IN 0x84
-#define EP_CDC1_DATA_OUT 0x03
-#define EP_CDC2_NOTIF   0x85
-#define EP_CDC2_DATA_IN 0x86
-#define EP_CDC2_DATA_OUT 0x04
-#define EP_CDC3_NOTIF   0x87
-#define EP_CDC3_DATA_IN 0x88
-#define EP_CDC3_DATA_OUT 0x05
+#define EP_CDC0_NOTIF     0x81
+#define EP_CDC0_DATA_IN   0x82
+#define EP_CDC0_DATA_OUT  0x02
+#define EP_CDC1_NOTIF     0x83
+#define EP_CDC1_DATA_IN   0x84
+#define EP_CDC1_DATA_OUT  0x03
+#define EP_CDC2_NOTIF     0x85
+#define EP_CDC2_DATA_IN   0x86
+#define EP_CDC2_DATA_OUT  0x04
+#define EP_CDC3_NOTIF     0x87
+#define EP_CDC3_DATA_IN   0x88
+#define EP_CDC3_DATA_OUT  0x05
+#define EP_VENDOR_DATA_IN  0x89
+#define EP_VENDOR_DATA_OUT 0x06
 
-#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + 4 * TUD_CDC_DESC_LEN)
+#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + 4 * TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
 
 // String indices for per-interface labels. TinyUSB uses these
 // indirectly via the CDC IAD descriptor macro.
@@ -100,7 +109,13 @@ enum {
     STRID_CDC1          = 5,
     STRID_CDC2          = 6,
     STRID_CDC3          = 7,
+    STRID_VENDOR        = 8,
 };
+
+// Vendor request number used by Windows to ask for the MS OS 2.0
+// descriptor set. Arbitrary but must be reflected in the BOS
+// descriptor and in the control-xfer callback.
+#define VENDOR_REQUEST_MICROSOFT 0x01
 
 static const uint8_t s_config_desc[] = {
     TUD_CONFIG_DESCRIPTOR(
@@ -131,11 +146,107 @@ static const uint8_t s_config_desc[] = {
                        EP_CDC3_NOTIF, 8,
                        EP_CDC3_DATA_OUT, EP_CDC3_DATA_IN,
                        CFG_TUD_CDC_EP_BUFSIZE),
+
+    // CMSIS-DAP v2 vendor interface. One bulk OUT + one bulk IN,
+    // 64-byte max packet. Windows bind to WinUSB via the MS OS 2.0
+    // descriptor in BOS (see below); Linux/macOS see it as a vendor
+    // class and libusb / OpenOCD / probe-rs can claim it directly.
+    TUD_VENDOR_DESCRIPTOR(ITF_VENDOR, STRID_VENDOR,
+                          EP_VENDOR_DATA_OUT, EP_VENDOR_DATA_IN,
+                          64),
 };
 
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
     (void)index;
     return s_config_desc;
+}
+
+// ---------------------------------------------------------------------------
+// BOS + MS OS 2.0 — Windows WinUSB auto-bind for the CMSIS-DAP v2 IF.
+//
+// Adapted from the raspberrypi/debugprobe project. Without these
+// descriptors Windows won't bind a driver to the vendor IF; OpenOCD
+// and probe-rs would be stuck until the user ran Zadig.
+// ---------------------------------------------------------------------------
+
+#define MS_OS_20_DESC_LEN 0xB2
+#define BOS_TOTAL_LEN     (TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
+
+static uint8_t const s_bos_desc[] = {
+    TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 1),
+    TUD_BOS_MS_OS_20_DESCRIPTOR(MS_OS_20_DESC_LEN, VENDOR_REQUEST_MICROSOFT),
+};
+
+static uint8_t const s_ms_os_20[] = {
+    // Set header
+    U16_TO_U8S_LE(0x000A), U16_TO_U8S_LE(MS_OS_20_SET_HEADER_DESCRIPTOR),
+    U32_TO_U8S_LE(0x06030000),   // Windows version: Win 8.1+
+    U16_TO_U8S_LE(MS_OS_20_DESC_LEN),
+
+    // Configuration subset header
+    U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_CONFIGURATION),
+    0, 0,
+    U16_TO_U8S_LE(MS_OS_20_DESC_LEN - 0x0A),
+
+    // Function subset header — scope to the vendor IF only
+    U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION),
+    ITF_VENDOR, 0,
+    U16_TO_U8S_LE(MS_OS_20_DESC_LEN - 0x0A - 0x08),
+
+    // Compatible ID: WINUSB
+    U16_TO_U8S_LE(0x0014), U16_TO_U8S_LE(MS_OS_20_FEATURE_COMPATBLE_ID),
+    'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+    // Registry property: DeviceInterfaceGUIDs = {CDB3B5AD-293B-4663-AA36-1AAE46463776}
+    // Same GUID the debugprobe project uses — tools (OpenOCD, probe-rs)
+    // look for this specific GUID to distinguish a CMSIS-DAP v2 probe
+    // from a generic WinUSB device.
+    U16_TO_U8S_LE(MS_OS_20_DESC_LEN - 0x0A - 0x08 - 0x08 - 0x14),
+    U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
+    U16_TO_U8S_LE(0x0007),       // REG_MULTI_SZ
+    U16_TO_U8S_LE(0x002A),
+    'D', 0x00, 'e', 0x00, 'v', 0x00, 'i', 0x00, 'c', 0x00, 'e', 0x00,
+    'I', 0x00, 'n', 0x00, 't', 0x00, 'e', 0x00, 'r', 0x00, 'f', 0x00,
+    'a', 0x00, 'c', 0x00, 'e', 0x00, 'G', 0x00, 'U', 0x00, 'I', 0x00,
+    'D', 0x00, 's', 0x00, 0x00, 0x00,
+    U16_TO_U8S_LE(0x0050),
+    '{', 0x00, 'C', 0x00, 'D', 0x00, 'B', 0x00, '3', 0x00, 'B', 0x00,
+    '5', 0x00, 'A', 0x00, 'D', 0x00, '-', 0x00, '2', 0x00, '9', 0x00,
+    '3', 0x00, 'B', 0x00, '-', 0x00, '4', 0x00, '6', 0x00, '6', 0x00,
+    '3', 0x00, '-', 0x00, 'A', 0x00, 'A', 0x00, '3', 0x00, '6', 0x00,
+    '-', 0x00, '1', 0x00, 'A', 0x00, 'A', 0x00, 'E', 0x00, '4', 0x00,
+    '6', 0x00, '4', 0x00, '6', 0x00, '3', 0x00, '7', 0x00, '7', 0x00,
+    '6', 0x00, '}', 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+TU_VERIFY_STATIC(sizeof(s_ms_os_20) == MS_OS_20_DESC_LEN, "MS OS 2.0 descriptor size mismatch");
+
+uint8_t const *tud_descriptor_bos_cb(void) {
+    return s_bos_desc;
+}
+
+// Handle the WinUSB GET_MS_OS_20_DESCRIPTOR vendor request. This is
+// what Windows sends after enumeration to decide which driver to
+// bind; we answer with the descriptor set above.
+bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage,
+                                tusb_control_request_t const *request) {
+    if (stage != CONTROL_STAGE_SETUP) {
+        return true;
+    }
+
+    if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR
+     && request->bRequest == VENDOR_REQUEST_MICROSOFT
+     && request->wIndex == 7) {
+        // Windows asks for "descriptor set" — the length lives at
+        // offset 8 inside s_ms_os_20.
+        uint16_t total_len;
+        memcpy(&total_len, s_ms_os_20 + 8, 2);
+        return tud_control_xfer(rhport, request,
+                                (void *)(uintptr_t)s_ms_os_20,
+                                total_len);
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -151,6 +262,7 @@ static const char *s_string_literals[] = {
     [STRID_CDC1]         = "FaultyCat Crowbar Control",
     [STRID_CDC2]         = "FaultyCat Scanner Shell",
     [STRID_CDC3]         = "FaultyCat Target UART",
+    [STRID_VENDOR]       = "FaultyCat CMSIS-DAP v2",
 };
 
 // Scratch buffer for the UTF-16 string descriptors we hand back to

@@ -3,6 +3,7 @@
 add_library(usb_composite STATIC
     src/usb_composite.c
     src/usb_descriptors.c
+    src/dap_stub.c
 )
 
 target_include_directories(usb_composite

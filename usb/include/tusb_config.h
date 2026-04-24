@@ -19,16 +19,19 @@
 
 // Device classes
 #define CFG_TUD_CDC                 4
-#define CFG_TUD_VENDOR              0    // F3-2 flips this to 1
+#define CFG_TUD_VENDOR              1    // F3-2: CMSIS-DAP v2 stub
 #define CFG_TUD_HID                 0    // F3-3 flips this to 1
 #define CFG_TUD_MSC                 0
 #define CFG_TUD_MIDI                0
 
-// CDC FIFO sizes — 256 B in each direction per endpoint keeps the
-// buffers tight for a full-speed device while leaving room for the
-// binary protocols in F4+.
+// CDC FIFO sizes
 #define CFG_TUD_CDC_RX_BUFSIZE      256
 #define CFG_TUD_CDC_TX_BUFSIZE      256
 
 // Endpoint max packet sizes (bulk on CDC data)
 #define CFG_TUD_CDC_EP_BUFSIZE      64
+
+// Vendor FIFO sizes — CMSIS-DAP v2 max packet 64 bytes; 256 gives
+// headroom for queuing.
+#define CFG_TUD_VENDOR_RX_BUFSIZE   256
+#define CFG_TUD_VENDOR_TX_BUFSIZE   256
