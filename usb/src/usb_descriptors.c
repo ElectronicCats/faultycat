@@ -65,6 +65,7 @@ enum {
     ITF_CDC2_NOTIF,     ITF_CDC2_DATA,
     ITF_CDC3_NOTIF,     ITF_CDC3_DATA,
     ITF_VENDOR,         // F3-2 — CMSIS-DAP v2 stub
+    ITF_HID,            // F3-3 — CMSIS-DAP v1 stub
     ITF_TOTAL
 };
 
@@ -95,8 +96,12 @@ enum {
 #define EP_CDC3_DATA_OUT  0x05
 #define EP_VENDOR_DATA_IN  0x89
 #define EP_VENDOR_DATA_OUT 0x06
+#define EP_HID_IN          0x8A        // single interrupt IN endpoint
 
-#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + 4 * TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
+#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN \
+                          + 4 * TUD_CDC_DESC_LEN \
+                          + TUD_VENDOR_DESC_LEN \
+                          + TUD_HID_DESC_LEN)
 
 // String indices for per-interface labels. TinyUSB uses these
 // indirectly via the CDC IAD descriptor macro.
@@ -110,12 +115,29 @@ enum {
     STRID_CDC2          = 6,
     STRID_CDC3          = 7,
     STRID_VENDOR        = 8,
+    STRID_HID           = 9,
 };
 
 // Vendor request number used by Windows to ask for the MS OS 2.0
 // descriptor set. Arbitrary but must be reflected in the BOS
 // descriptor and in the control-xfer callback.
 #define VENDOR_REQUEST_MICROSOFT 0x01
+
+// HID report descriptor for CMSIS-DAP v1. Same shape every
+// CMSIS-DAP v1 probe uses:
+//   * one input report (host reads from us)   — 64 B
+//   * one output report (host writes to us)   — 64 B
+// Usage page / usage are vendor-defined; the pairing below matches
+// what libusb hid-api clients (OpenOCD CMSIS-DAP v1 backend) look
+// for.
+static uint8_t const s_hid_report_desc[] = {
+    TUD_HID_REPORT_DESC_GENERIC_INOUT(CFG_TUD_HID_EP_BUFSIZE),
+};
+
+uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance) {
+    (void)instance;
+    return s_hid_report_desc;
+}
 
 static const uint8_t s_config_desc[] = {
     TUD_CONFIG_DESCRIPTOR(
@@ -154,6 +176,16 @@ static const uint8_t s_config_desc[] = {
     TUD_VENDOR_DESCRIPTOR(ITF_VENDOR, STRID_VENDOR,
                           EP_VENDOR_DATA_OUT, EP_VENDOR_DATA_IN,
                           64),
+
+    // CMSIS-DAP v1 HID interface. Single 64-byte interrupt IN
+    // endpoint, ~1 ms poll interval. The v1 protocol uses HID
+    // reports (host-side hidapi) as transport for the same DAP
+    // command set as v2 — we route both to dap_stub_handle. Kept in
+    // F3 per plan §4 to lock in the 16/16 endpoint budget early.
+    TUD_HID_DESCRIPTOR(ITF_HID, STRID_HID,
+                       HID_ITF_PROTOCOL_NONE,
+                       sizeof(s_hid_report_desc), EP_HID_IN,
+                       CFG_TUD_HID_EP_BUFSIZE, 1),
 };
 
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
@@ -263,6 +295,7 @@ static const char *s_string_literals[] = {
     [STRID_CDC2]         = "FaultyCat Scanner Shell",
     [STRID_CDC3]         = "FaultyCat Target UART",
     [STRID_VENDOR]       = "FaultyCat CMSIS-DAP v2",
+    [STRID_HID]          = "FaultyCat CMSIS-DAP v1",
 };
 
 // Scratch buffer for the UTF-16 string descriptors we hand back to

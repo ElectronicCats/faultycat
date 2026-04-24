@@ -20,9 +20,14 @@
 // Device classes
 #define CFG_TUD_CDC                 4
 #define CFG_TUD_VENDOR              1    // F3-2: CMSIS-DAP v2 stub
-#define CFG_TUD_HID                 0    // F3-3 flips this to 1
+#define CFG_TUD_HID                 1    // F3-3: CMSIS-DAP v1 stub
 #define CFG_TUD_MSC                 0
 #define CFG_TUD_MIDI                0
+
+// HID — one interrupt IN endpoint, 64 B report on the way out, and
+// we poll tud_hid_n_receive_cb for input reports. CMSIS-DAP v1
+// convention.
+#define CFG_TUD_HID_EP_BUFSIZE      64
 
 // CDC FIFO sizes
 #define CFG_TUD_CDC_RX_BUFSIZE      256

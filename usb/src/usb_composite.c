@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "dap_stub.h"
 #include "pico/bootrom.h"
 #include "tusb.h"
 
@@ -77,6 +78,54 @@ void usb_composite_task(void) {
         echo_cdc(i);
     }
     pump_vendor();
+    // HID pump is entirely callback-driven (tud_hid_set_report_cb
+    // below); nothing to poll from the main loop.
+}
+
+// ---------------------------------------------------------------------------
+// HID CMSIS-DAP v1 stub (F3-3)
+// ---------------------------------------------------------------------------
+// The v1 transport wraps the same DAP command bytes as v2 in HID
+// reports. Host writes a 64 B output report with the command, we
+// process it through dap_stub_handle (shared with v2), and ship the
+// response back as a 64 B input report via tud_hid_report().
+
+void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
+                           hid_report_type_t report_type,
+                           uint8_t const *buffer, uint16_t bufsize) {
+    (void)instance;
+    (void)report_id;
+
+    // HID_REPORT_TYPE_INVALID is what TinyUSB reports for
+    // interrupt-out (no SET_REPORT control transfer involved);
+    // HID_REPORT_TYPE_OUTPUT is what SET_REPORT sends. Accept both —
+    // CMSIS-DAP hosts will pick one or the other.
+    if (report_type != HID_REPORT_TYPE_OUTPUT
+     && report_type != HID_REPORT_TYPE_INVALID) {
+        return;
+    }
+
+    uint8_t resp[CFG_TUD_HID_EP_BUFSIZE];
+    size_t resp_len = dap_stub_handle(buffer, (size_t)bufsize,
+                                      resp, sizeof(resp));
+    if (resp_len == 0u) {
+        return;
+    }
+    tud_hid_report(0, resp, (uint16_t)resp_len);
+}
+
+uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id,
+                               hid_report_type_t report_type,
+                               uint8_t *buffer, uint16_t reqlen) {
+    (void)instance;
+    (void)report_id;
+    (void)report_type;
+    (void)buffer;
+    (void)reqlen;
+    // Unsolicited GET_REPORT is not used by CMSIS-DAP v1 hosts;
+    // responses come back via tud_hid_report from set_report_cb.
+    // Returning 0 signals "no report to send".
+    return 0;
 }
 
 bool usb_composite_cdc_connected(usb_cdc_index_t idx) {
