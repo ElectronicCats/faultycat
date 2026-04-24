@@ -29,9 +29,11 @@
 // convention.
 #define CFG_TUD_HID_EP_BUFSIZE      64
 
-// CDC FIFO sizes
+// CDC FIFO sizes. TX is 1024 so the diag banner (a burst of ~10
+// printfs on connect) doesn't truncate before tud_task drains it.
+// RX stays at 256 — F8's scanner shell will bump it per-command.
 #define CFG_TUD_CDC_RX_BUFSIZE      256
-#define CFG_TUD_CDC_TX_BUFSIZE      256
+#define CFG_TUD_CDC_TX_BUFSIZE      1024
 
 // Endpoint max packet sizes (bulk on CDC data)
 #define CFG_TUD_CDC_EP_BUFSIZE      64
