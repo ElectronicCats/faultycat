@@ -13,6 +13,8 @@ target_link_libraries(faultycat PRIVATE
     driver_crowbar_mosfet
     driver_hv_charger
     driver_emfi_pulse
+    service_emfi
+    host_proto_emfi
     usb_composite
 )
 

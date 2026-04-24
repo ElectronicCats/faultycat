@@ -15,6 +15,9 @@
 #include <stdio.h>
 
 #include "crowbar_mosfet.h"
+#include "emfi_campaign.h"
+#include "emfi_capture.h"
+#include "emfi_proto.h"
 #include "emfi_pulse.h"
 #include "ext_trigger.h"
 #include "hal/time.h"
@@ -55,7 +58,7 @@ static void diag_printf(const char *fmt, ...) {
 
 static void diag_banner(void) {
     diag_printf("\n========================================\n");
-    diag_printf("FaultyCat v3 — F3 diag (composite scanner CDC)\n");
+    diag_printf("FaultyCat v3 — F4 diag (composite scanner CDC)\n");
     diag_printf("========================================\n");
     diag_printf("!! HV WARNING — plastic shield + coil MUST be installed.\n");
     diag_printf("!! Do NOT leave the SMA open with HV armed.\n\n");
@@ -81,7 +84,11 @@ static const char *crowbar_label(crowbar_path_t p) {
 }
 
 static void print_snapshot(void) {
-    uint16_t       adc     = target_monitor_read_raw();
+    // Skip the single-shot ADC read while emfi_capture owns the FIFO.
+    // adc_read() blocks waiting for CS_READY when the ADC is in
+    // continuous/FIFO/DMA mode — would wedge this loop.
+    uint16_t       adc     = emfi_capture_is_running() ? 0u
+                                                       : target_monitor_read_raw();
     uint8_t        scan    = scanner_io_read_all();
     bool           trigger = ext_trigger_level();
     crowbar_path_t path    = crowbar_mosfet_get_path();
@@ -94,10 +101,16 @@ static void print_snapshot(void) {
     }
     bits[SCANNER_IO_CHANNEL_COUNT] = '\0';
 
-    diag_printf("ADC=%4u  SCAN=%s  TRIG=%d  CROWBAR=%s  HV[%s%s]\n",
+    emfi_status_t es; emfi_campaign_get_status(&es);
+    static const char *state_labels[] = {
+        "IDLE","ARMING","CHARGED","WAITING","FIRED","ERROR"
+    };
+    const char *slabel = (es.state < 6) ? state_labels[es.state] : "???";
+    diag_printf("ADC=%4u  SCAN=%s  TRIG=%d  CROWBAR=%s  HV[%s%s]  EMFI=%s\n",
                 adc, bits, trigger ? 1 : 0, crowbar_label(path),
                 armed   ? "ARM" : "---",
-                charged ? " CHG" : "");
+                charged ? " CHG" : "",
+                slabel);
 }
 
 static crowbar_path_t next_crowbar(crowbar_path_t cur) {
@@ -128,6 +141,30 @@ static void try_fire_emfi(void) {
 }
 
 // -----------------------------------------------------------------------------
+// emfi_proto pump on CDC0
+// -----------------------------------------------------------------------------
+
+// Pump CDC0 bytes through emfi_proto. Writes any reply to CDC0
+// without blocking.
+static void pump_emfi_cdc(void) {
+    uint8_t buf[64];
+    // We reuse tinyusb's read interface via usb_composite; a small
+    // internal shim keeps usb_composite as the only owner of
+    // tud_cdc_n_read.
+    size_t n = usb_composite_cdc_read(USB_CDC_EMFI, buf, sizeof(buf));
+    if (n == 0) return;
+    for (size_t i = 0; i < n; i++) {
+        if (emfi_proto_feed(buf[i], hal_now_ms())) {
+            uint8_t reply[768];
+            size_t rn = emfi_proto_dispatch(reply, sizeof(reply));
+            if (rn > 0) {
+                usb_composite_cdc_write(USB_CDC_EMFI, reply, rn);
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
 // main
 // -----------------------------------------------------------------------------
 
@@ -142,6 +179,8 @@ int main(void) {
     crowbar_mosfet_init();
     hv_charger_init();
     emfi_pulse_init();
+    emfi_campaign_init();
+    emfi_proto_init();
 
     bool     last_arm              = false;
     bool     last_pulse            = false;
@@ -151,6 +190,9 @@ int main(void) {
 
     while (true) {
         usb_composite_task();
+
+        pump_emfi_cdc();
+        emfi_campaign_tick();
 
         // Print banner on first CDC2 connection so a freshly-attached
         // terminal sees the intro without needing a board reset.
@@ -179,6 +221,10 @@ int main(void) {
         last_arm   = arm;
         last_pulse = pulse;
 
+        // Defense-in-depth: emfi_campaign_tick() also calls this, but
+        // the button-ARM path (F2b) does not go through the service,
+        // so keep the direct call so the 60s auto-disarm invariant
+        // holds regardless of service state.
         hv_charger_tick();
 
         ui_leds_set(UI_LED_CHARGE_ON, hv_charger_is_armed());

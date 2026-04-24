@@ -47,6 +47,7 @@ function(faultycat_add_service_emfi_test name)
         ${CMAKE_SOURCE_DIR}/services/glitch_engine/emfi/emfi_pio.c
         ${CMAKE_SOURCE_DIR}/services/glitch_engine/emfi/emfi_capture.c
         ${CMAKE_SOURCE_DIR}/services/glitch_engine/emfi/emfi_campaign.c
+        ${CMAKE_SOURCE_DIR}/services/host_proto/emfi_proto/emfi_proto.c
     )
     target_link_libraries(${name} PRIVATE unity hal_fake)
     target_include_directories(${name} PRIVATE
@@ -55,6 +56,7 @@ function(faultycat_add_service_emfi_test name)
         ${CMAKE_SOURCE_DIR}/drivers/hv_charger
         ${CMAKE_SOURCE_DIR}/drivers/ext_trigger
         ${CMAKE_SOURCE_DIR}/services/glitch_engine/emfi
+        ${CMAKE_SOURCE_DIR}/services/host_proto/emfi_proto
     )
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
@@ -87,3 +89,5 @@ faultycat_add_service_emfi_test(test_emfi_pio)
 faultycat_add_service_emfi_test(test_emfi_capture)
 # F4-5 — emfi_campaign state machine
 faultycat_add_service_emfi_test(test_emfi_campaign)
+# F4-6 — emfi_proto host framing
+faultycat_add_service_emfi_test(test_emfi_proto)

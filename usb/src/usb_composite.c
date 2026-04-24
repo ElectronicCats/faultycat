@@ -74,7 +74,9 @@ static void pump_vendor(void) {
 
 void usb_composite_task(void) {
     tud_task();
-    for (uint8_t i = 0; i < USB_CDC_COUNT; i++) {
+    // CDC0 is owned by emfi_proto (pumped from main.c); CDC1..CDC3 stay
+    // in echo stub until later services claim them.
+    for (uint8_t i = 1; i < USB_CDC_COUNT; i++) {
         echo_cdc(i);
     }
     pump_vendor();
@@ -150,4 +152,11 @@ size_t usb_composite_cdc_write_str(usb_cdc_index_t idx, const char *s) {
         return 0;
     }
     return usb_composite_cdc_write(idx, s, strlen(s));
+}
+
+size_t usb_composite_cdc_read(usb_cdc_index_t idx, void *data, size_t cap) {
+    if ((unsigned)idx >= USB_CDC_COUNT || data == NULL || cap == 0) return 0;
+    if (!tud_cdc_n_available((uint8_t)idx)) return 0;
+    uint32_t n = tud_cdc_n_read((uint8_t)idx, data, (uint32_t)cap);
+    return (size_t)n;
 }

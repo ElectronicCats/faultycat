@@ -44,3 +44,7 @@ size_t usb_composite_cdc_write(usb_cdc_index_t idx,
 
 // Convenience wrapper for NUL-terminated strings.
 size_t usb_composite_cdc_write_str(usb_cdc_index_t idx, const char *s);
+
+// Read up to `cap` bytes from CDC `idx` into `data`. Non-blocking;
+// returns the count actually read (0 if nothing available).
+size_t usb_composite_cdc_read(usb_cdc_index_t idx, void *data, size_t cap);

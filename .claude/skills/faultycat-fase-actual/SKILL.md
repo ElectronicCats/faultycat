@@ -10,7 +10,7 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 > tocar nada. Las 16 decisiones congeladas del plan §1 **no se
 > relitigan**.
 
-## Fase actual: F3 cerrada → F4 a continuación (EMFI glitch_engine service)
+## Fase actual: F4 cerrada → F5 a continuación (crowbar glitch_engine service)
 
 ## Tags cerrados en `rewrite/v3`
 
@@ -42,6 +42,15 @@ stdio_usb to CDC2 scanner. `dap_stub.c` shared by v1 HID + v2 vendor,
 DAP_Info responds correctly (strings + caps + packet size). F7
 replaces dap_stub with the full debugprobe-derived DAP engine.
 
+### `v3.0-f4` — EMFI glitch engine + host proto (2026-04-24)
+hal/pio + hal/dma lifted. services/glitch_engine/emfi/ complete:
+emfi_pio (PIO trigger compiler, reimplemented from scratch),
+emfi_capture (8 KB ADC DMA ring on GP29), emfi_campaign (state
+machine + 100 ms HV invariant activated). services/host_proto/
+emfi_proto on CDC0 with CRC16-CCITT framing. Button PULSE kept on
+CPU fire path (F2b) for operator use. tools/emfi_client.py reference
+host client. SAFETY.md §3 #5 activated in F4-5.
+
 ## Estado del HAL
 
 | Header | Estado | Lifted / planned |
@@ -50,8 +59,8 @@ replaces dap_stub with the full debugprobe-derived DAP engine.
 | `hal/time.h` | ✓ (+busy_wait_us +irq ctl en F2b) | F1 / F2b |
 | `hal/adc.h`  | ✓ | F2a |
 | `hal/pwm.h`  | ✓ | F2b |
-| `hal/pio.h`  | `#error` stub | **F4** (glitch engine) |
-| `hal/dma.h`  | `#error` stub | **F4** (ADC capture ring) |
+| `hal/pio.h`  | ✓ | F4-1 |
+| `hal/dma.h`  | ✓ | F4-2 |
 | `hal/usb.h`  | `#error` stub | **NO se levanta** — TinyUSB es la abstracción |
 
 ## Estado de drivers
@@ -63,8 +72,7 @@ replaces dap_stub with the full debugprobe-derived DAP engine.
 ## Estado USB
 
 Composite activo en **1209:FA17**:
-- 4 CDC: emfi(0), crowbar(1), scanner(2), target-uart(3) — todos
-  con echo default, scanner tiene diag activo.
+- 4 CDC: emfi(0) → emfi_proto binary, crowbar(1) echo (F5), scanner(2) diag, target-uart(3) echo.
 - Vendor CMSIS-DAP v2 (IF 8) + HID CMSIS-DAP v1 (IF 9) — ambos
   stub (DAP_Info responde, otras DAP commands → DAP_ERROR). F7
   implementa el engine real.
@@ -74,42 +82,23 @@ Composite activo en **1209:FA17**:
 
 ## Tests
 
-75 Unity cases en 10 binarios, verde. `host-tests` preset + CI.
+155 Unity cases en 16 binarios, verde. `host-tests` preset + CI.
 
-## En qué estamos ahora — F4 (EMFI glitch engine service)
+## En qué estamos ahora — F5 (crowbar glitch_engine service)
 
-Objetivo: primer servicio real. Orquesta `drivers/hv_charger`,
-`drivers/emfi_pulse`, `drivers/ext_trigger`, `drivers/target_monitor`
-para ejecutar campañas EMFI con trigger externo y ADC capture.
-Ver plan §6 F4.
+Siguiente servicio: voltage glitching con crowbar MOSFET. Plan §6 F5.
+Reusa el patrón de emfi_campaign: service compone drivers + PIO.
+Safety gate cubre crowbar_mosfet si cambia break-before-make.
 
-Entregables esperados:
-- `services/glitch_engine/emfi/emfi_campaign.{h,c}` — API:
-  `emfi_configure(trigger_type, delay, width, pwr)`, `emfi_arm`,
-  `emfi_fire`, `emfi_status`.
-- **Levanta `hal/pio.h`** — wraps RP2040 PIO (state machines, FIFO,
-  IRQs). Ports of the faultier trigger/delay/glitch compiler
-  architecture (REFERENCE ONLY — reescribir desde cero, faultier
-  sin licencia).
-- **Levanta `hal/dma.h`** — para el ADC capture ring (ring-buffer
-  8192 bytes como el legacy glitcher.c).
-- `services/host_proto/emfi_proto/` — protocolo binario sobre CDC0
-  para configurar + armar + fire desde host.
-- Integración en `apps/faultycat_fw/main.c` — exponer emfi_proto
-  sobre CDC0 del composite.
+Pautas clave ya validadas en F4:
+- Service owns PIO program build-from-scratch.
+- 100 ms HV invariant pattern (si aplica a HV path; crowbar
+  doesn't use HV per se pero sí drives peak current spikes).
+- host_proto/* pattern con CRC16-CCITT framing replicable para
+  crowbar_proto.
 
-Criterio F4:
-- `tud_cdc_0_available()` → parser emfi_proto → `emfi_configure`.
-- Un comando `arm` desde host arma HV.
-- Un comando `fire` con trigger externo en GP8 dispara EMFI PIO-
-  timed (no CPU-timed).
-- ADC captura 8 KB durante el glitch window.
-- Pulso EMFI se observa en osciloscopio con timing sub-µs
-  reproducible.
-
-**F4 es safety-gate activa** — cualquier commit que toque
-`hal/src/rp2040/pio.c` si soporta el EMFI path, o que cambie
-`drivers/emfi_pulse` requiere checklist firmado por Sabas.
+Entregables F5 pendientes — escribir plan detallado antes de tocar
+código.
 
 ## Qué NO tocar
 
@@ -117,10 +106,8 @@ Criterio F4:
 - `Hardware/` — KiCad.
 - `third_party/*` — pineados.
 - `third_party/faultier/` — **jamás** portar código literal
-  (`LICENSES/NOTICE-faultier.md`). F4 reimplementa desde cero la
-  arquitectura del trigger compiler.
-- En F4: no empezar F5 antes del tag `v3.0-f4` + validación scope
-  del pulso PIO + captura ADC.
+  (`LICENSES/NOTICE-faultier.md`).
+- En F5: no empezar F6 antes del tag `v3.0-f5`.
 
 ## Reglas de oro
 
@@ -138,18 +125,15 @@ Criterio F4:
    fase es aceptable; el tag va sobre el docs commit para que el
    snapshot coincida con la etiqueta.
 
-## Reglas extra activas ahora mismo (F4)
+## Reglas extra activas ahora mismo (F5)
 
-- **PIO global state**: sola una instancia `pio0` o `pio1` por
-  programa; la arquitectura ft_pio (de faultier) compone trigger +
-  delay + glitch + power_cycle como un solo programa PIO linealizado.
-  Reescribir desde cero.
-- **ADC DMA ring**: 8 KB circular buffer + DMA ring-mode (13-bit
-  alignment) + DREQ_ADC. Ya hay código legacy en
-  `firmware/c/glitcher/glitcher.c::prepare_adc` que sirve de
-  referencia (LICENCIA OK — legacy propio, no faultier).
-- **Diag durante F4**: reportar capturas ADC via `CDC0 emfi` como
-  protocolo binario. CDC2 scanner sigue siendo el diag humano.
-- **No romper F3**: composite + vendor IF + HID IF siguen operando
-  durante F4 — los host tools existentes (`lsusb`, `picocom`,
-  `pyusb DAP_Info`) no deben regresionar.
+- **PIO**: `pio0` dedicado a los glitch engines. `emfi_pio` ya usa
+  SM0. F5 asigna SMs adicionales en pio0 al crowbar path. `pio1`
+  queda reservado para SWD (F6), target-uart y scanner (F8).
+- **host_proto pattern**: `crowbar_proto` sobre CDC1 replica el
+  shape de emfi_proto — CRC16-CCITT, SOF 0xFA, inter-byte timeout
+  100 ms, reply `CMD|0x80`.
+- **No romper F3/F4**: composite + vendor IF + HID IF siguen
+  operando; `pump_emfi_cdc` en main.c debe seguir vivo. Los host
+  tools existentes (`lsusb`, `picocom /dev/ttyACM2`,
+  `tools/emfi_client.py ping`) no deben regresionar.

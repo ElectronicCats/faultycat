@@ -26,6 +26,12 @@ void emfi_capture_stop(void);
 const uint8_t *emfi_capture_buffer(void);
 uint32_t emfi_capture_fill(void);
 
+// True while the ADC FIFO + DMA are owned by this service. Callers
+// that would otherwise use the shared ADC via single-shot adc_read()
+// must skip it while this returns true — continuous/FIFO mode breaks
+// the single-shot path and wedges the main loop.
+bool emfi_capture_is_running(void);
+
 // Test-only: drop cached state so emfi_capture_init re-runs from scratch.
 // Unit tests call this in setUp alongside hal_fake_*_reset. On target the
 // module's static state outlives calls, but the host-side tests reset the

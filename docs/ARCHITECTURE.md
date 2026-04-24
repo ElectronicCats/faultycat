@@ -13,9 +13,9 @@ See [`FAULTYCAT_REFACTOR_PLAN.md`](../FAULTYCAT_REFACTOR_PLAN.md) for
 the full phased roadmap (F0 → F11) and the 16 frozen design decisions.
 This document describes the **layering and data flow**, not the plan.
 
-## Status snapshot (as of v3.0-f3)
+## Status snapshot (as of v3.0-f4)
 
-Branch `rewrite/v3`, last tag `v3.0-f3` (2026-04-23).
+Branch `rewrite/v3`, last tag `v3.0-f4` (2026-04-24).
 
 | Phase | Tag | Status |
 |-------|-----|--------|
@@ -24,8 +24,8 @@ Branch `rewrite/v3`, last tag `v3.0-f3` (2026-04-23).
 | F2a — drivers low-risk (LEDs, buttons, ADC, scanner, trigger) | `v3.0-f2a` | ✓ closed |
 | F2b — drivers HV (crowbar, HV charger, EMFI pulse; 2 commits SIGNED) | `v3.0-f2b` | ✓ closed |
 | F3 — USB composite descriptor (4×CDC + vendor + HID) + magic-baud BOOTSEL + diag on CDC2 | `v3.0-f3` | ✓ closed |
-| F4 — glitch engine EMFI (service, PIO-driven triggered fire) | — | **next** |
-| F5 — glitch engine crowbar (service) | — | pending |
+| F4 — glitch engine EMFI (service, PIO-driven triggered fire) | `v3.0-f4` | ✓ closed |
+| F5 — glitch engine crowbar (service) | — | **next** |
 | F6 — SWD core (debugprobe port) | — | pending |
 | F7 — CMSIS-DAP v2 + v1 daplink_usb | — | pending |
 | F8 — JTAG core + pinout scanner + BusPirate + serprog | — | pending |
@@ -39,14 +39,27 @@ Current tree health:
   (4×CDC + Vendor + HID). 16/16 endpoints used (hard RP2040 limit).
   BOS + MS OS 2.0 descriptors for Windows WinUSB auto-bind.
   Magic baud 1200 on any CDC → `reset_usb_boot()` (remote BOOTSEL).
+  CDC0 now owned by `host_proto/emfi_proto`.
 - **HAL** headers live: `gpio`, `time` (+busy_wait +irq ctl), `adc`,
-  `pwm`. Still `#error` stubs: `pio` (F4), `dma` (F4), `usb` (won't be
-  lifted — TinyUSB is the abstraction).
-- **75 unit tests** across 10 binaries, all green under
+  `pwm`, `pio` ✓ F4-1, `dma` ✓ F4-2. `usb` stays `#error` stub
+  (won't be lifted — TinyUSB is the abstraction).
+- **`services/glitch_engine/emfi/`** complete: `emfi_pio`,
+  `emfi_capture`, `emfi_campaign`. **`services/host_proto/emfi_proto/`**
+  live on CDC0.
+- **155 unit tests** across 16 binaries, all green under
   `cmake --preset host-tests && ctest --preset host-tests`.
 - **CI**: parallel `host-tests` + `fw-release` jobs on every push.
-- **2 HV-SIGNED commits** in history: `f450d43` (hv_charger) and
-  `69792ac` (emfi_pulse). See `docs/SAFETY.md`.
+- **5 HV-SIGNED commits** in history: `f450d43` (hv_charger),
+  `69792ac` (emfi_pulse), F4-3 (`emfi_pio` + driver PIO attach),
+  F4-5 (`emfi_campaign` + 100 ms HV invariant), F4-6 (`emfi_proto`
+  + main integration). See `docs/SAFETY.md`.
+
+**PIO instance allocation (frozen at F4-1):** `pio0` belongs to
+the glitch engines — SM0 is used by `services/glitch_engine/emfi/
+emfi_pio` for trigger+delay+pulse of GP14; F5 claims additional SMs
+on pio0 for the crowbar path. `pio1` is reserved for `swd_core`
+(F6), `target-uart` passthrough (F8), and `jtag_core` + scanner
+bit-banging (F8), splitting its 4 SMs across those consumers.
 
 ## Layers
 
@@ -58,13 +71,14 @@ Current tree health:
 │    main.c (diag loop on CDC2 scanner + HV/EMFI/crowbar)           ✓ F3       │
 ├────────────────────────────────────────────────────────────────────────────┤
 │  services/                            ←  attack logic, protocol handlers     │
-│    glitch_engine/emfi/                │    EMFI campaign + PIO fire  … F4    │
+│    glitch_engine/emfi/                │    EMFI campaign + PIO fire  ✓ F4    │
 │    glitch_engine/crowbar/             │    voltage glitching         … F5    │
 │    swd_core/                          │    debugprobe-derived        … F6    │
 │    daplink_usb/                       │    CMSIS-DAP v2 + v1 HID     … F7    │
 │    jtag_core/ pinout_scanner/         │    blueTag-derived           … F8    │
 │    buspirate_compat/ flashrom_serprog/│    blueTag-derived           … F8    │
-│    host_proto/ {emfi,crowbar,campaign}│    binary CDC protocols      … F4/5/9│
+│    host_proto/emfi_proto              │    binary framing on CDC0    ✓ F4    │
+│    host_proto/ {crowbar,campaign}     │    binary CDC protocols      … F5/9  │
 ├────────────────────────────────────────────────────────────────────────────┤
 │  usb/                                 ←  composite descriptor                │
 │    usb_composite.c + usb_descriptors.c + dap_stub.c              ✓ F3        │
@@ -86,7 +100,7 @@ Current tree health:
 │  hal/                                 ←  thin wrapper over pico-sdk          │
 │    gpio   ✓ F1       time  ✓ F1 (+busy/irq in F2b)                          │
 │    adc    ✓ F2a      pwm   ✓ F2b                                            │
-│    pio    #error stub → F4       dma   #error stub → F4                     │
+│    pio    ✓ F4-1                 dma   ✓ F4-2                               │
 │    usb    #error stub (will NOT be lifted — TinyUSB IS our abstraction)     │
 ├────────────────────────────────────────────────────────────────────────────┤
 │  third_party/pico-sdk @ 2.1.1         ←  BSD-3, pinned                       │
@@ -113,7 +127,7 @@ Rules:
 
 ```
 Configuration Descriptor (Miscellaneous class, IAD-based)
-├── IAD + CDC 0 "EMFI Control"       IF 0 (notif) + IF 1 (data)  → glitch_engine/emfi
+├── IAD + CDC 0 "EMFI Control"       IF 0 (notif) + IF 1 (data)  ✓ F4 emfi_proto
 ├── IAD + CDC 1 "Crowbar Control"    IF 2 (notif) + IF 3 (data)  → glitch_engine/crowbar
 ├── IAD + CDC 2 "Scanner Shell"      IF 4 (notif) + IF 5 (data)  → pinout_scanner (shell)
 ├── IAD + CDC 3 "Target UART"        IF 6 (notif) + IF 7 (data)  → PIO UART passthru

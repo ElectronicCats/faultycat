@@ -25,13 +25,23 @@ static void test_init_claims_one_dma_channel(void) {
     TEST_ASSERT_EQUAL_INT(1, used);
 }
 
-static void test_init_selects_adc_channel_3(void) {
+static void test_init_does_not_touch_adc_fifo(void) {
+    // Init must NOT enable the ADC FIFO — target_monitor_read_raw's
+    // single-shot adc_read() would block forever if it did.
     emfi_capture_init();
+    TEST_ASSERT_FALSE(hal_fake_adc_extra.fifo_setup_called);
+    TEST_ASSERT_FALSE(hal_fake_adc_extra.running);
+}
+
+static void test_start_selects_adc_channel_3(void) {
+    emfi_capture_init();
+    emfi_capture_start();
     TEST_ASSERT_EQUAL_UINT8(3, hal_fake_adc_extra.selected_channel);
 }
 
-static void test_init_configures_fifo_for_8bit_dma(void) {
+static void test_start_configures_fifo_for_8bit_dma(void) {
     emfi_capture_init();
+    emfi_capture_start();
     TEST_ASSERT_TRUE(hal_fake_adc_extra.fifo_setup_called);
     TEST_ASSERT_TRUE(hal_fake_adc_extra.last_fifo_cfg.enable_dma);
     TEST_ASSERT_TRUE(hal_fake_adc_extra.last_fifo_cfg.shift_to_8bit);
@@ -39,9 +49,20 @@ static void test_init_configures_fifo_for_8bit_dma(void) {
         hal_fake_adc_extra.last_fifo_cfg.dreq_threshold);
 }
 
-static void test_init_sets_full_speed_clkdiv(void) {
+static void test_start_sets_full_speed_clkdiv(void) {
     emfi_capture_init();
+    emfi_capture_start();
     TEST_ASSERT_EQUAL_UINT32(0u, hal_fake_adc_extra.clkdiv);
+}
+
+static void test_stop_releases_adc_fifo(void) {
+    // After stop, FIFO must be disabled so target_monitor_read_raw
+    // works again.
+    emfi_capture_init();
+    emfi_capture_start();
+    emfi_capture_stop();
+    TEST_ASSERT_FALSE(hal_fake_adc_extra.last_fifo_cfg.enable_fifo);
+    TEST_ASSERT_FALSE(hal_fake_adc_extra.last_fifo_cfg.enable_dma);
 }
 
 static void test_start_arms_dma_and_runs_adc(void) {
@@ -120,12 +141,14 @@ static void test_init_idempotent(void) {
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_init_claims_one_dma_channel);
-    RUN_TEST(test_init_selects_adc_channel_3);
-    RUN_TEST(test_init_configures_fifo_for_8bit_dma);
-    RUN_TEST(test_init_sets_full_speed_clkdiv);
+    RUN_TEST(test_init_does_not_touch_adc_fifo);
+    RUN_TEST(test_start_selects_adc_channel_3);
+    RUN_TEST(test_start_configures_fifo_for_8bit_dma);
+    RUN_TEST(test_start_sets_full_speed_clkdiv);
     RUN_TEST(test_start_arms_dma_and_runs_adc);
     RUN_TEST(test_start_configures_ring_mode_8192_bytes);
     RUN_TEST(test_stop_halts_adc_and_aborts_dma);
+    RUN_TEST(test_stop_releases_adc_fifo);
     RUN_TEST(test_buffer_pointer_is_stable);
     RUN_TEST(test_fill_saturates_at_8192);
     RUN_TEST(test_init_idempotent);
