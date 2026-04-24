@@ -10,124 +10,146 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 > tocar nada. Las 16 decisiones congeladas del plan §1 **no se
 > relitigan**.
 
-## Fase actual: F2b cerrada → F3 a continuación (USB composite descriptor)
+## Fase actual: F3 cerrada → F4 a continuación (EMFI glitch_engine service)
 
 ## Tags cerrados en `rewrite/v3`
 
 ### `v3.0-f0` — Bootstrap + vendoring + docs + CI (2026-04-23)
-Submódulos pineados en `third_party/`:
-- `pico-sdk@2.1.1` (bddd20f), `debugprobe@debugprobe-v2.3.0` (780b827),
-  `blueTag@v2.1.2` (887fc83), `free-dap@master` (49a30aa),
-  `faultier@1c78f3e` (ref-only, NO compila),
-  `cmsis-dap/` headers Apache-2.0.
+Submódulos pineados: pico-sdk@2.1.1, debugprobe@v2.3.0, blueTag@v2.1.2,
+free-dap@master, faultier@1c78f3e (ref only), cmsis-dap headers
+Apache-2.0.
 
 ### `v3.0-f1` — HAL + host tests (2026-04-23)
-- `Unity@v2.6.1` (6º submódulo).
-- HAL lifted: `gpio.h`, `time.h`.
-- HAL stubs (`#error`): `pio.h`, `dma.h`, `usb.h`.
+Unity@v2.6.1. HAL lifted: `gpio.h`, `time.h`. Stubs: `pio.h`, `dma.h`,
+`usb.h`.
 
 ### `v3.0-f2a` — drivers low-risk (2026-04-23)
-- `drivers/include/board_v2.h` (pin map autoritativo).
-- Drivers: `ui_leds`, `ui_buttons`, `target_monitor`, `scanner_io`,
-  `ext_trigger`.
-- HAL lifted: `adc.h`.
+`board_v2.h` + `ui_leds`, `ui_buttons`, `target_monitor`, `scanner_io`,
+`ext_trigger`. HAL lifted: `adc.h`.
 
 ### `v3.0-f2b` — drivers HV (2026-04-23)
-- Drivers: `crowbar_mosfet`, `voltage_mux` (stub), `hv_charger`
-  (SIGNED), `emfi_pulse` (SIGNED).
-- HAL lifted: `pwm.h`. `time.h` extendido con `busy_wait_us` +
-  `irq_save_and_disable` / `_restore`.
-- `docs/SAFETY.md` creado con template de checklist + procedures.
-- 2 commits con safety checklist firmado por Sabas en el cuerpo:
-  `f450d43` (hv_charger) y `69792ac` (emfi_pulse).
-- Físico: HV charger carga + auto-disarm 60 s + EMFI fire en SMA
-  con coil montado, pulso ~5 µs visible.
+`crowbar_mosfet`, `voltage_mux` (stub), `hv_charger` SIGNED,
+`emfi_pulse` SIGNED. HAL lifted: `pwm.h`. `time.h` +busy_wait_us +irq
+control. `docs/SAFETY.md` creado.
+
+### `v3.0-f3` — USB composite (2026-04-23)
+VID:PID `1209:FA17`. 10 interfaces (4×CDC + Vendor CMSIS-DAP v2 +
+HID CMSIS-DAP v1). 16/16 endpoints (RP2040 hard limit). BOS + MS OS
+2.0 for Windows WinUSB auto-bind. Magic baud 1200 on any CDC
+triggers `reset_usb_boot` (remote BOOTSEL). `tools/bootsel.sh` +
+`tools/flash.sh` auto-kick into BOOTSEL. Diag stream migrated from
+stdio_usb to CDC2 scanner. `dap_stub.c` shared by v1 HID + v2 vendor,
+DAP_Info responds correctly (strings + caps + packet size). F7
+replaces dap_stub with the full debugprobe-derived DAP engine.
 
 ## Estado del HAL
 
-| Header | Estado | Lifted en |
-|--------|--------|-----------|
-| `hal/gpio.h` | ✓ activo | F1 |
-| `hal/time.h` | ✓ activo (+busy_wait_us +irq ctl en F2b) | F1 / F2b |
-| `hal/adc.h`  | ✓ activo | F2a |
-| `hal/pwm.h`  | ✓ activo | F2b |
+| Header | Estado | Lifted / planned |
+|--------|--------|------------------|
+| `hal/gpio.h` | ✓ | F1 |
+| `hal/time.h` | ✓ (+busy_wait_us +irq ctl en F2b) | F1 / F2b |
+| `hal/adc.h`  | ✓ | F2a |
+| `hal/pwm.h`  | ✓ | F2b |
 | `hal/pio.h`  | `#error` stub | **F4** (glitch engine) |
-| `hal/dma.h`  | `#error` stub | F4 (ADC capture) |
-| `hal/usb.h`  | `#error` stub | F3 |
+| `hal/dma.h`  | `#error` stub | **F4** (ADC capture ring) |
+| `hal/usb.h`  | `#error` stub | **NO se levanta** — TinyUSB es la abstracción |
 
 ## Estado de drivers
 
-Todos los drivers HW v2.x están implementados. 9 drivers en total:
-`ui_leds`, `ui_buttons`, `target_monitor`, `scanner_io`,
-`ext_trigger`, `crowbar_mosfet`, `hv_charger`, `emfi_pulse`,
-`voltage_mux` (stub `#error`).
-
-## Tests
-
-75 Unity cases en 10 binarios host-tests, todos verde. CI corre
-`host-tests` y `fw-release` en paralelo sobre cada push a
-`rewrite/v3`.
+9 drivers: `ui_leds`, `ui_buttons`, `target_monitor`, `scanner_io`,
+`ext_trigger`, `crowbar_mosfet`, `hv_charger` (SIGNED),
+`emfi_pulse` (SIGNED), `voltage_mux` (`#error` stub).
 
 ## Estado USB
 
-`pico_enable_stdio_usb(1)` → CDC default de pico-sdk, VID:PID
-`2e8a:000a`, aparece como `/dev/ttyACM*`. DTR debe estar asserted
-para que el fw emita. **Sustituido en F3** por composite real:
-`1209:FA17` + 4×CDC + vendor IF (CMSIS-DAP v2) + HID IF stub.
+Composite activo en **1209:FA17**:
+- 4 CDC: emfi(0), crowbar(1), scanner(2), target-uart(3) — todos
+  con echo default, scanner tiene diag activo.
+- Vendor CMSIS-DAP v2 (IF 8) + HID CMSIS-DAP v1 (IF 9) — ambos
+  stub (DAP_Info responde, otras DAP commands → DAP_ERROR). F7
+  implementa el engine real.
+- Windows auto-bind via MS OS 2.0 (WinUSB, GUID compartida con
+  debugprobe).
+- Magic baud 1200 → BOOTSEL. `tools/flash.sh` lo usa.
 
-## En qué estamos ahora — F3 (USB composite descriptor)
+## Tests
 
-Objetivo: reemplazar stdio_usb default por un descriptor composite
-con 10 interfaces (16/16 endpoints). Plan §4.
+75 Unity cases en 10 binarios, verde. `host-tests` preset + CI.
 
-Entregables F3:
-- `usb/include/usb_descriptors.h`
-- `usb/src/usb_descriptors.c` con composite completo.
-- `usb/src/usb_composite.c` con callbacks TinyUSB.
-- Cada CDC (emfi, crowbar, scanner, target-uart) en modo echo.
-- Vendor IF responde a `DAP_Info` mínimo.
-- HID IF stub.
-- `docs/USB_COMPOSITE.md` descriptor anotado.
-- VID:PID cambia a `1209:FA17`.
-- Diag `stdio_usb` legacy queda en CDC scanner.
+## En qué estamos ahora — F4 (EMFI glitch engine service)
 
-Criterios F3:
-- Linux: `lsusb -v` muestra 10 interfaces; 4 CDCs como
-  `/dev/ttyACM{0..3}`.
-- Echo funciona en los 4 CDCs.
-- `openocd -f interface/cmsis-dap.cfg -c init` identifica el probe.
+Objetivo: primer servicio real. Orquesta `drivers/hv_charger`,
+`drivers/emfi_pulse`, `drivers/ext_trigger`, `drivers/target_monitor`
+para ejecutar campañas EMFI con trigger externo y ADC capture.
+Ver plan §6 F4.
 
-Checkpoint F3: 3 OSs si posible, mínimo Linux.
+Entregables esperados:
+- `services/glitch_engine/emfi/emfi_campaign.{h,c}` — API:
+  `emfi_configure(trigger_type, delay, width, pwr)`, `emfi_arm`,
+  `emfi_fire`, `emfi_status`.
+- **Levanta `hal/pio.h`** — wraps RP2040 PIO (state machines, FIFO,
+  IRQs). Ports of the faultier trigger/delay/glitch compiler
+  architecture (REFERENCE ONLY — reescribir desde cero, faultier
+  sin licencia).
+- **Levanta `hal/dma.h`** — para el ADC capture ring (ring-buffer
+  8192 bytes como el legacy glitcher.c).
+- `services/host_proto/emfi_proto/` — protocolo binario sobre CDC0
+  para configurar + armar + fire desde host.
+- Integración en `apps/faultycat_fw/main.c` — exponer emfi_proto
+  sobre CDC0 del composite.
+
+Criterio F4:
+- `tud_cdc_0_available()` → parser emfi_proto → `emfi_configure`.
+- Un comando `arm` desde host arma HV.
+- Un comando `fire` con trigger externo en GP8 dispara EMFI PIO-
+  timed (no CPU-timed).
+- ADC captura 8 KB durante el glitch window.
+- Pulso EMFI se observa en osciloscopio con timing sub-µs
+  reproducible.
+
+**F4 es safety-gate activa** — cualquier commit que toque
+`hal/src/rp2040/pio.c` si soporta el EMFI path, o que cambie
+`drivers/emfi_pulse` requiere checklist firmado por Sabas.
 
 ## Qué NO tocar
 
-- `firmware/c/` — firmware legacy v2.x, intacto.
-- `Hardware/` — KiCad, referencia.
+- `firmware/c/` — firmware legacy v2.x.
+- `Hardware/` — KiCad.
 - `third_party/*` — pineados.
-- `third_party/faultier/` — **jamás** portar código literal.
-- En F3: no empezar F4 antes del tag `v3.0-f3`.
+- `third_party/faultier/` — **jamás** portar código literal
+  (`LICENSES/NOTICE-faultier.md`). F4 reimplementa desde cero la
+  arquitectura del trigger compiler.
+- En F4: no empezar F5 antes del tag `v3.0-f4` + validación scope
+  del pulso PIO + captura ADC.
 
 ## Reglas de oro
 
-1. **Faseo estricto**: F(N) arranca con tag validado de F(N-1).
-2. **HV safety gate ACTIVA**: cualquier commit a
-   `drivers/{hv_charger,emfi_pulse}` o `hal/src/rp2040/{pwm,pio}.c`
-   (cuando soporten drivers HV) requiere checklist firmado en el
-   cuerpo. Plantilla en `docs/SAFETY.md`. F3 **NO** está en safety
-   gate — el descriptor USB no toca HV.
-3. **`third_party/faultier` sin licencia** — solo referencia.
-4. **Drivers no conocen política** — servicios deciden cuándo usar.
-5. **Tests antes de commit**.
+1. **Faseo estricto** (F(N) arranca con tag validado de F(N-1)).
+2. **HV safety gate** (activa desde F2b, incluye F4). Todo commit
+   a `drivers/{hv_charger,emfi_pulse,crowbar_mosfet}` o a
+   `hal/src/rp2040/{pwm,pio}.c` en su soporte HV requiere checklist
+   firmado.
+3. **faultier sin licencia** — solo referencia arquitectural.
+4. **Tests antes de commit**.
+5. **Drivers no conocen política** — servicios deciden.
+6. **Docs live-update** — cada commit que cierra una fase actualiza
+   `ARCHITECTURE.md` (status snapshot + tree) y `PORTING.md` (status
+   cells). Separated doc commit inmediatamente antes del tag de la
+   fase es aceptable; el tag va sobre el docs commit para que el
+   snapshot coincida con la etiqueta.
 
-## Reglas extra activas ahora mismo (F3)
+## Reglas extra activas ahora mismo (F4)
 
-- **Endpoint budget 16/16 al límite**: cualquier feature USB
-  adicional requiere sacrificar algo. Plan B del plan §4: eliminar
-  HID v1. Plan C: fusionar Target UART dentro de CDC scanner.
-- **Validar enumeración antes de servicios**: F3 debe enumerar y
-  hacer echo en los 4 CDCs antes de construir servicios encima.
-- **`tusb_config.h` completo** antes del descriptor.
-- **VID:PID `1209:FA17`** (pid.codes dev). PID oficial se pide en
-  F11.
-- Diag: portar la lógica de ARM/PULSE/EMFI-fire actual a un shell
-  sobre CDC scanner, preservando comportamiento.
+- **PIO global state**: sola una instancia `pio0` o `pio1` por
+  programa; la arquitectura ft_pio (de faultier) compone trigger +
+  delay + glitch + power_cycle como un solo programa PIO linealizado.
+  Reescribir desde cero.
+- **ADC DMA ring**: 8 KB circular buffer + DMA ring-mode (13-bit
+  alignment) + DREQ_ADC. Ya hay código legacy en
+  `firmware/c/glitcher/glitcher.c::prepare_adc` que sirve de
+  referencia (LICENCIA OK — legacy propio, no faultier).
+- **Diag durante F4**: reportar capturas ADC via `CDC0 emfi` como
+  protocolo binario. CDC2 scanner sigue siendo el diag humano.
+- **No romper F3**: composite + vendor IF + HID IF siguen operando
+  durante F4 — los host tools existentes (`lsusb`, `picocom`,
+  `pyusb DAP_Info`) no deben regresionar.
