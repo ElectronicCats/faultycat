@@ -51,6 +51,8 @@ bool emfi_pio_is_done(void);
 // Clear IRQ 0 so the next start() sees a fresh line.
 void emfi_pio_clear_done(void);
 
-// Convert microseconds to PIO ticks at the configured clock divisor.
-// Exposed for tests and for the campaign layer's status reports.
+// Microseconds-to-PIO-ticks conversion factor for the compile-time
+// clock divisor (EMFI_PIO_CLK_DIV=1.0 → 125 MHz → 125 ticks/µs).
+// Returns a constant; the divisor is fixed at build time. Exposed
+// for tests and for the campaign layer's status reports.
 uint32_t emfi_pio_ticks_per_us(void);

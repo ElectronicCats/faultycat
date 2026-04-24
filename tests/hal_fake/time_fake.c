@@ -14,6 +14,10 @@ void hal_fake_time_advance_us(uint32_t us) {
     s_fake_now_us += us;
 }
 
+void hal_fake_time_advance_ms(uint32_t ms) {
+    s_fake_now_us += (uint64_t)ms * 1000u;
+}
+
 uint64_t hal_fake_time_now_us_u64(void) {
     return s_fake_now_us;
 }

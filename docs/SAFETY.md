@@ -99,11 +99,14 @@ by the host tests. Breaking any of them is a safety bug.
 4. The glitch-fire path in `services/glitch_engine` (F5) takes
    ownership of the MOSFET gate for the pulse duration only. Before
    and after the fire window, `crowbar_mosfet` owns the gate state.
-5. `emfi_pulse` (F2b-4) will require (a) `hv_charger_is_charged()`
-   to have been true at least once in the last 100 ms, and (b) an
-   explicit arm-token issued by the app layer. This invariant is
-   planned for F2b-4 — the checklist item for it gets activated in
-   that commit.
+5. `services/glitch_engine/emfi/emfi_campaign` enforces: PIO-driven
+   fire is blocked unless `hv_charger_is_charged()` was observed
+   true within the last `EMFI_CAMPAIGN_HV_STALE_MS` (100 ms) window
+   at `emfi_campaign_fire` time. On miss, the service transitions
+   to ERROR(HV_NOT_CHARGED) and tears down. Activated in F4-5 commit.
+   The invariant covers the PIO fire path only; the CPU-timed
+   `emfi_pulse_fire_manual` (button path) remains gated by the
+   operator's in-person judgment.
 
 ## 4. What to do when you break an invariant
 
