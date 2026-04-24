@@ -42,6 +42,9 @@ endfunction()
 faultycat_add_test(test_gpio)
 faultycat_add_test(test_time)
 
+# F4-1 — hal/pio unit tests
+faultycat_add_test(test_hal_pio)
+
 # F2a — driver unit tests
 faultycat_add_driver_test(test_ui_leds        ui_leds)
 faultycat_add_driver_test(test_ui_buttons     ui_buttons)

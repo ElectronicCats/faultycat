@@ -13,6 +13,7 @@ add_library(hal_fake STATIC
     time_fake.c
     adc_fake.c
     pwm_fake.c
+    pio_fake.c
 )
 
 target_include_directories(hal_fake
