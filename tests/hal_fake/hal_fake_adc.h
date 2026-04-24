@@ -26,3 +26,15 @@ void hal_fake_adc_reset(void);
 // Program the value that the next (and subsequent) hal_adc_read(ch)
 // will return until changed.
 void hal_fake_adc_set_value(hal_adc_channel_t ch, uint16_t value);
+
+typedef struct {
+    bool     fifo_setup_called;
+    hal_adc_fifo_cfg_t last_fifo_cfg;
+    uint32_t clkdiv;
+    bool     running;
+    uint32_t run_calls;
+    uint8_t  selected_channel;
+    uint32_t select_calls;
+} hal_fake_adc_extra_t;
+
+extern hal_fake_adc_extra_t hal_fake_adc_extra;

@@ -20,3 +20,26 @@ uint16_t hal_adc_read(hal_adc_channel_t ch) {
     adc_select_input((uint)ch);
     return adc_read();
 }
+
+void hal_adc_fifo_setup(const hal_adc_fifo_cfg_t *cfg) {
+    if (!cfg) return;
+    adc_fifo_setup(cfg->enable_fifo, cfg->enable_dma,
+                   (uint16_t)cfg->dreq_threshold,
+                   false, cfg->shift_to_8bit);
+}
+
+void hal_adc_set_clkdiv(uint32_t div) {
+    adc_set_clkdiv((float)div);
+}
+
+void hal_adc_run(bool enabled) {
+    adc_run(enabled);
+}
+
+const volatile void *hal_adc_fifo_register(void) {
+    return (const volatile void *)&adc_hw->fifo;
+}
+
+void hal_adc_select_input(uint8_t channel) {
+    adc_select_input(channel);
+}

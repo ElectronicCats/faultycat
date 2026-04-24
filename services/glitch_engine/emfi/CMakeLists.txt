@@ -1,5 +1,6 @@
 add_library(service_emfi STATIC
     emfi_pio.c
+    emfi_capture.c
 )
 
 target_include_directories(service_emfi

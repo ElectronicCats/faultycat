@@ -45,6 +45,7 @@ function(faultycat_add_service_emfi_test name)
         ${name}.c
         ${CMAKE_SOURCE_DIR}/drivers/emfi_pulse/emfi_pulse.c
         ${CMAKE_SOURCE_DIR}/services/glitch_engine/emfi/emfi_pio.c
+        ${CMAKE_SOURCE_DIR}/services/glitch_engine/emfi/emfi_capture.c
     )
     target_link_libraries(${name} PRIVATE unity hal_fake)
     target_include_directories(${name} PRIVATE
@@ -79,3 +80,5 @@ faultycat_add_driver_test(test_emfi_pulse     emfi_pulse)
 
 # F4-3 — emfi_pio service unit tests
 faultycat_add_service_emfi_test(test_emfi_pio)
+# F4-4 — emfi_capture service unit tests
+faultycat_add_service_emfi_test(test_emfi_capture)
