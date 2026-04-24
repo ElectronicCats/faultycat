@@ -21,7 +21,7 @@ every phase close.
 | 4 | `firmware/c/picoemp.c::picoemp_process_charging` (LED hysteresis) | Port            | `drivers/ui_leds::ui_leds_hv_detected_feed` | [x] F2a (commit `33891e1`) | 500 ms hold ported exactly. HV_DETECTED LED now lights via `hv_charger_is_charged()` piped through the hysteresis. |
 | 5 | `firmware/c/board_config.h`                                   | Reference, supersede | `drivers/include/board_v2.h` + `docs/HARDWARE_V2.md` | [x] F2a | v3 single-source pinout. `PIN_LED_STATUS=25` Pico-relic dropped; GP10 is the real STATUS. Legacy `PIN_EXT1=27` collision with charge LED dropped. |
 | 6 | `firmware/c/trigger.pio`, `trigger_basic.pio`                 | Port, tidy         | `drivers/emfi_pulse/trigger.pio` → now `services/glitch_engine/emfi/emfi_pio.c` | [x] F4-3 — PIO trigger compiler reimplemented from scratch in emfi_pio.c (hand-authored opcodes). | Faultier-inspired arch (trigger block + delay + pulse linearised into one SM) but zero lines copied from unlicensed upstream. |
-| 7 | `firmware/c/glitcher/glitcher.c`                              | **Rewrite**        | `services/glitch_engine/crowbar/`           | [ ] F5 | Legacy is a direct port of `faultier` internals, which are not legally portable. Reimplemented from scratch against the crowbar HW path. |
+| 7 | `firmware/c/glitcher/glitcher.c`                              | **Rewrite**        | `services/glitch_engine/crowbar/`           | [x] F5 — `crowbar_pio` (F5-2, pio0/SM1, IRQ 1) + `crowbar_campaign` (F5-3) reimplemented from scratch under BSD-3 | Legacy is a direct port of `faultier` internals, which are not legally portable. Reimplemented from scratch against the crowbar HW path. |
 | 8 | `firmware/c/glitcher/glitcher_commands.c`                     | Discard            | —                                           | [x] discarded | Replaced by `host_proto/crowbar_proto/` (F5) on CDC1. |
 | 9 | `firmware/c/faultier/glitcher/ft_pio.{c,h}`                   | **Do not port**    | —                                           | [x] not ported (policy) | `hextreeio/faultier` has no LICENSE. Pattern reimplemented from scratch in F4/F5. — F4-3 service architecture mirrors the compiler shape (trigger block → delay → glitch) without the code. |
 | 10 | `firmware/c/faultier/glitcher/{trigger,delay,glitch}_compiler.c` | **Do not port** | —                                         | [x] not ported (policy) | Same. — F4-3 service architecture mirrors the compiler shape (trigger block → delay → glitch) without the code. |
@@ -32,7 +32,7 @@ every phase close.
 | 15 | `firmware/c/blueTag/` (submodule, v1.0.2)                     | Upgrade + port     | `third_party/blueTag/` (v2.1.2) + `services/{pinout_scanner, buspirate_compat, flashrom_serprog}` | [~] submodule upgraded to v2.1.2 (F0); services land in F8 | MIT; brings JTAGulator + BusPirate-emulation for OpenOCD + flashrom serprog for free. |
 | 16 | `firmware/c/blueTag.h`, `jep106.inc`                          | Regenerate in F8   | in-tree under `services/pinout_scanner/`    | [ ] F8 | Generated from the submodule. |
 | 17 | Legacy button wiring (ARM pulldown + PULSE pullup + input-invert) | Port (polarity normalized in software, not `gpio_set_inover`) | `drivers/ui_buttons/` | [x] F2a | Same UX; HAL stays portable. |
-| 18 | Legacy crowbar LP/HP gate selection (GP16/GP17)               | Port, reshape      | `drivers/crowbar_mosfet/` + F5 service      | [~] driver done in F2b with break-before-make; policy goes to F5 | Driver has no policy. |
+| 18 | Legacy crowbar LP/HP gate selection (GP16/GP17)               | Port, reshape      | `drivers/crowbar_mosfet/` + F5 service      | [x] F5 — driver kept (F2b, break-before-make); policy in `crowbar_campaign` enforces NONE at arm/fire/teardown so the gate hand-off to PIO is observable | Driver has no policy. |
 | 19 | `firmware/c/glitcher/glitcher.c::prepare_adc`                 | Port (HW-proven)   | `services/glitch_engine/emfi/emfi_capture.c` | [x] F4-4 | FaultyCat-origin BSD-3 code. 8192-byte ring, 8-bit shift, DREQ_ADC preserved exactly. |
 
 ## Legal / compliance — the `faultier` question
@@ -93,11 +93,14 @@ Consequence for v3:
 - [x] Dropped `PIN_MUX0/1/2 = GP1/GP2/GP3` (also faultier relics;
   those GPIOs are scanner CH1/CH2/CH3 on v2.x). No HW mux exists;
   the slot stays as a `#error` stub in `drivers/voltage_mux/`.
-- [ ] Collapse the `GlitchOutput_None / LP / HP / EMP` enum into
-  two orthogonal things (*which path*: EMFI vs crowbar = CDC/
-  service owner; *which physical output*: driver picks based on
-  configuration). This makes decision #14 legible and will land
-  with the glitch_engine services (F4/F5).
+- [x] Collapsed `GlitchOutput_None / LP / HP / EMP` into two
+  orthogonal axes: *which service owns the path* (EMFI on CDC0 vs
+  crowbar on CDC1 — separate state machines, separate PIO SMs,
+  separate IRQ flags) and *which physical output the crowbar PIO
+  drives* (`crowbar_out_t` = LP/HP, picked at fire time). The EMP
+  fourth value is gone — EMFI lives in its own service tree, not as
+  an enum value of the same selector. F4 (EMFI) and F5 (crowbar)
+  closed this together.
 
 ## Update policy for this document
 
