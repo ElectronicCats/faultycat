@@ -20,3 +20,19 @@ uint32_t hal_now_ms(void);
 // minutes. Appropriate for short-window timing (trigger latency, pulse
 // widths). Longer spans belong on hal_now_ms.
 uint32_t hal_now_us(void);
+
+// Tight busy-wait loop. Unlike hal_sleep_ms this does NOT yield: the
+// CPU spins on the timer register. Use when timing accuracy matters
+// more than power — e.g., sub-millisecond HV pulse widths.
+void hal_busy_wait_us(uint32_t us);
+
+// Disable all CPU interrupts and return an opaque cookie that
+// `hal_irq_restore` accepts to reinstate the previous mask. Nestable
+// via stacking the cookies. Wrap-around safe. Use in the tightest
+// parts of HV pulse generation where a stray interrupt would
+// stretch the pulse.
+uint32_t hal_irq_save_and_disable(void);
+
+// Restore the interrupt mask previously returned by
+// hal_irq_save_and_disable.
+void hal_irq_restore(uint32_t cookie);

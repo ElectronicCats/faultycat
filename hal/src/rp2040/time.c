@@ -2,6 +2,7 @@
 
 #include "hal/time.h"
 
+#include "hardware/sync.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
 
@@ -18,4 +19,16 @@ uint32_t hal_now_ms(void) {
 
 uint32_t hal_now_us(void) {
     return time_us_32();
+}
+
+void hal_busy_wait_us(uint32_t us) {
+    busy_wait_us_32(us);
+}
+
+uint32_t hal_irq_save_and_disable(void) {
+    return save_and_disable_interrupts();
+}
+
+void hal_irq_restore(uint32_t cookie) {
+    restore_interrupts(cookie);
 }

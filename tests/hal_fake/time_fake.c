@@ -32,3 +32,20 @@ uint32_t hal_now_ms(void) {
 uint32_t hal_now_us(void) {
     return (uint32_t)s_fake_now_us;
 }
+
+void hal_busy_wait_us(uint32_t us) {
+    // Fake is lock-step with sleep: advance the fake clock. Tests
+    // don't have to tell sleep and busy-wait apart because the
+    // drivers we're testing just want "N µs passed".
+    s_fake_now_us += us;
+}
+
+uint32_t hal_irq_save_and_disable(void) {
+    // No interrupts to disable on the host. Return a fixed cookie
+    // so tests can assert it round-trips through hal_irq_restore.
+    return 0xF00DF00Du;
+}
+
+void hal_irq_restore(uint32_t cookie) {
+    (void)cookie;
+}
