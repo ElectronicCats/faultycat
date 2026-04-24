@@ -14,6 +14,7 @@ add_library(hal_fake STATIC
     adc_fake.c
     pwm_fake.c
     pio_fake.c
+    dma_fake.c
 )
 
 target_include_directories(hal_fake

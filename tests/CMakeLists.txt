@@ -45,6 +45,9 @@ faultycat_add_test(test_time)
 # F4-1 — hal/pio unit tests
 faultycat_add_test(test_hal_pio)
 
+# F4-2 — hal/dma unit tests
+faultycat_add_test(test_hal_dma)
+
 # F2a — driver unit tests
 faultycat_add_driver_test(test_ui_leds        ui_leds)
 faultycat_add_driver_test(test_ui_buttons     ui_buttons)

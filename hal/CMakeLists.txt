@@ -8,6 +8,7 @@ add_library(hal_rp2040 STATIC
     src/rp2040/adc.c
     src/rp2040/pwm.c
     src/rp2040/pio.c
+    src/rp2040/dma.c
 )
 
 target_include_directories(hal_rp2040
@@ -23,4 +24,5 @@ target_link_libraries(hal_rp2040
         hardware_pwm
         hardware_clocks
         hardware_pio
+        hardware_dma
 )
