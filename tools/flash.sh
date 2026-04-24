@@ -20,6 +20,14 @@ if [ ! -f "$uf2" ]; then
     exit 1
 fi
 
+# If the board is running the v3 firmware (1209:fa17) but isn't in
+# BOOTSEL yet, kick it via the magic-baud path first. If it is
+# already in BOOTSEL, skip (bootsel.sh would no-op anyway).
+if lsusb 2>/dev/null | grep -qi "1209:fa17"; then
+    echo "==> board running — kicking into BOOTSEL via magic baud"
+    "$(dirname "$0")/bootsel.sh" || true
+fi
+
 if command -v picotool >/dev/null 2>&1; then
     echo "==> picotool load $uf2"
     picotool load -xf "$uf2"

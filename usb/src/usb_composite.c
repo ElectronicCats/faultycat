@@ -2,7 +2,29 @@
 
 #include <string.h>
 
+#include "pico/bootrom.h"
 #include "tusb.h"
+
+// Magic baud rate — same convention pico-sdk's stdio_usb uses. Any
+// host that opens any of our CDCs at 1200 baud is asking us to drop
+// to BOOTSEL so the next flash doesn't need the physical button.
+// Matches what `picotool reboot -f -u` does on pico-sdk firmware.
+#define USB_MAGIC_BOOTSEL_BAUD 1200u
+
+// TinyUSB callback: invoked when the host sets line coding on CDC
+// `itf`. If the host asks for the magic baud, reboot into the
+// RP2040 bootrom with USB mass-storage mode enabled so the next
+// `cp faultycat.uf2 /media/RPI-RP2/` lands.
+void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const *coding) {
+    (void)itf;
+    if (coding != NULL && coding->bit_rate == USB_MAGIC_BOOTSEL_BAUD) {
+        // `reset_usb_boot(0, 0)` — no activity LED pin, no disable
+        // flags: drop to mass-storage BOOTSEL as if the physical
+        // button had been pressed at boot.
+        reset_usb_boot(0, 0);
+    }
+}
+
 
 void usb_composite_init(void) {
     tusb_init();

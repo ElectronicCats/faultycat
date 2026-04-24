@@ -17,4 +17,5 @@ target_link_libraries(usb_composite
         tinyusb_device
     PRIVATE
         pico_unique_id
+        pico_bootrom
 )
