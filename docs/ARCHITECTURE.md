@@ -13,35 +13,84 @@ See [`FAULTYCAT_REFACTOR_PLAN.md`](../FAULTYCAT_REFACTOR_PLAN.md) for
 the full phased roadmap (F0 → F11) and the 16 frozen design decisions.
 This document describes the **layering and data flow**, not the plan.
 
+## Status snapshot (as of v3.0-f2b)
+
+Branch `rewrite/v3`, last tag `v3.0-f2b` (2026-04-23).
+
+| Phase | Tag | Status |
+|-------|-----|--------|
+| F0 — bootstrap + vendoring + docs + CI | `v3.0-f0` | ✓ closed |
+| F1 — HAL + host tests | `v3.0-f1` | ✓ closed |
+| F2a — drivers low-risk (LEDs, buttons, ADC, scanner, trigger) | `v3.0-f2a` | ✓ closed |
+| F2b — drivers HV (crowbar, HV charger, EMFI pulse; 2 commits SIGNED) | `v3.0-f2b` | ✓ closed |
+| F3 — USB composite descriptor (4×CDC + vendor + HID) | — | **next** |
+| F4 — glitch engine EMFI (service, PIO-driven triggered fire) | — | pending |
+| F5 — glitch engine crowbar (service) | — | pending |
+| F6 — SWD core (debugprobe port) | — | pending |
+| F7 — CMSIS-DAP v2 + v1 daplink_usb | — | pending |
+| F8 — JTAG core + pinout scanner + BusPirate + serprog | — | pending |
+| F9 — Campaign manager + SWD mutex | — | pending |
+| F10 — faultycmd-rs Rust workspace | — | pending |
+| F11 — Hardening, docs, release | — | pending |
+
+Current tree health:
+- **9 drivers** implemented (8 active + `voltage_mux` stub) under `drivers/`.
+- **HAL** headers live: `gpio`, `time` (+busy_wait +irq ctl), `adc`,
+  `pwm`. Still `#error` stubs: `pio` (F4), `dma` (F4), `usb` (won't be
+  lifted — TinyUSB is the abstraction, see F3 note below).
+- **75 unit tests** across 10 binaries, all green under
+  `cmake --preset host-tests && ctest --preset host-tests`.
+- **CI**: parallel `host-tests` + `fw-release` jobs on every push.
+- **2 HV-SIGNED commits** in history: `f450d43` (hv_charger) and
+  `69792ac` (emfi_pulse). See `docs/SAFETY.md`.
+
 ## Layers
 
+`✓ = landed` · `→ = current phase` · `… = scheduled`
+
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│  apps/faultycat_fw                    ←  single main, composes services  │
-├────────────────────────────────────────────────────────────────────────┤
-│  services/                            ←  attack logic, protocol handlers │
-│    glitch_engine/emfi/                │    F4                           │
-│    glitch_engine/crowbar/             │    F5 (faultier-inspired, clean) │
-│    swd_core/                          │    F6 (debugprobe-derived, MIT)  │
-│    jtag_core/ pinout_scanner/         │    F8 (blueTag-derived, MIT)     │
-│    buspirate_compat/ flashrom_serprog/│    F8                           │
-│    daplink_usb/                       │    F7 (CMSIS-DAP v2 + v1 HID)    │
-│    host_proto/ {emfi,crowbar,campaign}│    F4/F5/F9 binary CDC protocols │
-├────────────────────────────────────────────────────────────────────────┤
-│  usb/                                 ←  composite descriptor            │
-│    10 interfaces (4×CDC + Vendor + HID)    F3, 16/16 endpoints used     │
-├────────────────────────────────────────────────────────────────────────┤
-│  drivers/                             ←  knows FaultyCat v2.x pinout     │
-│    ui_leds ui_buttons hv_charger      │    F2                           │
-│    emfi_pulse crowbar_mosfet          │                                 │
-│    ext_trigger target_monitor         │                                 │
-│    voltage_mux scanner_io             │                                 │
-├────────────────────────────────────────────────────────────────────────┤
-│  hal/                                 ←  thin wrapper over pico-sdk      │
-│    gpio pio dma time usb adc pwm      │    F1, with native-side fakes    │
-├────────────────────────────────────────────────────────────────────────┤
-│  third_party/pico-sdk                 ←  HAL for RP2040 (BSD-3, pinned)  │
-└────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│  apps/faultycat_fw                    ←  single main, composes services      │
+│    main.c (diag loop — provisional; F3 moves it to scanner CDC)   ✓ F2b      │
+├────────────────────────────────────────────────────────────────────────────┤
+│  services/                            ←  attack logic, protocol handlers     │
+│    glitch_engine/emfi/                │    EMFI campaign + PIO fire  … F4    │
+│    glitch_engine/crowbar/             │    voltage glitching         … F5    │
+│    swd_core/                          │    debugprobe-derived        … F6    │
+│    daplink_usb/                       │    CMSIS-DAP v2 + v1 HID     … F7    │
+│    jtag_core/ pinout_scanner/         │    blueTag-derived           … F8    │
+│    buspirate_compat/ flashrom_serprog/│    blueTag-derived           … F8    │
+│    host_proto/ {emfi,crowbar,campaign}│    binary CDC protocols      … F4/5/9│
+├────────────────────────────────────────────────────────────────────────────┤
+│  usb/                                 ←  composite descriptor                │
+│    10 interfaces (4×CDC + Vendor + HID)   16/16 endpoints       → F3         │
+├────────────────────────────────────────────────────────────────────────────┤
+│  drivers/                             ←  knows FaultyCat v2.x pinout         │
+│    board_v2.h     (single-source pinout)                        ✓ F2a        │
+│    ui_leds        (GP9/GP10/GP27 + 500 ms HV hysteresis)        ✓ F2a        │
+│    ui_buttons     (ARM GP28, PULSE GP11 — SW polarity norm)     ✓ F2a        │
+│    target_monitor (ADC ch3 / GP29, direct, no divider)          ✓ F2a        │
+│    scanner_io     (GP0..GP7, 8 channels)                        ✓ F2a        │
+│    ext_trigger    (GP8 + pull config)                           ✓ F2a        │
+│    crowbar_mosfet (GP16 LP / GP17 HP + break-before-make)       ✓ F2b        │
+│    voltage_mux    (stub — no HW mux on v2.x)                    ✓ F2b        │
+│    hv_charger     (GP20 PWM flyback + GP18 CHARGED, 60s auto)   ✓ F2b SIGNED │
+│    emfi_pulse     (GP14 HV pulse, CPU-timed manual)             ✓ F2b SIGNED │
+├────────────────────────────────────────────────────────────────────────────┤
+│  hal/                                 ←  thin wrapper over pico-sdk          │
+│    gpio   ✓ F1       time  ✓ F1 (+busy/irq in F2b)                          │
+│    adc    ✓ F2a      pwm   ✓ F2b                                            │
+│    pio    #error stub → F4       dma   #error stub → F4                     │
+│    usb    #error stub (will NOT be lifted — TinyUSB IS our abstraction)     │
+├────────────────────────────────────────────────────────────────────────────┤
+│  third_party/pico-sdk @ 2.1.1         ←  BSD-3, pinned                       │
+│  third_party/Unity    @ v2.6.1        ←  MIT, pinned — host tests            │
+│  third_party/debugprobe @ v2.3.0      ←  MIT, pinned — F7                    │
+│  third_party/blueTag  @ v2.1.2        ←  MIT, pinned — F8                    │
+│  third_party/free-dap (master HEAD)   ←  BSD-3, ref only (not compiled)      │
+│  third_party/faultier (1c78f3e)       ←  NO LICENSE, ref only (not compiled) │
+│  third_party/cmsis-dap (headers copy) ←  Apache-2.0 — F7                     │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 Rules:
@@ -107,5 +156,23 @@ verification after each glitch and captures the result on the host.
 ## What each phase delivers
 
 See [`FAULTYCAT_REFACTOR_PLAN.md §6`](../FAULTYCAT_REFACTOR_PLAN.md#6-plan-por-fases-superpowers).
-This doc is kept **stable** across phases; each phase's work either
-fills in a block above or annotates the USB/arbitration tables.
+
+## Update policy for this document
+
+This doc carries the **current-truth status snapshot** at the top of
+the page and a stable architecture description below it. The
+maintenance routine (set at v3.0-f2b):
+
+1. On the commit that closes a phase (right before the tag), update
+   the Status snapshot table with the new tag + date, and tick
+   the relevant driver/service rows in the big tree diagram.
+2. If the phase added a new entry (a new service, a new HAL API, a
+   new third_party dep), add it to the diagram.
+3. The architectural description (layers, rules, USB, SWD
+   arbitration, host tool) does NOT rewrite; it only gets annotated
+   when a frozen decision changes (which the plan §1 says won't
+   happen).
+
+This keeps reviewers who land on the repo cold able to read
+`ARCHITECTURE.md` alone and know exactly what's built vs. what's
+still on the roadmap.
