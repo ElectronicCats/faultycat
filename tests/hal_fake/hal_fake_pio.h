@@ -24,6 +24,10 @@ typedef struct {
     uint32_t  tx_count;
     uint32_t  rx_fifo[HAL_FAKE_PIO_FIFO_DEPTH];
     uint32_t  rx_count;
+    uint32_t  pindirs_calls;
+    uint32_t  last_pindirs_base;
+    uint32_t  last_pindirs_count;
+    bool      last_pindirs_is_out;
 } hal_fake_pio_sm_state_t;
 
 typedef struct {

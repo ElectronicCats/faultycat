@@ -136,15 +136,21 @@ void hal_pio_irq_clear(hal_pio_inst_t *pio, uint32_t irq_index) {
 }
 
 void hal_pio_gpio_init(hal_pio_inst_t *pio, uint32_t gpio) {
+    // Cap is fake-internal: (1u << 32) is UB in C, and the bitmap is
+    // 32 bits wide. Real impl forwards any value to pico-sdk (asserts
+    // on invalid). Tests should only pass gpio ∈ [0, 29] (RP2040 range).
     if (!pio || gpio >= 32) return;
     as_state(pio)->gpio_init_bitmap |= (1u << gpio);
 }
 
 void hal_pio_set_consecutive_pindirs(hal_pio_inst_t *pio, uint32_t sm,
                                     uint32_t base, uint32_t count, bool is_out) {
-    (void)pio; (void)sm; (void)base; (void)count; (void)is_out;
-    // No observable side effect for tests yet; if one becomes needed,
-    // add a field to hal_fake_pio_sm_state_t.
+    if (!pio || sm >= HAL_FAKE_PIO_SM_PER_INST) return;
+    hal_fake_pio_sm_state_t *smst = &as_state(pio)->sm[sm];
+    smst->pindirs_calls++;
+    smst->last_pindirs_base   = base;
+    smst->last_pindirs_count  = count;
+    smst->last_pindirs_is_out = is_out;
 }
 
 // Test-only hooks

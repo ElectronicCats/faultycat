@@ -124,6 +124,22 @@ static void test_gpio_init_sets_bitmap(void) {
     TEST_ASSERT_TRUE(hal_fake_pio_insts[0].gpio_init_bitmap & (1u << 8));
 }
 
+static void test_sm_restart_counts_calls(void) {
+    hal_pio_inst_t *pio = hal_pio_instance(0);
+    hal_pio_sm_restart(pio, 2);
+    hal_pio_sm_restart(pio, 2);
+    TEST_ASSERT_EQUAL_UINT32(2u, hal_fake_pio_insts[0].sm[2].restart_calls);
+}
+
+static void test_set_consecutive_pindirs_records_args(void) {
+    hal_pio_inst_t *pio = hal_pio_instance(0);
+    hal_pio_set_consecutive_pindirs(pio, 0, 14, 1, true);
+    TEST_ASSERT_EQUAL_UINT32(1u, hal_fake_pio_insts[0].sm[0].pindirs_calls);
+    TEST_ASSERT_EQUAL_UINT32(14u, hal_fake_pio_insts[0].sm[0].last_pindirs_base);
+    TEST_ASSERT_EQUAL_UINT32(1u,  hal_fake_pio_insts[0].sm[0].last_pindirs_count);
+    TEST_ASSERT_TRUE(hal_fake_pio_insts[0].sm[0].last_pindirs_is_out);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_instance_returns_distinct_handles);
@@ -137,5 +153,7 @@ int main(void) {
     RUN_TEST(test_clear_fifos_drops_both_sides);
     RUN_TEST(test_irq_raise_get_clear);
     RUN_TEST(test_gpio_init_sets_bitmap);
+    RUN_TEST(test_sm_restart_counts_calls);
+    RUN_TEST(test_set_consecutive_pindirs_records_args);
     return UNITY_END();
 }

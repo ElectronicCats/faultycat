@@ -66,9 +66,11 @@ void hal_pio_sm_configure(hal_pio_inst_t *pio, uint32_t sm, uint32_t offset,
         sm_config_set_set_pins(&c, cfg->set_pin_base, cfg->set_pin_count);
     }
     if (cfg->sideset_pin_count) {
+        sm_config_set_sideset(&c, cfg->sideset_pin_count,
+                              cfg->sideset_optional, cfg->sideset_pindirs);
         sm_config_set_sideset_pins(&c, cfg->sideset_pin_base);
     }
-    if (cfg->in_pin_base) {
+    if (cfg->in_pin_count) {
         sm_config_set_in_pins(&c, cfg->in_pin_base);
     }
     sm_config_set_clkdiv(&c, cfg->clk_div <= 0.0f ? 1.0f : cfg->clk_div);

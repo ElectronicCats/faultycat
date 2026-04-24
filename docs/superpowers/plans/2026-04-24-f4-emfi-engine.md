@@ -191,11 +191,14 @@ typedef struct {
 
 typedef struct {
     uint32_t set_pin_base;
-    uint32_t set_pin_count;
+    uint32_t set_pin_count;       // 0 = no SET pins bound
     uint32_t sideset_pin_base;
-    uint32_t sideset_pin_count;
-    uint32_t in_pin_base;
-    float    clk_div;              // 1.0 == sysclock
+    uint32_t sideset_pin_count;   // 0 = no sideset; >0 wires sm_config_set_sideset
+    bool     sideset_optional;    // only used when sideset_pin_count > 0
+    bool     sideset_pindirs;     // only used when sideset_pin_count > 0
+    uint32_t in_pin_base;         // valid only when in_pin_count > 0 (0 is a real pin)
+    uint32_t in_pin_count;        // 0 = no IN pins bound
+    float    clk_div;             // 1.0 == sysclock
 } hal_pio_sm_cfg_t;
 
 // Obtain a handle to PIO block `which` (0 or 1). Returns NULL if the
@@ -294,6 +297,10 @@ typedef struct {
     uint32_t  tx_count;
     uint32_t  rx_fifo[HAL_FAKE_PIO_FIFO_DEPTH];
     uint32_t  rx_count;
+    uint32_t  pindirs_calls;
+    uint32_t  last_pindirs_base;
+    uint32_t  last_pindirs_count;
+    bool      last_pindirs_is_out;
 } hal_fake_pio_sm_state_t;
 
 typedef struct {
@@ -475,15 +482,21 @@ void hal_pio_irq_clear(hal_pio_inst_t *pio, uint32_t irq_index) {
 }
 
 void hal_pio_gpio_init(hal_pio_inst_t *pio, uint32_t gpio) {
+    // Cap is fake-internal: (1u << 32) is UB in C, and the bitmap is
+    // 32 bits wide. Real impl forwards any value to pico-sdk (asserts
+    // on invalid). Tests should only pass gpio ∈ [0, 29] (RP2040 range).
     if (!pio || gpio >= 32) return;
     as_state(pio)->gpio_init_bitmap |= (1u << gpio);
 }
 
 void hal_pio_set_consecutive_pindirs(hal_pio_inst_t *pio, uint32_t sm,
                                     uint32_t base, uint32_t count, bool is_out) {
-    (void)pio; (void)sm; (void)base; (void)count; (void)is_out;
-    // No observable side effect for tests yet; if one becomes needed,
-    // add a field to hal_fake_pio_sm_state_t.
+    if (!pio || sm >= HAL_FAKE_PIO_SM_PER_INST) return;
+    hal_fake_pio_sm_state_t *smst = &as_state(pio)->sm[sm];
+    smst->pindirs_calls++;
+    smst->last_pindirs_base   = base;
+    smst->last_pindirs_count  = count;
+    smst->last_pindirs_is_out = is_out;
 }
 
 // Test-only hooks
@@ -594,7 +607,7 @@ static void test_configure_records_offset_and_cfg(void) {
     hal_pio_sm_cfg_t cfg = {
         .set_pin_base = 14, .set_pin_count = 1,
         .sideset_pin_base = 0, .sideset_pin_count = 0,
-        .in_pin_base = 8, .clk_div = 1.0f,
+        .in_pin_base = 8, .in_pin_count = 1, .clk_div = 1.0f,
     };
     hal_pio_sm_configure(pio, 2, 5u, &cfg);
     TEST_ASSERT_EQUAL_UINT32(5u, hal_fake_pio_insts[0].sm[2].configured_offset);
@@ -656,6 +669,22 @@ static void test_gpio_init_sets_bitmap(void) {
     TEST_ASSERT_TRUE(hal_fake_pio_insts[0].gpio_init_bitmap & (1u << 8));
 }
 
+static void test_sm_restart_counts_calls(void) {
+    hal_pio_inst_t *pio = hal_pio_instance(0);
+    hal_pio_sm_restart(pio, 2);
+    hal_pio_sm_restart(pio, 2);
+    TEST_ASSERT_EQUAL_UINT32(2u, hal_fake_pio_insts[0].sm[2].restart_calls);
+}
+
+static void test_set_consecutive_pindirs_records_args(void) {
+    hal_pio_inst_t *pio = hal_pio_instance(0);
+    hal_pio_set_consecutive_pindirs(pio, 0, 14, 1, true);
+    TEST_ASSERT_EQUAL_UINT32(1u, hal_fake_pio_insts[0].sm[0].pindirs_calls);
+    TEST_ASSERT_EQUAL_UINT32(14u, hal_fake_pio_insts[0].sm[0].last_pindirs_base);
+    TEST_ASSERT_EQUAL_UINT32(1u,  hal_fake_pio_insts[0].sm[0].last_pindirs_count);
+    TEST_ASSERT_TRUE(hal_fake_pio_insts[0].sm[0].last_pindirs_is_out);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_instance_returns_distinct_handles);
@@ -669,6 +698,8 @@ int main(void) {
     RUN_TEST(test_clear_fifos_drops_both_sides);
     RUN_TEST(test_irq_raise_get_clear);
     RUN_TEST(test_gpio_init_sets_bitmap);
+    RUN_TEST(test_sm_restart_counts_calls);
+    RUN_TEST(test_set_consecutive_pindirs_records_args);
     return UNITY_END();
 }
 ```
@@ -776,9 +807,11 @@ void hal_pio_sm_configure(hal_pio_inst_t *pio, uint32_t sm, uint32_t offset,
         sm_config_set_set_pins(&c, cfg->set_pin_base, cfg->set_pin_count);
     }
     if (cfg->sideset_pin_count) {
+        sm_config_set_sideset(&c, cfg->sideset_pin_count,
+                              cfg->sideset_optional, cfg->sideset_pindirs);
         sm_config_set_sideset_pins(&c, cfg->sideset_pin_base);
     }
-    if (cfg->in_pin_base) {
+    if (cfg->in_pin_count) {
         sm_config_set_in_pins(&c, cfg->in_pin_base);
     }
     sm_config_set_clkdiv(&c, cfg->clk_div <= 0.0f ? 1.0f : cfg->clk_div);
@@ -1869,6 +1902,7 @@ bool emfi_pio_load(const emfi_pio_params_t *p) {
         .sideset_pin_base = 0,
         .sideset_pin_count= 0,
         .in_pin_base      = BOARD_GP_EXT_TRIGGER,
+        .in_pin_count     = 1,
         .clk_div          = EMFI_PIO_CLK_DIV,
     };
     hal_pio_sm_configure(s_pio, s_sm, s_offset, &cfg);

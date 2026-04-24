@@ -23,11 +23,14 @@ typedef struct {
 
 typedef struct {
     uint32_t set_pin_base;
-    uint32_t set_pin_count;
+    uint32_t set_pin_count;       // 0 = no SET pins bound
     uint32_t sideset_pin_base;
-    uint32_t sideset_pin_count;
-    uint32_t in_pin_base;
-    float    clk_div;              // 1.0 == sysclock
+    uint32_t sideset_pin_count;   // 0 = no sideset; >0 wires sm_config_set_sideset
+    bool     sideset_optional;    // only used when sideset_pin_count > 0
+    bool     sideset_pindirs;     // only used when sideset_pin_count > 0
+    uint32_t in_pin_base;         // valid only when in_pin_count > 0 (0 is a real pin)
+    uint32_t in_pin_count;        // 0 = no IN pins bound
+    float    clk_div;             // 1.0 == sysclock
 } hal_pio_sm_cfg_t;
 
 // Obtain a handle to PIO block `which` (0 or 1). Returns NULL if the
