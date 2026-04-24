@@ -14,12 +14,13 @@ target_link_libraries(faultycat PRIVATE
     driver_crowbar_mosfet
     driver_hv_charger
     driver_emfi_pulse
+    usb_composite
 )
 
-# F0/F1 kept stdio off to avoid depending on tinyusb. F2 turns USB-CDC
-# stdio on for the diag loop (temporary — the F3 USB composite
-# descriptor will replace this single-CDC pico-sdk default).
-pico_enable_stdio_usb(faultycat  1)
+# F3 turns stdio_usb OFF: our own composite owns the USB stack now.
+# The diag that used printf over the pico-sdk default CDC goes silent
+# in this commit and gets restored on CDC2 (scanner) in F3-4.
+pico_enable_stdio_usb(faultycat  0)
 pico_enable_stdio_uart(faultycat 0)
 
 # Generates .uf2, .hex, .bin, map/lst/dis alongside the ELF.
