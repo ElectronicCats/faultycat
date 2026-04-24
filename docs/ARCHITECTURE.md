@@ -13,9 +13,9 @@ See [`FAULTYCAT_REFACTOR_PLAN.md`](../FAULTYCAT_REFACTOR_PLAN.md) for
 the full phased roadmap (F0 → F11) and the 16 frozen design decisions.
 This document describes the **layering and data flow**, not the plan.
 
-## Status snapshot (as of v3.0-f2b)
+## Status snapshot (as of v3.0-f3)
 
-Branch `rewrite/v3`, last tag `v3.0-f2b` (2026-04-23).
+Branch `rewrite/v3`, last tag `v3.0-f3` (2026-04-23).
 
 | Phase | Tag | Status |
 |-------|-----|--------|
@@ -23,8 +23,8 @@ Branch `rewrite/v3`, last tag `v3.0-f2b` (2026-04-23).
 | F1 — HAL + host tests | `v3.0-f1` | ✓ closed |
 | F2a — drivers low-risk (LEDs, buttons, ADC, scanner, trigger) | `v3.0-f2a` | ✓ closed |
 | F2b — drivers HV (crowbar, HV charger, EMFI pulse; 2 commits SIGNED) | `v3.0-f2b` | ✓ closed |
-| F3 — USB composite descriptor (4×CDC + vendor + HID) | — | **next** |
-| F4 — glitch engine EMFI (service, PIO-driven triggered fire) | — | pending |
+| F3 — USB composite descriptor (4×CDC + vendor + HID) + magic-baud BOOTSEL + diag on CDC2 | `v3.0-f3` | ✓ closed |
+| F4 — glitch engine EMFI (service, PIO-driven triggered fire) | — | **next** |
 | F5 — glitch engine crowbar (service) | — | pending |
 | F6 — SWD core (debugprobe port) | — | pending |
 | F7 — CMSIS-DAP v2 + v1 daplink_usb | — | pending |
@@ -35,9 +35,13 @@ Branch `rewrite/v3`, last tag `v3.0-f2b` (2026-04-23).
 
 Current tree health:
 - **9 drivers** implemented (8 active + `voltage_mux` stub) under `drivers/`.
+- **USB composite** up on VID:PID `1209:fa17`. 10 interfaces
+  (4×CDC + Vendor + HID). 16/16 endpoints used (hard RP2040 limit).
+  BOS + MS OS 2.0 descriptors for Windows WinUSB auto-bind.
+  Magic baud 1200 on any CDC → `reset_usb_boot()` (remote BOOTSEL).
 - **HAL** headers live: `gpio`, `time` (+busy_wait +irq ctl), `adc`,
   `pwm`. Still `#error` stubs: `pio` (F4), `dma` (F4), `usb` (won't be
-  lifted — TinyUSB is the abstraction, see F3 note below).
+  lifted — TinyUSB is the abstraction).
 - **75 unit tests** across 10 binaries, all green under
   `cmake --preset host-tests && ctest --preset host-tests`.
 - **CI**: parallel `host-tests` + `fw-release` jobs on every push.
@@ -51,7 +55,7 @@ Current tree health:
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
 │  apps/faultycat_fw                    ←  single main, composes services      │
-│    main.c (diag loop — provisional; F3 moves it to scanner CDC)   ✓ F2b      │
+│    main.c (diag loop on CDC2 scanner + HV/EMFI/crowbar)           ✓ F3       │
 ├────────────────────────────────────────────────────────────────────────────┤
 │  services/                            ←  attack logic, protocol handlers     │
 │    glitch_engine/emfi/                │    EMFI campaign + PIO fire  … F4    │
@@ -63,7 +67,9 @@ Current tree health:
 │    host_proto/ {emfi,crowbar,campaign}│    binary CDC protocols      … F4/5/9│
 ├────────────────────────────────────────────────────────────────────────────┤
 │  usb/                                 ←  composite descriptor                │
-│    10 interfaces (4×CDC + Vendor + HID)   16/16 endpoints       → F3         │
+│    usb_composite.c + usb_descriptors.c + dap_stub.c              ✓ F3        │
+│    4×CDC (emfi/crowbar/scanner/target-uart) + vendor + HID  16/16 eps        │
+│    BOS + MS OS 2.0 (WinUSB auto-bind)   magic-baud 1200 → BOOTSEL            │
 ├────────────────────────────────────────────────────────────────────────────┤
 │  drivers/                             ←  knows FaultyCat v2.x pinout         │
 │    board_v2.h     (single-source pinout)                        ✓ F2a        │
