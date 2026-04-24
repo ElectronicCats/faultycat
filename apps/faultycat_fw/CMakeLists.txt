@@ -12,6 +12,7 @@ target_link_libraries(faultycat PRIVATE
     driver_scanner_io
     driver_ext_trigger
     driver_crowbar_mosfet
+    driver_hv_charger
 )
 
 # F0/F1 kept stdio off to avoid depending on tinyusb. F2 turns USB-CDC

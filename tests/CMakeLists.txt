@@ -51,3 +51,4 @@ faultycat_add_driver_test(test_ext_trigger    ext_trigger)
 
 # F2b — driver unit tests (HV domain)
 faultycat_add_driver_test(test_crowbar_mosfet crowbar_mosfet)
+faultycat_add_driver_test(test_hv_charger     hv_charger)
