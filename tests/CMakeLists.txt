@@ -118,3 +118,5 @@ endfunction()
 faultycat_add_service_crowbar_test(test_crowbar_pio)
 # F5-3 — crowbar_campaign state machine
 faultycat_add_service_crowbar_test(test_crowbar_campaign)
+# F5-4 — crowbar_proto host framing
+faultycat_add_service_crowbar_test(test_crowbar_proto)

@@ -74,9 +74,12 @@ static void pump_vendor(void) {
 
 void usb_composite_task(void) {
     tud_task();
-    // CDC0 is owned by emfi_proto (pumped from main.c); CDC1..CDC3 stay
-    // in echo stub until later services claim them.
-    for (uint8_t i = 1; i < USB_CDC_COUNT; i++) {
+    // CDC0 owned by emfi_proto (F4), CDC1 by crowbar_proto (F5-4) —
+    // both pumped from main.c. CDC2 (scanner shell) and CDC3
+    // (target-UART) still echo until F8 claims them. Reading CDC1
+    // here would race the main-side pump and consume the bytes
+    // before crowbar_proto sees them.
+    for (uint8_t i = 2; i < USB_CDC_COUNT; i++) {
         echo_cdc(i);
     }
     pump_vendor();

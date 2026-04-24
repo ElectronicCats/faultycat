@@ -14,7 +14,9 @@ target_link_libraries(faultycat PRIVATE
     driver_hv_charger
     driver_emfi_pulse
     service_emfi
+    service_crowbar
     host_proto_emfi
+    host_proto_crowbar
     usb_composite
 )
 

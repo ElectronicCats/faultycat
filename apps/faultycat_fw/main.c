@@ -14,7 +14,9 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#include "crowbar_campaign.h"
 #include "crowbar_mosfet.h"
+#include "crowbar_proto.h"
 #include "emfi_campaign.h"
 #include "emfi_capture.h"
 #include "emfi_proto.h"
@@ -30,7 +32,6 @@
 
 #define BUTTON_POLL_PERIOD_MS    20u
 #define SNAPSHOT_PERIOD_MS       500u
-#define CROWBAR_CYCLE_PERIOD_MS  2000u
 #define EMFI_MANUAL_WIDTH_US     5u
 
 // -----------------------------------------------------------------------------
@@ -58,7 +59,7 @@ static void diag_printf(const char *fmt, ...) {
 
 static void diag_banner(void) {
     diag_printf("\n========================================\n");
-    diag_printf("FaultyCat v3 — F4 diag (composite scanner CDC)\n");
+    diag_printf("FaultyCat v3 — F5 diag (composite scanner CDC)\n");
     diag_printf("========================================\n");
     diag_printf("!! HV WARNING — plastic shield + coil MUST be installed.\n");
     diag_printf("!! Do NOT leave the SMA open with HV armed.\n\n");
@@ -66,7 +67,9 @@ static void diag_banner(void) {
     diag_printf(" PULSE button : FIRE EMFI pulse (%u us) — armed+charged only\n",
                 EMFI_MANUAL_WIDTH_US);
     diag_printf("                auto-disarms after fire\n");
-    diag_printf(" CROWBAR auto-cycles every 2s (no HV in this path yet)\n");
+    diag_printf(" CROWBAR      : controlled via CDC1 (crowbar_proto)\n");
+    diag_printf("                — `tools/crowbar_client.py ping` to verify\n");
+    diag_printf(" EMFI         : controlled via CDC0 (emfi_proto)\n");
     diag_printf(" Snapshot every %u ms.\n\n", SNAPSHOT_PERIOD_MS);
 }
 
@@ -102,24 +105,22 @@ static void print_snapshot(void) {
     bits[SCANNER_IO_CHANNEL_COUNT] = '\0';
 
     emfi_status_t es; emfi_campaign_get_status(&es);
-    static const char *state_labels[] = {
+    static const char *emfi_labels[] = {
         "IDLE","ARMING","CHARGED","WAITING","FIRED","ERROR"
     };
-    const char *slabel = (es.state < 6) ? state_labels[es.state] : "???";
-    diag_printf("ADC=%4u  SCAN=%s  TRIG=%d  CROWBAR=%s  HV[%s%s]  EMFI=%s\n",
+    const char *elabel = (es.state < 6) ? emfi_labels[es.state] : "???";
+
+    crowbar_status_t cs; crowbar_campaign_get_status(&cs);
+    static const char *crowbar_labels[] = {
+        "IDLE","ARMING","ARMED","WAITING","FIRED","ERROR"
+    };
+    const char *clabel = (cs.state < 6) ? crowbar_labels[cs.state] : "???";
+
+    diag_printf("ADC=%4u SCAN=%s TRIG=%d GATE=%s HV[%s%s] EMFI=%s CROW=%s\n",
                 adc, bits, trigger ? 1 : 0, crowbar_label(path),
                 armed   ? "ARM" : "---",
                 charged ? " CHG" : "",
-                slabel);
-}
-
-static crowbar_path_t next_crowbar(crowbar_path_t cur) {
-    switch (cur) {
-        case CROWBAR_PATH_NONE: return CROWBAR_PATH_LP;
-        case CROWBAR_PATH_LP:   return CROWBAR_PATH_HP;
-        case CROWBAR_PATH_HP:   return CROWBAR_PATH_NONE;
-        default:                return CROWBAR_PATH_NONE;
-    }
+                elabel, clabel);
 }
 
 static void try_fire_emfi(void) {
@@ -141,7 +142,7 @@ static void try_fire_emfi(void) {
 }
 
 // -----------------------------------------------------------------------------
-// emfi_proto pump on CDC0
+// host_proto pumps — CDC0 = emfi, CDC1 = crowbar
 // -----------------------------------------------------------------------------
 
 // Pump CDC0 bytes through emfi_proto. Writes any reply to CDC0
@@ -164,6 +165,23 @@ static void pump_emfi_cdc(void) {
     }
 }
 
+// Pump CDC1 bytes through crowbar_proto. Replies max out at ~21 bytes
+// (STATUS) so a small stack buffer is plenty.
+static void pump_crowbar_cdc(void) {
+    uint8_t buf[64];
+    size_t n = usb_composite_cdc_read(USB_CDC_CROWBAR, buf, sizeof(buf));
+    if (n == 0) return;
+    for (size_t i = 0; i < n; i++) {
+        if (crowbar_proto_feed(buf[i], hal_now_ms())) {
+            uint8_t reply[64];
+            size_t rn = crowbar_proto_dispatch(reply, sizeof(reply));
+            if (rn > 0) {
+                usb_composite_cdc_write(USB_CDC_CROWBAR, reply, rn);
+            }
+        }
+    }
+}
+
 // -----------------------------------------------------------------------------
 // main
 // -----------------------------------------------------------------------------
@@ -181,18 +199,21 @@ int main(void) {
     emfi_pulse_init();
     emfi_campaign_init();
     emfi_proto_init();
+    crowbar_campaign_init();
+    crowbar_proto_init();
 
     bool     last_arm              = false;
     bool     last_pulse            = false;
     bool     last_scanner_conn     = false;
     uint32_t last_snapshot_ms      = 0;
-    uint32_t last_crowbar_step_ms  = 0;
 
     while (true) {
         usb_composite_task();
 
         pump_emfi_cdc();
+        pump_crowbar_cdc();
         emfi_campaign_tick();
+        crowbar_campaign_tick();
 
         // Print banner on first CDC2 connection so a freshly-attached
         // terminal sees the intro without needing a board reset.
@@ -232,14 +253,6 @@ int main(void) {
         ui_leds_set(UI_LED_STATUS, arm || pulse);
 
         uint32_t now = hal_now_ms();
-
-        if ((now - last_crowbar_step_ms) >= CROWBAR_CYCLE_PERIOD_MS) {
-            crowbar_path_t cur  = crowbar_mosfet_get_path();
-            crowbar_path_t next = next_crowbar(cur);
-            crowbar_mosfet_set_path(next);
-            diag_printf("CROWBAR -> %s\n", crowbar_label(next));
-            last_crowbar_step_ms = now;
-        }
 
         if ((now - last_snapshot_ms) >= SNAPSHOT_PERIOD_MS) {
             print_snapshot();
