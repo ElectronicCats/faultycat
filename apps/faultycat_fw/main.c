@@ -24,11 +24,18 @@
 #include "ext_trigger.h"
 #include "hal/time.h"
 #include "hv_charger.h"
+#include "board_v2.h"
 #include "scanner_io.h"
+#include "swd_dp.h"
+#include "swd_mem.h"
+#include "swd_phy.h"
 #include "target_monitor.h"
 #include "ui_buttons.h"
 #include "ui_leds.h"
 #include "usb_composite.h"
+
+#include <stdlib.h>
+#include <string.h>
 
 #define BUTTON_POLL_PERIOD_MS    20u
 #define SNAPSHOT_PERIOD_MS       500u
@@ -70,7 +77,256 @@ static void diag_banner(void) {
     diag_printf(" CROWBAR      : controlled via CDC1 (crowbar_proto)\n");
     diag_printf("                — `tools/crowbar_client.py ping` to verify\n");
     diag_printf(" EMFI         : controlled via CDC0 (emfi_proto)\n");
+    diag_printf(" SWD          : line-buffered shell on this CDC (CDC2)\n");
+    diag_printf("                type `?` for the command list\n");
     diag_printf(" Snapshot every %u ms.\n\n", SNAPSHOT_PERIOD_MS);
+}
+
+// -----------------------------------------------------------------------------
+// SWD diagnostic shell on CDC2 (F6-5)
+//
+// Tiny line-buffered text parser. Lets the operator drive the F6
+// services from a serial terminal or from tools/swd_diag.py without
+// needing a host-side CMSIS-DAP stack (that lands in F7). The shell
+// shares CDC2 with the diag snapshot stream — outputs are prefixed
+// "SWD: " so they stay distinguishable.
+// -----------------------------------------------------------------------------
+
+#define SWD_SHELL_BUF_LEN  96u
+
+static char     swd_shell_buf[SWD_SHELL_BUF_LEN];
+static uint16_t swd_shell_pos = 0u;
+static bool     swd_shell_inited = false;
+
+static void swd_print(const char *s) {
+    if (!s) return;
+    usb_composite_cdc_write(USB_CDC_SCANNER, s, strlen(s));
+}
+
+static void swd_printf(const char *fmt, ...) {
+    char buf[96];
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    if (n <= 0) return;
+    if (n >= (int)sizeof(buf)) n = (int)sizeof(buf) - 1;
+    usb_composite_cdc_write(USB_CDC_SCANNER, buf, (size_t)n);
+}
+
+static void swd_shell_help(void) {
+    swd_print("SWD: commands —\n");
+    swd_print("SWD:   ? | help\n");
+    swd_print("SWD:   swd init <swclk_gp> <swdio_gp> [<nrst_gp>]   defaults 0 1 2\n");
+    swd_print("SWD:   swd deinit\n");
+    swd_print("SWD:   swd freq <khz>                               (100..24000)\n");
+    swd_print("SWD:   swd connect | swd probe                      line reset + DPIDR\n");
+    swd_print("SWD:   swd read32 <hex_addr>\n");
+    swd_print("SWD:   swd write32 <hex_addr> <hex_val>\n");
+    swd_print("SWD:   swd reset 0|1                                nRST release / assert\n");
+}
+
+static const char *ack_label(swd_dp_ack_t a) {
+    switch (a) {
+        case SWD_ACK_OK:           return "OK";
+        case SWD_ACK_WAIT:         return "WAIT";
+        case SWD_ACK_FAULT:        return "FAULT";
+        case SWD_ACK_PARITY_ERR:   return "PARITY_ERR";
+        case SWD_ACK_NO_TARGET:    return "NO_TARGET";
+    }
+    return "UNKNOWN";
+}
+
+// Lazy-init: any swd_* command that needs the phy auto-inits with
+// the scanner-header defaults if the operator hasn't called
+// `swd init` yet. Saves typing in the common case.
+static bool ensure_inited(void) {
+    if (swd_shell_inited) return true;
+    if (!swd_phy_init(BOARD_GP_SWCLK_DEFAULT,
+                      BOARD_GP_SWDIO_DEFAULT,
+                      BOARD_GP_SWRST_DEFAULT)) {
+        swd_print("SWD: ERR phy_init_failed\n");
+        return false;
+    }
+    swd_shell_inited = true;
+    return true;
+}
+
+static void cmd_init(int argc, char **argv) {
+    if (swd_shell_inited) {
+        swd_phy_deinit();
+        swd_shell_inited = false;
+    }
+    uint8_t swclk = (argc >= 3) ? (uint8_t)strtoul(argv[2], NULL, 0)
+                                : BOARD_GP_SWCLK_DEFAULT;
+    uint8_t swdio = (argc >= 4) ? (uint8_t)strtoul(argv[3], NULL, 0)
+                                : BOARD_GP_SWDIO_DEFAULT;
+    int8_t  nrst  = (argc >= 5) ? (int8_t)strtol(argv[4], NULL, 0)
+                                : (int8_t)BOARD_GP_SWRST_DEFAULT;
+    if (!swd_phy_init(swclk, swdio, nrst)) {
+        swd_print("SWD: ERR phy_init_failed\n");
+        return;
+    }
+    swd_shell_inited = true;
+    swd_printf("SWD: OK init swclk=GP%u swdio=GP%u nrst=%d\n",
+               swclk, swdio, nrst);
+}
+
+static void cmd_deinit(void) {
+    if (!swd_shell_inited) {
+        swd_print("SWD: OK deinit (was already idle)\n");
+        return;
+    }
+    swd_phy_deinit();
+    swd_shell_inited = false;
+    swd_print("SWD: OK deinit\n");
+}
+
+static void cmd_freq(int argc, char **argv) {
+    if (argc < 3) {
+        swd_print("SWD: ERR missing_khz\n");
+        return;
+    }
+    if (!ensure_inited()) return;
+    uint32_t khz = (uint32_t)strtoul(argv[2], NULL, 0);
+    swd_phy_set_clk_khz(khz);
+    swd_printf("SWD: OK freq %u khz (clamped to range if needed)\n", khz);
+}
+
+static void cmd_connect(void) {
+    if (!ensure_inited()) return;
+    uint32_t dpidr = 0u;
+    swd_dp_ack_t ack = swd_dp_connect(&dpidr);
+    if (ack == SWD_ACK_OK) {
+        swd_printf("SWD: OK connect dpidr=0x%08lX\n", (unsigned long)dpidr);
+    } else {
+        swd_printf("SWD: ERR connect ack=%s\n", ack_label(ack));
+    }
+}
+
+static void cmd_read32(int argc, char **argv) {
+    if (argc < 3) {
+        swd_print("SWD: ERR missing_addr\n");
+        return;
+    }
+    if (!ensure_inited()) return;
+    uint32_t addr = (uint32_t)strtoul(argv[2], NULL, 16);
+    swd_dp_ack_t ack = swd_mem_init();
+    if (ack != SWD_ACK_OK) {
+        swd_printf("SWD: ERR mem_init ack=%s\n", ack_label(ack));
+        return;
+    }
+    uint32_t val = 0u;
+    ack = swd_mem_read32(addr, &val);
+    if (ack == SWD_ACK_OK) {
+        swd_printf("SWD: OK read32 [0x%08lX]=0x%08lX\n",
+                   (unsigned long)addr, (unsigned long)val);
+    } else {
+        swd_printf("SWD: ERR read32 ack=%s\n", ack_label(ack));
+    }
+}
+
+static void cmd_write32(int argc, char **argv) {
+    if (argc < 4) {
+        swd_print("SWD: ERR missing_addr_or_val\n");
+        return;
+    }
+    if (!ensure_inited()) return;
+    uint32_t addr = (uint32_t)strtoul(argv[2], NULL, 16);
+    uint32_t val  = (uint32_t)strtoul(argv[3], NULL, 16);
+    swd_dp_ack_t ack = swd_mem_init();
+    if (ack != SWD_ACK_OK) {
+        swd_printf("SWD: ERR mem_init ack=%s\n", ack_label(ack));
+        return;
+    }
+    ack = swd_mem_write32(addr, val);
+    if (ack == SWD_ACK_OK) {
+        swd_printf("SWD: OK write32 [0x%08lX]<=0x%08lX\n",
+                   (unsigned long)addr, (unsigned long)val);
+    } else {
+        swd_printf("SWD: ERR write32 ack=%s\n", ack_label(ack));
+    }
+}
+
+static void cmd_reset(int argc, char **argv) {
+    if (argc < 3) {
+        swd_print("SWD: ERR missing_state\n");
+        return;
+    }
+    if (!ensure_inited()) return;
+    bool assert_low = (argv[2][0] == '1');
+    swd_phy_assert_reset(assert_low);
+    swd_printf("SWD: OK reset asserted=%d level=%d\n",
+               assert_low ? 1 : 0, swd_phy_reset_level());
+}
+
+static void process_swd_line(char *line) {
+    // Tokenize on whitespace; up to 5 tokens (cmd + 4 args).
+    char *argv[5];
+    int   argc = 0;
+    char *save;
+    char *tok = strtok_r(line, " \t", &save);
+    while (tok && argc < 5) {
+        argv[argc++] = tok;
+        tok = strtok_r(NULL, " \t", &save);
+    }
+    if (argc == 0) return;
+
+    if (!strcmp(argv[0], "?") || !strcmp(argv[0], "help")) {
+        swd_shell_help();
+        return;
+    }
+    if (strcmp(argv[0], "swd") != 0) {
+        swd_printf("SWD: ERR unknown_cmd: %s (try `?`)\n", argv[0]);
+        return;
+    }
+    if (argc < 2) {
+        swd_print("SWD: ERR swd needs subcommand (try `?`)\n");
+        return;
+    }
+    const char *sub = argv[1];
+    if      (!strcmp(sub, "init"))    cmd_init(argc, argv);
+    else if (!strcmp(sub, "deinit"))  cmd_deinit();
+    else if (!strcmp(sub, "freq"))    cmd_freq(argc, argv);
+    else if (!strcmp(sub, "connect")
+          || !strcmp(sub, "probe"))   cmd_connect();
+    else if (!strcmp(sub, "read32"))  cmd_read32(argc, argv);
+    else if (!strcmp(sub, "write32")) cmd_write32(argc, argv);
+    else if (!strcmp(sub, "reset"))   cmd_reset(argc, argv);
+    else {
+        swd_printf("SWD: ERR unknown_subcmd: %s (try `?`)\n", sub);
+    }
+}
+
+static void pump_swd_shell_cdc(void) {
+    uint8_t buf[64];
+    size_t n = usb_composite_cdc_read(USB_CDC_SCANNER, buf, sizeof(buf));
+    if (n == 0) return;
+    for (size_t i = 0; i < n; i++) {
+        uint8_t b = buf[i];
+        if (b == '\r' || b == '\n') {
+            if (swd_shell_pos > 0u) {
+                swd_shell_buf[swd_shell_pos] = '\0';
+                usb_composite_cdc_write(USB_CDC_SCANNER, "\n", 1);
+                process_swd_line(swd_shell_buf);
+                swd_shell_pos = 0u;
+            } else if (b == '\n') {
+                // Bare newline — quietly ignore so paired \r\n from a
+                // terminal doesn't emit an empty-line error.
+            }
+        } else if (b == 0x7Fu || b == 0x08u) {   // backspace / DEL
+            if (swd_shell_pos > 0u) {
+                swd_shell_pos--;
+                usb_composite_cdc_write(USB_CDC_SCANNER, "\b \b", 3);
+            }
+        } else if (b >= 0x20u && b < 0x7Fu) {
+            if (swd_shell_pos + 1u < SWD_SHELL_BUF_LEN) {
+                swd_shell_buf[swd_shell_pos++] = (char)b;
+                usb_composite_cdc_write(USB_CDC_SCANNER, &b, 1);
+            }
+        }
+        // else: ignore non-printable
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -212,6 +468,7 @@ int main(void) {
 
         pump_emfi_cdc();
         pump_crowbar_cdc();
+        pump_swd_shell_cdc();
         emfi_campaign_tick();
         crowbar_campaign_tick();
 
