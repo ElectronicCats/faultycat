@@ -48,6 +48,16 @@
 #define BOARD_GP_EXT_TRIGGER        BOARD_GP_TRIGGER_IN
 
 // -----------------------------------------------------------------------------
+// SWD over scanner header — F6 swd_core defaults. SWD/JTAG/scanner
+// share GP0..GP7; only one of {scanner_io, swd_core, jtag_core (F8),
+// pinout_scanner (F8)} may own a given pin at a time. F9 lands the
+// formal mutex; F6 documents the contract.
+// -----------------------------------------------------------------------------
+#define BOARD_GP_SWCLK_DEFAULT      BOARD_GP_SCANNER_CH0
+#define BOARD_GP_SWDIO_DEFAULT      BOARD_GP_SCANNER_CH1
+#define BOARD_GP_SWRST_DEFAULT      BOARD_GP_SCANNER_CH2
+
+// -----------------------------------------------------------------------------
 // Crowbar — voltage glitching paths (v2.1+). Software selects between
 // the low-power path and the real N-MOSFET path; there is NO hardware
 // multiplexer on v2.x (confirmed by maintainer 2026-04-23).
