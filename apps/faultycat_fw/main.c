@@ -66,7 +66,7 @@ static void diag_printf(const char *fmt, ...) {
 
 static void diag_banner(void) {
     diag_printf("\n========================================\n");
-    diag_printf("FaultyCat v3 — F5 diag (composite scanner CDC)\n");
+    diag_printf("FaultyCat v3 — F6 diag (composite scanner CDC + SWD shell)\n");
     diag_printf("========================================\n");
     diag_printf("!! HV WARNING — plastic shield + coil MUST be installed.\n");
     diag_printf("!! Do NOT leave the SMA open with HV armed.\n\n");
