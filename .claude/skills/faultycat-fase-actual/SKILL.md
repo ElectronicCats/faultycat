@@ -10,7 +10,7 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 > tocar nada. Las 16 decisiones congeladas del plan §1 **no se
 > relitigan**.
 
-## Fase actual: F4 cerrada → F5 a continuación (crowbar glitch_engine service)
+## Fase actual: F5 cerrada → F6 a continuación (SWD core, debugprobe port)
 
 ## Tags cerrados en `rewrite/v3`
 
@@ -51,6 +51,19 @@ emfi_proto on CDC0 with CRC16-CCITT framing. Button PULSE kept on
 CPU fire path (F2b) for operator use. tools/emfi_client.py reference
 host client. SAFETY.md §3 #5 activated in F4-5.
 
+### `v3.0-f5` — Crowbar glitch engine + host proto (2026-04-24)
+services/glitch_engine/crowbar/ complete: crowbar_pio (pio0/SM1,
+IRQ 1, gate variable LP/HP, width_ns rounded-up), crowbar_campaign
+(state machine + break-before-make at arm/fire/teardown). NO HV cap
+involved. services/host_proto/crowbar_proto on CDC1 — CRC16-CCITT,
+PING reply "F5\0\0", STATUS payload 15 bytes. F2b demo
+CROWBAR_CYCLE removed; main runs pump_crowbar_cdc +
+crowbar_campaign_tick. usb_composite echo loop bumped to i=2 (CDC0
++ CDC1 owned). tools/crowbar_client.py reference host client. F5-2
++ F5-3 SIGNED. Verified end-to-end on physical board: HP cycle
+(200 ns / 10 µs / FIRED), LP cycle (100 ns / FIRED), EMFI
+unaffected. 7 HV-SIGNED commits in history.
+
 ## Estado del HAL
 
 | Header | Estado | Lifted / planned |
@@ -72,33 +85,37 @@ host client. SAFETY.md §3 #5 activated in F4-5.
 ## Estado USB
 
 Composite activo en **1209:FA17**:
-- 4 CDC: emfi(0) → emfi_proto binary, crowbar(1) echo (F5), scanner(2) diag, target-uart(3) echo.
+- 4 CDC: emfi(0) → emfi_proto binary, crowbar(1) → crowbar_proto
+  binary, scanner(2) diag, target-uart(3) echo.
 - Vendor CMSIS-DAP v2 (IF 8) + HID CMSIS-DAP v1 (IF 9) — ambos
   stub (DAP_Info responde, otras DAP commands → DAP_ERROR). F7
   implementa el engine real.
 - Windows auto-bind via MS OS 2.0 (WinUSB, GUID compartida con
   debugprobe).
 - Magic baud 1200 → BOOTSEL. `tools/flash.sh` lo usa.
+- usb_composite_task echo loop arranca en i=2 (CDC2/CDC3 todavía
+  echo). Próxima fase que tome CDC2 o CDC3 debe BUMPEAR el i= start.
 
 ## Tests
 
-155 Unity cases en 16 binarios, verde. `host-tests` preset + CI.
+212 Unity cases en 19 binarios, verde. `host-tests` preset + CI.
 
-## En qué estamos ahora — F5 (crowbar glitch_engine service)
+## En qué estamos ahora — F6 (SWD core, debugprobe port)
 
-Siguiente servicio: voltage glitching con crowbar MOSFET. Plan §6 F5.
-Reusa el patrón de emfi_campaign: service compone drivers + PIO.
-Safety gate cubre crowbar_mosfet si cambia break-before-make.
+Siguiente servicio: portar `third_party/debugprobe/` (MIT, pineado
+@v2.3.0) a la arquitectura v3 como `services/swd_core/`. Plan §6 F6.
+SWD phy via PIO sobre `pio1` (no compite con glitch engines en
+pio0). API interna: `swd_connect`, `swd_read32`, `swd_write32`,
+`swd_halt`, `swd_resume`, etc. Comando diag por CDC2 scanner:
+`swd probe` → DPIDR del target.
 
-Pautas clave ya validadas en F4:
-- Service owns PIO program build-from-scratch.
-- 100 ms HV invariant pattern (si aplica a HV path; crowbar
-  doesn't use HV per se pero sí drives peak current spikes).
-- host_proto/* pattern con CRC16-CCITT framing replicable para
-  crowbar_proto.
-
-Entregables F5 pendientes — escribir plan detallado antes de tocar
-código.
+Pautas validadas en F4/F5:
+- Service owns PIO program build-from-scratch (o portea desde
+  debugprobe upstream que SÍ tiene licencia MIT).
+- host_proto/* pattern con CRC16-CCITT framing aún disponible si
+  F6 quiere binary protocol; pero el plan dice que SWD se expone
+  vía CMSIS-DAP (F7) → no necesita CDC propio.
+- usb_composite echo loop NO cambia en F6 (no toma CDC nueva).
 
 ## Qué NO tocar
 
@@ -107,7 +124,7 @@ código.
 - `third_party/*` — pineados.
 - `third_party/faultier/` — **jamás** portar código literal
   (`LICENSES/NOTICE-faultier.md`).
-- En F5: no empezar F6 antes del tag `v3.0-f5`.
+- En F6: no empezar F7 antes del tag `v3.0-f6`.
 
 ## Reglas de oro
 
@@ -125,15 +142,19 @@ código.
    fase es aceptable; el tag va sobre el docs commit para que el
    snapshot coincida con la etiqueta.
 
-## Reglas extra activas ahora mismo (F5)
+## Reglas extra activas ahora mismo (F6)
 
-- **PIO**: `pio0` dedicado a los glitch engines. `emfi_pio` ya usa
-  SM0. F5 asigna SMs adicionales en pio0 al crowbar path. `pio1`
-  queda reservado para SWD (F6), target-uart y scanner (F8).
-- **host_proto pattern**: `crowbar_proto` sobre CDC1 replica el
-  shape de emfi_proto — CRC16-CCITT, SOF 0xFA, inter-byte timeout
-  100 ms, reply `CMD|0x80`.
-- **No romper F3/F4**: composite + vendor IF + HID IF siguen
-  operando; `pump_emfi_cdc` en main.c debe seguir vivo. Los host
-  tools existentes (`lsusb`, `picocom /dev/ttyACM2`,
-  `tools/emfi_client.py ping`) no deben regresionar.
+- **PIO**: `pio0` ya está saturado de glitch engines (SM0 EMFI / SM1
+  crowbar; IRQ 0 EMFI / IRQ 1 crowbar). F6 ARRANCA el uso de `pio1`
+  con SWD. Quedan SMs disponibles en pio1 para target-uart y
+  scanner (F8). Documentar la asignación en
+  ARCHITECTURE.md al cierre.
+- **No romper F3/F4/F5**: composite + vendor IF + HID IF siguen
+  operando; `pump_emfi_cdc` y `pump_crowbar_cdc` en main.c deben
+  seguir vivos. Los host tools existentes (`lsusb`,
+  `picocom /dev/ttyACM4`, `tools/emfi_client.py ping`,
+  `tools/crowbar_client.py ping`) no deben regresionar.
+- **Branch de seguridad**: `rewrite/v3-pre-f5-rebase` quedó del
+  rebase de firma F5; borrar con `git branch -D
+  rewrite/v3-pre-f5-rebase` cuando confirmes que `v3.0-f5` está
+  estable.
