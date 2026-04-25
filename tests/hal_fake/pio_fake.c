@@ -97,6 +97,22 @@ void hal_pio_sm_restart(hal_pio_inst_t *pio, uint32_t sm) {
     as_state(pio)->sm[sm].restart_calls++;
 }
 
+void hal_pio_sm_exec(hal_pio_inst_t *pio, uint32_t sm, uint16_t instruction) {
+    if (!pio || sm >= HAL_FAKE_PIO_SM_PER_INST) return;
+    hal_fake_pio_sm_state_t *smst = &as_state(pio)->sm[sm];
+    smst->exec_calls++;
+    smst->last_exec_instr = instruction;
+}
+
+void hal_pio_sm_set_clkdiv_int(hal_pio_inst_t *pio, uint32_t sm, uint32_t divider) {
+    if (!pio || sm >= HAL_FAKE_PIO_SM_PER_INST) return;
+    if (divider == 0u)     divider = 1u;
+    if (divider > 0xFFFFu) divider = 0xFFFFu;
+    hal_fake_pio_sm_state_t *smst = &as_state(pio)->sm[sm];
+    smst->set_clkdiv_int_calls++;
+    smst->last_clkdiv_int = divider;
+}
+
 void hal_pio_sm_put_blocking(hal_pio_inst_t *pio, uint32_t sm, uint32_t word) {
     if (!pio || sm >= HAL_FAKE_PIO_SM_PER_INST) return;
     hal_fake_pio_sm_state_t *smst = &as_state(pio)->sm[sm];

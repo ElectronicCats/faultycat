@@ -73,8 +73,35 @@ void hal_pio_sm_configure(hal_pio_inst_t *pio, uint32_t sm, uint32_t offset,
     if (cfg->in_pin_count) {
         sm_config_set_in_pins(&c, cfg->in_pin_base);
     }
+    if (cfg->out_pin_count) {
+        sm_config_set_out_pins(&c, cfg->out_pin_base, cfg->out_pin_count);
+    }
+    if (cfg->wrap_end > cfg->wrap_target) {
+        // Both fields are relative to the program start; pico-sdk
+        // wants absolute addresses, so add the load offset.
+        sm_config_set_wrap(&c, (uint)offset + cfg->wrap_target,
+                              (uint)offset + cfg->wrap_end);
+    }
+    // Shift directions: pioasm defaults to shift LEFT for both OSR/ISR
+    // unless `.out_shiftdir right` etc. is set. swd_phy needs right
+    // shift on both. Autopull/autopush stay OFF (SWD uses explicit
+    // pull/push instructions).
+    sm_config_set_out_shift(&c, cfg->out_shift_right, false, 0);
+    sm_config_set_in_shift (&c, cfg->in_shift_right,  false, 0);
     sm_config_set_clkdiv(&c, cfg->clk_div <= 0.0f ? 1.0f : cfg->clk_div);
     pio_sm_init(as_pio(pio), (uint)sm, (uint)offset, &c);
+}
+
+void hal_pio_sm_exec(hal_pio_inst_t *pio, uint32_t sm, uint16_t instruction) {
+    if (!pio || sm > 3) return;
+    pio_sm_exec(as_pio(pio), (uint)sm, instruction);
+}
+
+void hal_pio_sm_set_clkdiv_int(hal_pio_inst_t *pio, uint32_t sm, uint32_t divider) {
+    if (!pio || sm > 3) return;
+    if (divider == 0u)        divider = 1u;
+    if (divider > 0xFFFFu)    divider = 0xFFFFu;
+    pio_sm_set_clkdiv_int_frac(as_pio(pio), (uint)sm, (uint16_t)divider, 0);
 }
 
 void hal_pio_sm_set_enabled(hal_pio_inst_t *pio, uint32_t sm, bool en) {

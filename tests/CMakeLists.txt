@@ -120,3 +120,22 @@ faultycat_add_service_crowbar_test(test_crowbar_pio)
 faultycat_add_service_crowbar_test(test_crowbar_campaign)
 # F5-4 — crowbar_proto host framing
 faultycat_add_service_crowbar_test(test_crowbar_proto)
+
+# SWD test helper — links swd_core sources for unit tests.
+function(faultycat_add_service_swd_test name)
+    add_executable(${name}
+        ${name}.c
+        ${CMAKE_SOURCE_DIR}/services/swd_core/swd_phy.c
+        ${CMAKE_SOURCE_DIR}/services/swd_core/swd_dp.c
+        ${CMAKE_SOURCE_DIR}/services/swd_core/swd_mem.c
+    )
+    target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_include_directories(${name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/drivers/include
+        ${CMAKE_SOURCE_DIR}/services/swd_core
+    )
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+# F6-2 — swd_phy unit tests
+faultycat_add_service_swd_test(test_swd_phy)

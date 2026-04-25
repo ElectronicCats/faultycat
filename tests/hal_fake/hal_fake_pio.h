@@ -28,6 +28,11 @@ typedef struct {
     uint32_t  last_pindirs_base;
     uint32_t  last_pindirs_count;
     bool      last_pindirs_is_out;
+    // Added F6-2 for swd_phy.
+    uint32_t  exec_calls;
+    uint16_t  last_exec_instr;
+    uint32_t  set_clkdiv_int_calls;
+    uint32_t  last_clkdiv_int;
 } hal_fake_pio_sm_state_t;
 
 typedef struct {

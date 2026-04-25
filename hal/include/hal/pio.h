@@ -30,6 +30,12 @@ typedef struct {
     bool     sideset_pindirs;     // only used when sideset_pin_count > 0
     uint32_t in_pin_base;         // valid only when in_pin_count > 0 (0 is a real pin)
     uint32_t in_pin_count;        // 0 = no IN pins bound
+    uint32_t out_pin_base;        // valid only when out_pin_count > 0
+    uint32_t out_pin_count;       // 0 = no OUT pins bound (added F6-2 for swd_phy)
+    uint32_t wrap_target;         // 0 = use program start (relative to offset)
+    uint32_t wrap_end;            // 0 = use program end - 1   (relative to offset)
+    bool     out_shift_right;     // false = shift left (default), true = right (SWD wants right)
+    bool     in_shift_right;      // ditto for ISR
     float    clk_div;             // 1.0 == sysclock
 } hal_pio_sm_cfg_t;
 
@@ -87,3 +93,14 @@ void hal_pio_gpio_init(hal_pio_inst_t *pio, uint32_t gpio);
 // floating inputs.
 void hal_pio_set_consecutive_pindirs(hal_pio_inst_t *pio, uint32_t sm,
                                     uint32_t base, uint32_t count, bool is_out);
+
+// Execute a single PIO instruction immediately on the SM, bypassing
+// the FIFO. Used for bootstrap (e.g. to JMP the SM to a non-zero
+// entry point of a freshly-loaded program). Caller is responsible
+// for encoding the opcode.
+void hal_pio_sm_exec(hal_pio_inst_t *pio, uint32_t sm, uint16_t instruction);
+
+// Reprogram the integer clock divisor for a running SM. Fractional
+// divider stays 0. Used by swd_phy_set_clk_khz to retune SWCLK
+// without a full deinit/init cycle.
+void hal_pio_sm_set_clkdiv_int(hal_pio_inst_t *pio, uint32_t sm, uint32_t divider);
