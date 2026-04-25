@@ -10,7 +10,24 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 > tocar nada. Las 16 decisiones congeladas del plan §1 **no se
 > relitigan**.
 
-## Fase actual: F5 cerrada → F6 a continuación (SWD core, debugprobe port)
+## Fase actual: F6 código completo en `rewrite/v3`, **NO tageado** — verificación física pendiente con osciloscopio
+
+**Estado al momento de pausar:**
+- F6-1..F6-6 commiteados + `docs(F6-6)` + 2 fix commits (`fix(F6-5)` echo loop CDC2, `fix(F6-2)` bound spin) + `chore(F6-5)` banner string F5→F6.
+- 22/22 host tests verde. fw-release builds clean.
+- Físicamente: shell SWD funciona, comandos parsean, recovery OK (FW ya no se cuelga). PERO `swd connect` retorna `NO_TARGET` con un Pico target cableado a CH0/CH1 + GND común — sin osci no se distingue si es bug del PIO program (sospecha principal) o cableado.
+- **NO retomar F7 hasta verificar/fixear F6 + tagear `v3.0-f6`**.
+
+**Próxima sesión — protocolo de retake:**
+1. BOOTSEL físico + reflash F6 (HEAD del branch).
+2. Conectar osci: CH1 → GP0 (SWCLK), CH2 → GP1 (SWDIO), GND clip a GND scanner.
+3. `tools/swd_diag.py freq 100` (bajar SWCLK a 100 kHz para ver bits con timebase 100 µs/div).
+4. `tools/swd_diag.py connect` mientras osci en single-shot trigger rising-edge CH1.
+5. Si SWCLK NO toggleea → bug en sideset / config. Revisar `swd_phy.c::swd_phy_init()` cfg.sideset_*.
+6. Si SWCLK toggleea pero SWDIO no envía bits → bug en out pins / shift dir. Revisar `cfg.out_pin_base`, `out_shift_right`.
+7. Si todos los bits salen correctos → problema físico (probar cableado con multímetro, GND continuity).
+
+**Si bug en PIO encontrado:** fixear, retest, commit `fix(F6-2): <description>`, después rebase para foldear todos los fix commits dentro de sus features padres, después `git tag v3.0-f6` sobre el commit `docs(F6-6)`.
 
 ## Tags cerrados en `rewrite/v3`
 
