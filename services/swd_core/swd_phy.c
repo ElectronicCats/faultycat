@@ -276,9 +276,21 @@ uint32_t swd_phy_read_bits(uint32_t bit_count) {
     hal_pio_sm_put_blocking(s_pio, s_sm,
                             fmt_cmd(bit_count, false, CMD_READ));
     uint32_t word = 0u;
-    while (!hal_pio_sm_try_get(s_pio, s_sm, &word)) { /* spin */ }
-    if (bit_count < 32u) word >>= (32u - bit_count);
-    return word;
+    // Bounded poll. At SWCLK 1 MHz, 32 bits of PIO work finishes in
+    // ~32 µs; ~100k spin iterations is multiple ms even at 125 MHz
+    // CPU — plenty of margin. The bound exists because an absent
+    // target leaves the RX FIFO permanently empty; the unbounded spin
+    // would block the main loop forever (no banner, no snapshot, no
+    // tud_task → magic-baud BOOTSEL stops responding, only physical
+    // replug recovers). Caller's ACK read sees the returned 0 as
+    // 0b000 which swd_dp maps to SWD_ACK_NO_TARGET cleanly.
+    for (int i = 0; i < 100000; i++) {
+        if (hal_pio_sm_try_get(s_pio, s_sm, &word)) {
+            if (bit_count < 32u) word >>= (32u - bit_count);
+            return word;
+        }
+    }
+    return 0u;
 }
 
 void swd_phy_hiz_clocks(uint32_t bit_count) {
