@@ -264,40 +264,59 @@ void swd_phy_set_clk_khz(uint32_t khz) {
     hal_pio_sm_set_clkdiv_int(s_pio, s_sm, khz_to_divider(khz));
 }
 
+// Bounded TX/RX polls. The SM should always consume the FIFO within
+// a couple of µs (4 PIO ticks per SWCLK bit at 125 MHz / 32 ≈ 1 µs
+// per bit, FIFO depth 4). If something has stalled the SM (bad
+// program load, runaway pin function, target shorted), the unbounded
+// debugprobe-style put_blocking / read spin would hang the main loop
+// — and tud_task() with it, killing magic-baud BOOTSEL. Bound at
+// 10k iterations (~80 µs at 125 MHz CPU per call) so a stall costs
+// the operator a single SWD command but not the firmware.
+#define SWD_PHY_BOUND  10000
+
 void swd_phy_write_bits(uint32_t bit_count, uint32_t data) {
     if (!s_init || bit_count == 0u || bit_count > 32u) return;
-    hal_pio_sm_put_blocking(s_pio, s_sm,
-                            fmt_cmd(bit_count, true, CMD_WRITE));
-    hal_pio_sm_put_blocking(s_pio, s_sm, data);
+    uint32_t cmd = fmt_cmd(bit_count, true, CMD_WRITE);
+    for (int i = 0; i < SWD_PHY_BOUND; i++) {
+        if (hal_pio_sm_try_put(s_pio, s_sm, cmd)) goto cmd_sent;
+    }
+    return;   // SM stalled before we could send the command
+cmd_sent:
+    for (int i = 0; i < SWD_PHY_BOUND; i++) {
+        if (hal_pio_sm_try_put(s_pio, s_sm, data)) return;
+    }
 }
 
 uint32_t swd_phy_read_bits(uint32_t bit_count) {
     if (!s_init || bit_count == 0u || bit_count > 32u) return 0u;
-    hal_pio_sm_put_blocking(s_pio, s_sm,
-                            fmt_cmd(bit_count, false, CMD_READ));
+    uint32_t cmd = fmt_cmd(bit_count, false, CMD_READ);
+    for (int i = 0; i < SWD_PHY_BOUND; i++) {
+        if (hal_pio_sm_try_put(s_pio, s_sm, cmd)) goto cmd_sent;
+    }
+    return 0u;
+cmd_sent: ;
     uint32_t word = 0u;
-    // Bounded poll. At SWCLK 1 MHz, 32 bits of PIO work finishes in
-    // ~32 µs; ~100k spin iterations is multiple ms even at 125 MHz
-    // CPU — plenty of margin. The bound exists because an absent
-    // target leaves the RX FIFO permanently empty; the unbounded spin
-    // would block the main loop forever (no banner, no snapshot, no
-    // tud_task → magic-baud BOOTSEL stops responding, only physical
-    // replug recovers). Caller's ACK read sees the returned 0 as
-    // 0b000 which swd_dp maps to SWD_ACK_NO_TARGET cleanly.
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < SWD_PHY_BOUND; i++) {
         if (hal_pio_sm_try_get(s_pio, s_sm, &word)) {
             if (bit_count < 32u) word >>= (32u - bit_count);
             return word;
         }
     }
+    // Caller's ACK read sees 0b000, which swd_dp maps to NO_TARGET.
     return 0u;
 }
 
 void swd_phy_hiz_clocks(uint32_t bit_count) {
     if (!s_init || bit_count == 0u || bit_count > 256u) return;
-    hal_pio_sm_put_blocking(s_pio, s_sm,
-                            fmt_cmd(bit_count, false, CMD_TURNAROUND));
-    hal_pio_sm_put_blocking(s_pio, s_sm, 0u);
+    uint32_t cmd = fmt_cmd(bit_count, false, CMD_TURNAROUND);
+    for (int i = 0; i < SWD_PHY_BOUND; i++) {
+        if (hal_pio_sm_try_put(s_pio, s_sm, cmd)) goto cmd_sent;
+    }
+    return;
+cmd_sent:
+    for (int i = 0; i < SWD_PHY_BOUND; i++) {
+        if (hal_pio_sm_try_put(s_pio, s_sm, 0u)) return;
+    }
 }
 
 void swd_phy_read_mode(void) {
@@ -305,12 +324,18 @@ void swd_phy_read_mode(void) {
     // CMD_SKIP must use bit_count=1 so fmt_cmd's (count-1) is 0; a
     // bit_count of 0 would underflow to 0xFF and the dispatcher
     // would shift 256 bits before returning.
-    hal_pio_sm_put_blocking(s_pio, s_sm, fmt_cmd(1u, false, CMD_SKIP));
+    uint32_t cmd = fmt_cmd(1u, false, CMD_SKIP);
+    for (int i = 0; i < SWD_PHY_BOUND; i++) {
+        if (hal_pio_sm_try_put(s_pio, s_sm, cmd)) return;
+    }
 }
 
 void swd_phy_write_mode(void) {
     if (!s_init) return;
-    hal_pio_sm_put_blocking(s_pio, s_sm, fmt_cmd(1u, true, CMD_SKIP));
+    uint32_t cmd = fmt_cmd(1u, true, CMD_SKIP);
+    for (int i = 0; i < SWD_PHY_BOUND; i++) {
+        if (hal_pio_sm_try_put(s_pio, s_sm, cmd)) return;
+    }
 }
 
 void swd_phy_assert_reset(bool asserted) {
