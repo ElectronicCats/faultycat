@@ -139,3 +139,5 @@ endfunction()
 
 # F6-2 — swd_phy unit tests
 faultycat_add_service_swd_test(test_swd_phy)
+# F6-3 — swd_dp wire protocol
+faultycat_add_service_swd_test(test_swd_dp)
