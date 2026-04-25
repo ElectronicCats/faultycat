@@ -141,3 +141,5 @@ endfunction()
 faultycat_add_service_swd_test(test_swd_phy)
 # F6-3 — swd_dp wire protocol
 faultycat_add_service_swd_test(test_swd_dp)
+# F6-4 — swd_mem MEM-AP read32/write32
+faultycat_add_service_swd_test(test_swd_mem)

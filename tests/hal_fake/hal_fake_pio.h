@@ -8,7 +8,12 @@
 #define HAL_FAKE_PIO_INSTANCES    2
 #define HAL_FAKE_PIO_SM_PER_INST  4
 #define HAL_FAKE_PIO_IRQ_COUNT    8
-#define HAL_FAKE_PIO_FIFO_DEPTH   16
+// Bumped from 16 to 64 in F6-4 — swd_mem_read32 generates ~30 TX
+// entries (TAR write + AP DRW read + DP RDBUFF read), and SWD-style
+// chained transfers easily blow past 16. Production PIO has its own
+// 4-deep FIFO + actual SM consumption; the fake is a shadow that
+// only needs to outlive a single-test sequence.
+#define HAL_FAKE_PIO_FIFO_DEPTH   64
 #define HAL_FAKE_PIO_PROGRAM_MAX  32
 
 typedef struct {
