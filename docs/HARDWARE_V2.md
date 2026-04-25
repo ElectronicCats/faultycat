@@ -49,6 +49,18 @@ future use.
 - The JTAGulator-style algorithm (blueTag, F8) enumerates every
   permutation of the 8 channels to auto-discover JTAG and SWD pins on
   the target.
+- **SWD over the scanner header (F6).** v2.x has no dedicated SWD
+  header for `services/swd_core` to use. F6 routes SWD over two of
+  the eight scanner channels — defaults `BOARD_GP_SWCLK_DEFAULT`
+  = CH0 (GP0), `BOARD_GP_SWDIO_DEFAULT` = CH1 (GP1),
+  `BOARD_GP_SWRST_DEFAULT` = CH2 (GP2). The CDC2 shell command
+  `swd init <swclk> <swdio> [<nrst>]` re-pins them at runtime.
+- **Mutual exclusion contract (F6 → F9).** `drivers/scanner_io`,
+  `services/swd_core`, `services/jtag_core` (F8), and
+  `services/pinout_scanner` (F8) all share GP0..GP7 — only one
+  may own a given pin at a time. F6 documents the contract; F9
+  lands the formal `pico-sdk mutex_t`-based lock with priority
+  `campaign > scanner > daplink_host`.
 
 ## 3. HV domain — safety
 

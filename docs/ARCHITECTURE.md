@@ -13,9 +13,9 @@ See [`FAULTYCAT_REFACTOR_PLAN.md`](../FAULTYCAT_REFACTOR_PLAN.md) for
 the full phased roadmap (F0 → F11) and the 16 frozen design decisions.
 This document describes the **layering and data flow**, not the plan.
 
-## Status snapshot (as of v3.0-f5)
+## Status snapshot (as of v3.0-f6)
 
-Branch `rewrite/v3`, last tag `v3.0-f5` (2026-04-24).
+Branch `rewrite/v3`, last tag `v3.0-f6` (2026-04-24).
 
 | Phase | Tag | Status |
 |-------|-----|--------|
@@ -26,7 +26,8 @@ Branch `rewrite/v3`, last tag `v3.0-f5` (2026-04-24).
 | F3 — USB composite descriptor (4×CDC + vendor + HID) + magic-baud BOOTSEL + diag on CDC2 | `v3.0-f3` | ✓ closed |
 | F4 — glitch engine EMFI (service, PIO-driven triggered fire) | `v3.0-f4` | ✓ closed |
 | F5 — glitch engine crowbar (service, PIO-driven triggered fire on pio0/SM1, IRQ 1) | `v3.0-f5` | ✓ closed |
-| F6 — SWD core (debugprobe port) | — | **next** |
+| F6 — SWD core (debugprobe MIT port to swd_phy + scratch swd_dp / swd_mem; CDC2 shell) | `v3.0-f6` | ✓ closed |
+| F7 — CMSIS-DAP v2 + v1 daplink_usb | — | **next** |
 | F7 — CMSIS-DAP v2 + v1 daplink_usb | — | pending |
 | F8 — JTAG core + pinout scanner + BusPirate + serprog | — | pending |
 | F9 — Campaign manager + SWD mutex | — | pending |
@@ -52,7 +53,18 @@ Current tree health:
   `crowbar_campaign_tick()` alongside the EMFI counterparts. The
   F2b CROWBAR demo cycle (LP→HP→NONE every 2 s) was removed in F5-4
   — the gate is operator-controlled via `crowbar_proto` now.
-- **212 unit tests** across 19 binaries, all green under
+- **`services/swd_core/`** complete: `swd_phy` (debugprobe MIT
+  port — 11-instruction PIO program with hand-encoded opcodes,
+  runtime SWCLK/SWDIO/nRST pins, pio1/SM0), `swd_dp` (wire
+  protocol from scratch — parity, ACK, READ/WRITE_DP, AP, abort,
+  connect via line-reset + JTAG-to-SWD switch + DPIDR), `swd_mem`
+  (ADIv5 MEM-AP single-AP read32/write32 via CSW + TAR + DRW +
+  pipelined RDBUFF). `apps/faultycat_fw/main.c` adds a line-buffered
+  text shell on CDC2 with 7 commands (`?`, `swd init/deinit/freq/
+  connect/read32/write32/reset`) and lazy-init defaults to scanner
+  header CH0/CH1/CH2. `tools/swd_diag.py` is the pyserial reference
+  client.
+- **263 unit tests** across 22 binaries, all green under
   `cmake --preset host-tests && ctest --preset host-tests`.
 - **CI**: parallel `host-tests` + `fw-release` jobs on every push.
 - **7 HV-SIGNED commits** in history: `f450d43` (hv_charger),
@@ -60,9 +72,10 @@ Current tree health:
   F4-5 (`emfi_campaign` + 100 ms HV invariant), F4-6 (`emfi_proto`
   + main integration), F5-2 (`crowbar_pio` — PIO ownership of the
   MOSFET gate), F5-3 (`crowbar_campaign` — break-before-make
-  hand-off). See `docs/SAFETY.md`.
+  hand-off). F6 added zero signed commits — pure PIO bit-bang on
+  3.3 V logic, no HV path touched. See `docs/SAFETY.md`.
 
-**PIO instance allocation (frozen at F4-1, extended at F5-2):**
+**PIO instance allocation (frozen at F4-1, extended at F5-2 / F6-2):**
 `pio0` belongs to the glitch engines — SM 0 is used by
 `services/glitch_engine/emfi/emfi_pio` for trigger+delay+pulse of
 GP14 (raises IRQ 0); SM 1 is used by
@@ -70,9 +83,18 @@ GP14 (raises IRQ 0); SM 1 is used by
 of GP16 or GP17 (chosen at fire time, raises IRQ 1). The two
 engines coexist on the same PIO instance with disjoint state
 machines AND disjoint IRQ flags so neither can spuriously mark the
-other done. `pio1` is reserved for `swd_core` (F6), `target-uart`
-passthrough (F8), and `jtag_core` + scanner bit-banging (F8),
-splitting its 4 SMs across those consumers.
+other done. `pio1` SM 0 is now used by
+`services/swd_core/swd_phy` (debugprobe-derived, runtime
+SWCLK/SWDIO pins; the rest of pio1 stays reserved for `target-uart`
+(F8) and `jtag_core` + scanner bit-banging (F8), splitting the 3
+remaining SMs across those consumers).
+
+**HAL extension (F6-2):** `hal/include/hal/pio.h` gained
+`out_pin_base/count`, `wrap_target/end` (relative to program start),
+`out_shift_right`, `in_shift_right` in `hal_pio_sm_cfg_t`, plus
+`hal_pio_sm_exec()` (single-instruction inject for SM bootstrap)
+and `hal_pio_sm_set_clkdiv_int()` (runtime SWCLK retune). Backwards-
+compatible — existing EMFI / crowbar configures are unaffected.
 
 ## Layers
 
@@ -86,7 +108,8 @@ splitting its 4 SMs across those consumers.
 │  services/                            ←  attack logic, protocol handlers     │
 │    glitch_engine/emfi/                │    EMFI campaign + PIO fire  ✓ F4    │
 │    glitch_engine/crowbar/             │    crowbar campaign + PIO    ✓ F5    │
-│    swd_core/                          │    debugprobe-derived        … F6    │
+│    swd_core/                          │    debugprobe-derived (phy)  ✓ F6    │
+│      + swd_dp + swd_mem (scratch)     │    + DPIDR/MEM-AP shell      ✓ F6    │
 │    daplink_usb/                       │    CMSIS-DAP v2 + v1 HID     … F7    │
 │    jtag_core/ pinout_scanner/         │    blueTag-derived           … F8    │
 │    buspirate_compat/ flashrom_serprog/│    blueTag-derived           … F8    │
@@ -143,7 +166,7 @@ Rules:
 Configuration Descriptor (Miscellaneous class, IAD-based)
 ├── IAD + CDC 0 "EMFI Control"       IF 0 (notif) + IF 1 (data)  ✓ F4 emfi_proto
 ├── IAD + CDC 1 "Crowbar Control"    IF 2 (notif) + IF 3 (data)  ✓ F5 crowbar_proto
-├── IAD + CDC 2 "Scanner Shell"      IF 4 (notif) + IF 5 (data)  → pinout_scanner (shell)
+├── IAD + CDC 2 "Scanner Shell"      IF 4 (notif) + IF 5 (data)  ✓ F6 swd_shell + diag (F8 → full blueTag shell)
 ├── IAD + CDC 3 "Target UART"        IF 6 (notif) + IF 7 (data)  → PIO UART passthru
 ├── Vendor IF   "CMSIS-DAP v2"       IF 8 (2 bulk eps)           → daplink_usb (v2)
 └── HID IF      "CMSIS-DAP v1"       IF 9 (1 int ep)             → daplink_usb (v1)
