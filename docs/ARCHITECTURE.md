@@ -26,10 +26,9 @@ Branch `rewrite/v3`, last tag `v3.0-f6` (2026-04-24).
 | F3 — USB composite descriptor (4×CDC + vendor + HID) + magic-baud BOOTSEL + diag on CDC2 | `v3.0-f3` | ✓ closed |
 | F4 — glitch engine EMFI (service, PIO-driven triggered fire) | `v3.0-f4` | ✓ closed |
 | F5 — glitch engine crowbar (service, PIO-driven triggered fire on pio0/SM1, IRQ 1) | `v3.0-f5` | ✓ closed |
-| F6 — SWD core (debugprobe MIT port to swd_phy + scratch swd_dp / swd_mem; CDC2 shell) | `v3.0-f6` | ✓ closed |
-| F7 — CMSIS-DAP v2 + v1 daplink_usb | — | **next** |
-| F7 — CMSIS-DAP v2 + v1 daplink_usb | — | pending |
-| F8 — JTAG core + pinout scanner + BusPirate + serprog | — | pending |
+| F6 — SWD core (debugprobe MIT port to swd_phy + scratch swd_dp / swd_mem; CDC2 shell) | — | code-complete + spec-compliant; **physical gate blocked** by TXS0108EPW HW path (see `HARDWARE_V2.md §2`). Open-drain PIO emulation in place; canonical raspberrypi/debugprobe also fails through the same HW path, confirming the bug is HW. Not tagged. |
+| F7 — CMSIS-DAP v2 + v1 daplink_usb | — | deferred until F6 physical gate passes (HW bypass on the TXS0108E) |
+| F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | — | **next** — JTAG is mostly host-driven push-pull (TXS0108E handles unidirectional fine), so F8 can validate physically without unblocking F6 first |
 | F9 — Campaign manager + SWD mutex | — | pending |
 | F10 — faultycmd-rs Rust workspace | — | pending |
 | F11 — Hardening, docs, release | — | pending |

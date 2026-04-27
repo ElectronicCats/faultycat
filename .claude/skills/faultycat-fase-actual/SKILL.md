@@ -10,29 +10,47 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 > tocar nada. Las 16 decisiones congeladas del plan §1 **no se
 > relitigan**.
 
-## Fase actual: F6 código completo + spec-compliant en `rewrite/v3`, **NO tageado** — bloqueado por HW (TXS0108EPW)
+## Fase actual: F8 — JTAG core + blueTag pinout scanner (saltando F7 por ahora)
 
-**Estado al cierre de la sesión 2026-04-27 (F6-7):**
-- F6-1..F6-6 commiteados + `docs(F6-6)` + serie F6-7 (4 commits — ver abajo).
-- 22/22 host tests verde. fw-release builds clean.
-- **Bug raíz HW encontrado**: el TXS0108EPW del scanner header rompe SWD push-pull bidireccional (one-shot accelerator clamps HIGH cuando target intenta drivear LOW durante ACK). Validado vs canonical raspberrypi/debugprobe firmware sobre FaultyCat — también falla con `Failed to connect multidrop rp2040.dap0` contra Pi Pico target externo. Documentado en `docs/HARDWARE_V2.md §2`.
-- **Workaround SW aplicado**: `swd_phy` emula open-drain en SWDIO (PIO bitloop usa `out pindirs` en vez de `out pins`, pin output preset 0, `swd_phy_write_bits` invierte data). Físicamente: usuario CONFIRMÓ que con OD el target ya drivea SWDIO LOW durante ACK — pero el host sigue leyendo `0b111`. Sospecha: TXS0108E sigue interfiriendo aún en OD, OR bug remanente en read PIO. **Sin diagnosticar más**.
-- **NO retomar F7 hasta resolver SWD físico**. Opciones para retake:
-  1. **HW bypass**: solder fly wires desde MCU pins (lado A del TXS0108E) directo a header scanner pin, esquivando el chip. La opción limpia.
-  2. **HW rev**: reemplazar TXS0108E por 74LVC1T45 con DIR explícito, OR omitir level shifter (ambos lados ya 3.3 V).
-  3. Aceptar limitación HW y validar F6 vía OpenOCD en F7 con un debugprobe externo a un Pico target externo (no toca FaultyCat).
+**Decisión 2026-04-27:** F6 código está completo y spec-compliant; F7 (CMSIS-DAP) depende de F6 funcionando físicamente, lo cual está **bloqueado por HW** (TXS0108EPW del scanner header). En vez de quedar parados, saltamos a F8 — JTAG es mayormente push-pull unidireccional desde host (TCK/TMS/TDI son host-driven; solo TDO es target-driven y unidirectional), así que el TXS0108E lo maneja bien y F8 es físicamente validable sin tocar el HW.
 
-### Serie F6-7 (commits añadidos en esta sesión)
-1. `fix(F6-7)` HAL `hal_pio_sm_configure` sideset bit_count incluye opt enable bit. Hardcoded 1 (con opt=true) dejaba 0 bits para sideset value → SWCLK nunca toggleaba. Verificado no-impactante para EMFI/crowbar (ambos pasan sideset_pin_count=0).
-2. `fix(F6-7)` PIO program instr 1+2 corregidas + open-drain emulation. Cross-verificado contra pioasm sobre upstream `probe.pio`. Tests `test_swd_phy.c` adaptados (exec count 2 = SET PINS,0 + JMP; raw FIFO data invertido).
-3. `fix(F6-7)` SWD DP layer — turnaround clock entre header y ACK + dormant-to-SWD wakeup + TARGETSEL multi-drop. API rota: `swd_dp_connect(targetsel, *dpidr)`. Constantes: `SWD_DP_TARGETSEL_RP2040_CORE0/CORE1/RESCUE`.
-4. `docs(F6-7)` HARDWARE_V2.md §2 documenta TXS0108E issue.
+### F6 status — code complete, gate físico bloqueado
+- 4 fix commits F6-7 + docs(F6-7) on `rewrite/v3` (ver `git log`). 22/22 host tests verde. fw-release builds clean.
+- **NO tageado** — `v3.0-f6` se reserva para cuando un bypass HW (fly wires en el TXS0108E o board rev) deje pasar la validación física.
+- Workaround SW (open-drain SWDIO emulation) en `swd_phy.c` activo. Funcionará contra cualquier target RP2040 conectado por path no-bloqueado.
+- Documentado en `docs/HARDWARE_V2.md §2` con evidencia (canonical raspberrypi/debugprobe también falla por el mismo path).
 
-### Protocolo de retake (próxima sesión)
-- Decidir entre HW bypass (#1), HW rev (#2), o avanzar a F7 con caveat (#3).
-- Si HW bypass: re-flashear F6 actual (HEAD), conectar bypass, `tools/swd_diag.py connect` debería retornar OK + DPIDR `0x0BC12477`.
-- Si OK físico: rebase para foldear los 4 F6-7 commits dentro de F6-1/F6-2 padres, después `git tag v3.0-f6` sobre `docs(F6-7)`.
-- Si NO OK físico: scope SWDIO en lado MCU del TXS0108E (lado A), comparar con scanner header (lado B). Distinguir si bypass es definitivo o queda un PIO read bug residual.
+### F7 — diferido
+- Espera HW bypass (#1) o board rev (#2) que desbloquee F6 físico. Implementar F7 sin esa validación es construir CMSIS-DAP sobre una capa SWD no-validable end-to-end.
+- Alternativa si urge: F7 con setup loopback (debugprobe externo + Pico target externo, no toca FaultyCat scanner header). Decisión cuando llegue el momento.
+
+### F8 — siguiente fase activa
+
+**Entregables (ver `FAULTYCAT_REFACTOR_PLAN.md §F8`):**
+- `services/jtag_core/` — JTAG state machine + bitbang via PIO (blueTag-derived).
+- `services/pinout_scanner/` — JTAGulator algorithm sobre `drivers/scanner_io` (8 canales en HW v2.x).
+- `services/buspirate_compat/` — BusPirate binary protocol (OpenOCD JTAG vía FaultyCat).
+- `services/flashrom_serprog/` — flashrom serprog protocol.
+- Shell interactivo sobre CDC scanner (menú texto estilo blueTag).
+- Boot mode por GPIO dedicado.
+
+**Criterios de éxito:**
+- `openocd -f interface/buspirate.cfg -c "buspirate_port /dev/ttyACM2" -f target/stm32fX.cfg` flashea target JTAG.
+- `flashrom -p serprog:dev=/dev/ttyACM2 -r dump.bin` dumpea flash SPI.
+- Scanner detecta pinout JTAG de un target conocido.
+
+**Notas técnicas a tener en cuenta:**
+- TCK/TMS/TDI son push-pull host→target → TXS0108E las maneja sin problemas.
+- TDO es target→host unidirectional → TXS0108E auto-direction lo resuelve.
+- Por eso F8 es físicamente validable aunque F6 (SWDIO bidireccional) esté bloqueado.
+- `third_party/blueTag @ v2.1.2` ya pineado desde F0 (MIT).
+- Reusar lo aprendido de F6: HAL pio sideset bit_count fix (commit `5f5d559`) aplica también a JTAG si se usa sideset.
+
+**Protocolo de retake F6 (cuando llegue HW fix):**
+1. HW bypass o board rev disponible → reflash F6 HEAD (actual rewrite/v3 sin F8 si F8 ya está aplicado, hacer cherry-pick o branch).
+2. `tools/swd_diag.py connect` debería retornar `OK connect dpidr=0x0BC12477` contra un Pi Pico target.
+3. Si OK → rebase para foldear los 4 F6-7 commits dentro de F6-1/F6-2 padres → `git tag v3.0-f6`.
+4. Después F7.
 
 ## Tags cerrados en `rewrite/v3`
 
