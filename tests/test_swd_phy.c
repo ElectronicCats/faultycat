@@ -99,9 +99,10 @@ static void test_init_binds_pins_correctly(void) {
 static void test_init_bootstraps_with_jmp_to_dispatcher(void) {
     swd_phy_init(SWCLK, SWDIO, NRST);
     hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[1].sm[0];
-    TEST_ASSERT_EQUAL_UINT32(1u, sm->exec_calls);
-    // JMP opcode (no sideset, no delay) = 0x0000 | (addr & 0x1F).
-    // Program loads at offset 0 in the fake; SWD_OFF_GET_NEXT_CMD = 3.
+    // Init now runs two execs: SET PINS,0 (preset SWDIO output to
+    // 0 for the open-drain emulation) followed by JMP to dispatcher.
+    TEST_ASSERT_EQUAL_UINT32(2u, sm->exec_calls);
+    // Last exec is the JMP to GET_NEXT_CMD (offset 3, no sideset/delay).
     TEST_ASSERT_EQUAL_HEX16(0x0003, sm->last_exec_instr);
     // SM is enabled after bootstrap so the dispatcher actually runs.
     TEST_ASSERT_TRUE(sm->enabled);
@@ -195,7 +196,10 @@ static void test_write_bits_emits_cmd_then_data(void) {
     TEST_ASSERT_EQUAL_UINT32(8u, cmd_count(sm->tx_fifo[0]));
     TEST_ASSERT_TRUE(cmd_dir(sm->tx_fifo[0]));
     TEST_ASSERT_EQUAL_UINT32(0u, cmd_pc(sm->tx_fifo[0]));   // write_cmd at 0
-    TEST_ASSERT_EQUAL_UINT32(0x55u, sm->tx_fifo[1]);
+    // Open-drain emulation: data is XOR-inverted before push so the
+    // PIO bitloop's `out pindirs, 1` produces the wire pattern the
+    // caller intended (push-pull semantics).
+    TEST_ASSERT_EQUAL_HEX32(0xFFFFFFAAu, sm->tx_fifo[1]);   // ~0x55
 }
 
 static void test_write_bits_rejects_zero_and_overflow(void) {

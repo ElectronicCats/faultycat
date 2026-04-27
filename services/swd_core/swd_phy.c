@@ -63,26 +63,51 @@
 #include "hal/pio.h"
 
 // ---------------------------------------------------------------------------
-// PIO program — hand-encoded from third_party/debugprobe/src/probe.pio
-// (PROBE_IO_RAW variant, .side_set 1 opt). 11 instructions; opcode
-// references RP2040 datasheet §3.4.
+// PIO program — derived from third_party/debugprobe/src/probe.pio
+// (PROBE_IO_RAW, .side_set 1 opt) but with SWDIO modified to use
+// **open-drain emulation** for compatibility with auto-direction
+// level shifters like the TXS0108EPW on FaultyCat v2.x scanner
+// header. Push-pull bidirectional drive contends with the level
+// shifter's one-shot accelerators when target tries to pull SWDIO
+// LOW during ACK; emulating open-drain (release for HIGH, drive
+// for LOW) avoids the contention since the shifter only ever sees
+// one side actively driving low at a time.
+//
+// Differences from upstream probe.pio (PROBE_IO_RAW):
+//   - write_bitloop's OUT instruction targets PINDIRS instead of PINS.
+//   - Pin output is preset to 0 once at swd_phy_init via SET PINS,0.
+//   - Host inverts data bits before pushing to the FIFO so the wire
+//     pattern matches push-pull semantics callers expect:
+//       wire HIGH ⇒ pindir 0 ⇒ release, pull-up wins
+//       wire LOW  ⇒ pindir 1 ⇒ drive 0
 //
 //   addr  mnemonic                       opcode  notes
 //    0    pull                           0x80A0  write_cmd / turnaround_cmd
-//    1    out pins, 1   [1] side 0       0x6881  write_bitloop
-//    2    jmp x-- 1     [1] side 1       0x0CA1
-//    3    pull              side 0       0x90A0  get_next_cmd  (wrap_target)
+//    1    out pindirs, 1 side 0 [1]      0x7181  write_bitloop  ← OD: pindir = ~bit
+//    2    jmp x-- 1      side 1 [1]      0x1941
+//    3    pull           side 0          0x90A0  get_next_cmd  (wrap_target)
 //    4    out x, 8                       0x6028
-//    5    out pindirs, 1                 0x6081
+//    5    out pindirs, 1                 0x6081  dispatcher direction setup
 //    6    out pc, 5                      0x60A5
 //    7    nop                            0xA042  read_bitloop
-//    8    in pins, 1   [1] side 1        0x5901  read_cmd
-//    9    jmp x-- 7        side 0        0x1047
+//    8    in pins, 1     side 1 [1]      0x5901  read_cmd
+//    9    jmp x-- 7      side 0          0x1047
 //   10    push                           0x8020  (wrap)
+//
+// Earlier hand-encoding bugs corrected (verified against pioasm
+// output of the upstream probe.pio):
+//   - instr 2 sideset bit_count must be 2 with `.side_set 1 opt`
+//     (1 value bit + 1 enable bit). Was 0x0CA1, now 0x1941.
+//   - HAL pio_sm_configure was passing sideset_pin_count alone
+//     (without the +1 for `optional`); fixed in hal/src/rp2040/pio.c.
+//
+// SWCLK remains push-pull (host always drives, target never does)
+// so the level shifter handles SWCLK correctly without OD emulation.
 //
 // FIFO command word (host-supplied):
 //   bits 13..9 : cmd_addr (absolute PC = offset + label_offset)
-//   bit  8     : SWDIO output enable (1 = drive, 0 = hi-z)
+//   bit  8     : SWDIO direction at dispatcher (1 = output / will be
+//                overridden per-bit by write_bitloop, 0 = input/hi-z)
 //   bits 7..0  : bit_count - 1     (CMD_SKIP uses count=1 → encoded 0)
 // ---------------------------------------------------------------------------
 
@@ -90,8 +115,8 @@
 
 static const uint16_t s_prog[SWD_PIO_PROG_LEN] = {
     /* 0  */ 0x80A0u,  // pull (write_cmd / turnaround_cmd)
-    /* 1  */ 0x6881u,  // out pins, 1 [1] side 0
-    /* 2  */ 0x0CA1u,  // jmp x-- 1 [1] side 1
+    /* 1  */ 0x7181u,  // out pindirs, 1 side 0 [1]   ← OD emulation
+    /* 2  */ 0x1941u,  // jmp x-- 1 side 1 [1]
     /* 3  */ 0x90A0u,  // pull side 0       <-- wrap_target (get_next_cmd)
     /* 4  */ 0x6028u,  // out x, 8
     /* 5  */ 0x6081u,  // out pindirs, 1
@@ -218,6 +243,14 @@ bool swd_phy_init(uint8_t swclk_gp, uint8_t swdio_gp, int8_t nrst_gp) {
     hal_pio_sm_configure(s_pio, s_sm, s_off, &cfg);
     hal_pio_sm_clear_fifos(s_pio, s_sm);
 
+    // Open-drain emulation: preset SWDIO pin output to 0 once, then
+    // never touch it again. The bitloop's `out pindirs, 1` toggles
+    // pindir per bit so the line is either driven LOW (pindir=1 with
+    // pin=0) or hi-Z + pulled HIGH externally (pindir=0).
+    // SET PINS,0 encoding: 111_DDDDD_AAA_VVVVV with dest=000 (PINS),
+    // value=00000, no sideset/delay → 0xE000.
+    hal_pio_sm_exec(s_pio, s_sm, 0xE000u);
+
     // hal_pio_sm_configure exec'd JMP offset+0 (write_cmd, blocking
     // pull). Re-aim at get_next_cmd before enabling so the first
     // FIFO entry is treated as a command, not as data.
@@ -282,8 +315,13 @@ void swd_phy_write_bits(uint32_t bit_count, uint32_t data) {
     }
     return;   // SM stalled before we could send the command
 cmd_sent:
+    // Open-drain inversion: bitloop's `out pindirs, 1` interprets each
+    // shifted bit as the SWDIO direction (1=drive_LOW, 0=release/HIGH).
+    // Callers think push-pull (1=HIGH, 0=LOW), so XOR-invert here so
+    // the wire pattern matches what they intended.
+    uint32_t inv = data ^ 0xFFFFFFFFu;
     for (int i = 0; i < SWD_PHY_BOUND; i++) {
-        if (hal_pio_sm_try_put(s_pio, s_sm, data)) return;
+        if (hal_pio_sm_try_put(s_pio, s_sm, inv)) return;
     }
 }
 
