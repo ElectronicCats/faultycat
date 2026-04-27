@@ -55,6 +55,30 @@ future use.
   = CH0 (GP0), `BOARD_GP_SWDIO_DEFAULT` = CH1 (GP1),
   `BOARD_GP_SWRST_DEFAULT` = CH2 (GP2). The CDC2 shell command
   `swd init <swclk> <swdio> [<nrst>]` re-pins them at runtime.
+- **TXS0108EPW level shifter on the scanner header — known issue.**
+  All 8 scanner channels pass through a TI TXS0108EPW
+  auto-direction level shifter (OE permanently pulled high via 4.7 kΩ
+  to VREF). The TXS0108E is documented to misbehave with push-pull
+  bidirectional protocols where both endpoints actively drive the
+  same line at different times — the chip's one-shot accelerator on
+  the host-release side fights the target's drive during the SWD
+  ACK window, so the target's LOW gets clamped HIGH before the host
+  PIO samples it. Symptom: every SWD transaction returns
+  `ACK = 0b111 = NO_TARGET` even though SWCLK and SWDIO toggle
+  cleanly on the wire.
+  - Verified by flashing canonical raspberrypi/debugprobe firmware
+    onto FaultyCat (GP0=SWCLK, GP1=SWDIO) and running OpenOCD
+    against an external Pi Pico target — also fails with
+    "Failed to connect multidrop rp2040.dap0", confirming the bug
+    is HW-path, not in our F6 implementation.
+  - **F6 software workaround**: `services/swd_core/swd_phy.c`
+    emulates open-drain on SWDIO — the PIO bitloop writes pin
+    *direction* instead of pin *value* (release for HIGH, drive
+    for LOW). The chip handles open-drain bidirectional cleanly
+    because only one side ever sources current at a time.
+  - **Future board revs** should swap the TXS0108E for either
+    direct-bypass (both ends at 3.3 V already, level shifter is
+    redundant) or 74LVC1T45 with explicit DIR control.
 - **Mutual exclusion contract (F6 → F9).** `drivers/scanner_io`,
   `services/swd_core`, `services/jtag_core` (F8), and
   `services/pinout_scanner` (F8) all share GP0..GP7 — only one
