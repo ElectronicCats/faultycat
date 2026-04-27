@@ -66,7 +66,14 @@ void hal_pio_sm_configure(hal_pio_inst_t *pio, uint32_t sm, uint32_t offset,
         sm_config_set_set_pins(&c, cfg->set_pin_base, cfg->set_pin_count);
     }
     if (cfg->sideset_pin_count) {
-        sm_config_set_sideset(&c, cfg->sideset_pin_count,
+        // pico-sdk's `bit_count` is the total number of bits stolen
+        // from the delay field, INCLUDING the optional enable bit.
+        // pioasm's `.side_set N opt` directive emits get_default_config
+        // with bit_count = N + 1. The HAL field name says "pin count"
+        // (just the value bits), so add the enable bit here.
+        uint sideset_bits = cfg->sideset_pin_count
+                          + (cfg->sideset_optional ? 1u : 0u);
+        sm_config_set_sideset(&c, sideset_bits,
                               cfg->sideset_optional, cfg->sideset_pindirs);
         sm_config_set_sideset_pins(&c, cfg->sideset_pin_base);
     }
