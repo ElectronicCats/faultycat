@@ -10,24 +10,29 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 > tocar nada. Las 16 decisiones congeladas del plan §1 **no se
 > relitigan**.
 
-## Fase actual: F6 código completo en `rewrite/v3`, **NO tageado** — verificación física pendiente con osciloscopio
+## Fase actual: F6 código completo + spec-compliant en `rewrite/v3`, **NO tageado** — bloqueado por HW (TXS0108EPW)
 
-**Estado al momento de pausar:**
-- F6-1..F6-6 commiteados + `docs(F6-6)` + 2 fix commits (`fix(F6-5)` echo loop CDC2, `fix(F6-2)` bound spin) + `chore(F6-5)` banner string F5→F6.
+**Estado al cierre de la sesión 2026-04-27 (F6-7):**
+- F6-1..F6-6 commiteados + `docs(F6-6)` + serie F6-7 (4 commits — ver abajo).
 - 22/22 host tests verde. fw-release builds clean.
-- Físicamente: shell SWD funciona, comandos parsean, recovery OK (FW ya no se cuelga). PERO `swd connect` retorna `NO_TARGET` con un Pico target cableado a CH0/CH1 + GND común — sin osci no se distingue si es bug del PIO program (sospecha principal) o cableado.
-- **NO retomar F7 hasta verificar/fixear F6 + tagear `v3.0-f6`**.
+- **Bug raíz HW encontrado**: el TXS0108EPW del scanner header rompe SWD push-pull bidireccional (one-shot accelerator clamps HIGH cuando target intenta drivear LOW durante ACK). Validado vs canonical raspberrypi/debugprobe firmware sobre FaultyCat — también falla con `Failed to connect multidrop rp2040.dap0` contra Pi Pico target externo. Documentado en `docs/HARDWARE_V2.md §2`.
+- **Workaround SW aplicado**: `swd_phy` emula open-drain en SWDIO (PIO bitloop usa `out pindirs` en vez de `out pins`, pin output preset 0, `swd_phy_write_bits` invierte data). Físicamente: usuario CONFIRMÓ que con OD el target ya drivea SWDIO LOW durante ACK — pero el host sigue leyendo `0b111`. Sospecha: TXS0108E sigue interfiriendo aún en OD, OR bug remanente en read PIO. **Sin diagnosticar más**.
+- **NO retomar F7 hasta resolver SWD físico**. Opciones para retake:
+  1. **HW bypass**: solder fly wires desde MCU pins (lado A del TXS0108E) directo a header scanner pin, esquivando el chip. La opción limpia.
+  2. **HW rev**: reemplazar TXS0108E por 74LVC1T45 con DIR explícito, OR omitir level shifter (ambos lados ya 3.3 V).
+  3. Aceptar limitación HW y validar F6 vía OpenOCD en F7 con un debugprobe externo a un Pico target externo (no toca FaultyCat).
 
-**Próxima sesión — protocolo de retake:**
-1. BOOTSEL físico + reflash F6 (HEAD del branch).
-2. Conectar osci: CH1 → GP0 (SWCLK), CH2 → GP1 (SWDIO), GND clip a GND scanner.
-3. `tools/swd_diag.py freq 100` (bajar SWCLK a 100 kHz para ver bits con timebase 100 µs/div).
-4. `tools/swd_diag.py connect` mientras osci en single-shot trigger rising-edge CH1.
-5. Si SWCLK NO toggleea → bug en sideset / config. Revisar `swd_phy.c::swd_phy_init()` cfg.sideset_*.
-6. Si SWCLK toggleea pero SWDIO no envía bits → bug en out pins / shift dir. Revisar `cfg.out_pin_base`, `out_shift_right`.
-7. Si todos los bits salen correctos → problema físico (probar cableado con multímetro, GND continuity).
+### Serie F6-7 (commits añadidos en esta sesión)
+1. `fix(F6-7)` HAL `hal_pio_sm_configure` sideset bit_count incluye opt enable bit. Hardcoded 1 (con opt=true) dejaba 0 bits para sideset value → SWCLK nunca toggleaba. Verificado no-impactante para EMFI/crowbar (ambos pasan sideset_pin_count=0).
+2. `fix(F6-7)` PIO program instr 1+2 corregidas + open-drain emulation. Cross-verificado contra pioasm sobre upstream `probe.pio`. Tests `test_swd_phy.c` adaptados (exec count 2 = SET PINS,0 + JMP; raw FIFO data invertido).
+3. `fix(F6-7)` SWD DP layer — turnaround clock entre header y ACK + dormant-to-SWD wakeup + TARGETSEL multi-drop. API rota: `swd_dp_connect(targetsel, *dpidr)`. Constantes: `SWD_DP_TARGETSEL_RP2040_CORE0/CORE1/RESCUE`.
+4. `docs(F6-7)` HARDWARE_V2.md §2 documenta TXS0108E issue.
 
-**Si bug en PIO encontrado:** fixear, retest, commit `fix(F6-2): <description>`, después rebase para foldear todos los fix commits dentro de sus features padres, después `git tag v3.0-f6` sobre el commit `docs(F6-6)`.
+### Protocolo de retake (próxima sesión)
+- Decidir entre HW bypass (#1), HW rev (#2), o avanzar a F7 con caveat (#3).
+- Si HW bypass: re-flashear F6 actual (HEAD), conectar bypass, `tools/swd_diag.py connect` debería retornar OK + DPIDR `0x0BC12477`.
+- Si OK físico: rebase para foldear los 4 F6-7 commits dentro de F6-1/F6-2 padres, después `git tag v3.0-f6` sobre `docs(F6-7)`.
+- Si NO OK físico: scope SWDIO en lado MCU del TXS0108E (lado A), comparar con scanner header (lado B). Distinguir si bypass es definitivo o queda un PIO read bug residual.
 
 ## Tags cerrados en `rewrite/v3`
 
