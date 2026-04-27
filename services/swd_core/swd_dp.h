@@ -41,11 +41,28 @@ typedef enum {
 #define SWD_ABORT_WDERRCLR    (1u << 3)
 #define SWD_ABORT_ORUNERRCLR  (1u << 4)
 
+// SWDv2 multi-drop TARGETID values. RP2040 has two M0+ cores
+// addressable as separate DPs sharing one SWD bus. ADIv5.2 §B5.4
+// makes TARGETSEL mandatory before DPIDR even when only one DP is
+// physically present — RP2040's DPs ignore DPIDR until they see
+// their own TARGETID land in the multi-drop write.
+#define SWD_DP_TARGETSEL_RP2040_CORE0  0x01002927u
+#define SWD_DP_TARGETSEL_RP2040_CORE1  0x11002927u
+#define SWD_DP_TARGETSEL_RP2040_RESCUE 0xF1002927u
+
 // Initialize DP-layer state. Must be called after swd_phy_init.
-// Performs line reset + JTAG-to-SWD switch sequence + DPIDR read,
-// returns ACK. On ACK_OK the DPIDR is written to *out_dpidr and the
-// link is considered established.
-swd_dp_ack_t swd_dp_connect(uint32_t *out_dpidr);
+// Performs:
+//   1. dormant-to-SWD wakeup (ADIv5.2 §B5.4 selection alert +
+//      activation code 0x1A) — required because RP2040 boots in
+//      dormant state. Backward-compatible with non-dormant targets.
+//   2. line reset (≥50 SWCLKs SWDIO HIGH).
+//   3. TARGETSEL write of `targetsel` (one of SWD_DP_TARGETSEL_*).
+//      ACK is unacked per multi-drop convention; we clock 3 cycles
+//      and discard the result.
+//   4. DPIDR read.
+// Returns ACK from the DPIDR read. On ACK_OK the DPIDR is written
+// to *out_dpidr and the link is considered established.
+swd_dp_ack_t swd_dp_connect(uint32_t targetsel, uint32_t *out_dpidr);
 
 // Read DPIDR explicitly (also updates DP_SELECT to bank 0).
 swd_dp_ack_t swd_dp_read_dpidr(uint32_t *out);

@@ -196,7 +196,9 @@ static void cmd_freq(int argc, char **argv) {
 static void cmd_connect(void) {
     if (!ensure_inited()) return;
     uint32_t dpidr = 0u;
-    swd_dp_ack_t ack = swd_dp_connect(&dpidr);
+    // Default to RP2040 core 0 — F8 will let the operator choose
+    // a different TARGETID via the shell once jtag_core lands.
+    swd_dp_ack_t ack = swd_dp_connect(SWD_DP_TARGETSEL_RP2040_CORE0, &dpidr);
     if (ack == SWD_ACK_OK) {
         swd_printf("SWD: OK connect dpidr=0x%08lX\n", (unsigned long)dpidr);
     } else {

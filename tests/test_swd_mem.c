@@ -58,13 +58,18 @@ static void push_read_response(swd_dp_ack_t a, uint32_t v) {
 // Walk the TX FIFO and collect every entry that immediately follows
 // a count=8 command — those are the SWD request bytes the host emit-
 // ted, in order. Returns the number collected.
+//
+// Note: swd_phy_write_bits XOR-inverts the data before pushing to the
+// FIFO so the bitloop's open-drain `out pindirs, 1` produces the
+// caller's intended push-pull wire pattern (TXS0108E workaround).
+// This helper inverts back so callers see "wire pattern" semantics.
 static uint32_t collect_request_bytes(uint8_t *out, uint32_t cap) {
     hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
     uint32_t n = 0;
     for (uint32_t i = 0; i + 1 < sm->tx_count && n < cap; i++) {
         uint32_t bit_count = (sm->tx_fifo[i] & 0xFFu) + 1u;
         if (bit_count == 8u) {
-            out[n++] = (uint8_t)sm->tx_fifo[i + 1];
+            out[n++] = (uint8_t)~(uint8_t)sm->tx_fifo[i + 1];
         }
     }
     return n;
@@ -142,13 +147,15 @@ static void test_read32_writes_tar_with_requested_address(void) {
     bool found_tar = false;
     for (uint32_t i = 0; i + 3 < sm->tx_count; i++) {
         if ((sm->tx_fifo[i] & 0xFFu) + 1u == 8u
-         && (uint8_t)sm->tx_fifo[i + 1] == REQ_AP_WRITE_TAR) {
-            // Walk forward to the count=32 with dir=1 entry.
+         && (uint8_t)~(uint8_t)sm->tx_fifo[i + 1] == REQ_AP_WRITE_TAR) {
+            // Walk forward to the count=32 with dir=1 entry. swd_phy
+            // XOR-inverts the data before pushing (open-drain
+            // emulation), so undo that here.
             for (uint32_t j = i + 2; j + 1 < sm->tx_count; j++) {
                 uint32_t bc = (sm->tx_fifo[j] & 0xFFu) + 1u;
                 bool dir   = (sm->tx_fifo[j] >> 8) & 1u;
                 if (bc == 32u && dir) {
-                    TEST_ASSERT_EQUAL_HEX32(0xE000ED00u, sm->tx_fifo[j + 1]);
+                    TEST_ASSERT_EQUAL_HEX32(0xE000ED00u, ~sm->tx_fifo[j + 1]);
                     found_tar = true;
                     break;
                 }

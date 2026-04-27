@@ -14,6 +14,15 @@
 #define PIO1 1u
 #define SM0  0u
 
+// swd_phy_write_bits XOR-inverts the data word before pushing to the
+// PIO FIFO so the bitloop's `out pindirs, 1` produces the push-pull
+// wire pattern callers expect (open-drain emulation needed because
+// the TXS0108E level shifter on FaultyCat v2.x scanner header
+// breaks bidirectional push-pull SWD). Tests that inspect raw FIFO
+// content must therefore compare against the inverted value.
+#define OD_INV8(x)  ((uint8_t)~(uint8_t)(x))
+#define OD_INV32(x) (~(uint32_t)(x))
+
 static const uint8_t SWCLK = BOARD_GP_SCANNER_CH0;
 static const uint8_t SWDIO = BOARD_GP_SCANNER_CH1;
 
@@ -103,7 +112,7 @@ static void test_dp_read_dpidr_emits_request_byte_0xA5(void) {
     bool found_request = false;
     for (uint32_t i = 0; i + 1 < sm->tx_count; i++) {
         if (cmd_count(sm->tx_fifo[i]) == 8u) {
-            TEST_ASSERT_EQUAL_HEX8(0xA5u, (uint8_t)sm->tx_fifo[i + 1]);
+            TEST_ASSERT_EQUAL_HEX8(OD_INV8(0xA5u), (uint8_t)sm->tx_fifo[i + 1]);
             found_request = true;
             break;
         }
@@ -122,7 +131,7 @@ static void test_dp_write_ctrlstat_emits_request_byte_0xA9(void) {
     bool found = false;
     for (uint32_t i = 0; i + 1 < sm->tx_count; i++) {
         if (cmd_count(sm->tx_fifo[i]) == 8u) {
-            TEST_ASSERT_EQUAL_HEX8(0xA9u, (uint8_t)sm->tx_fifo[i + 1]);
+            TEST_ASSERT_EQUAL_HEX8(OD_INV8(0xA9u), (uint8_t)sm->tx_fifo[i + 1]);
             found = true;
             break;
         }
@@ -194,19 +203,19 @@ static void test_dp_write_emits_data_and_parity_after_request(void) {
     uint8_t expected_parity = swd_dp_compute_parity(0xCAFEBABEu);
     for (uint32_t i = 0; i + 1 < sm->tx_count; i++) {
         if (cmd_count(sm->tx_fifo[i]) == 32u) {
-            TEST_ASSERT_EQUAL_HEX32(0xCAFEBABEu, sm->tx_fifo[i + 1]);
+            TEST_ASSERT_EQUAL_HEX32(OD_INV32(0xCAFEBABEu), sm->tx_fifo[i + 1]);
             found_data = true;
         }
         if (cmd_count(sm->tx_fifo[i]) == 1u
          && (sm->tx_fifo[i] >> 8) & 1u) {  // dir bit on → write mode SKIP or write_bits
-            // Distinguish: after the 32-bit write, the next 1-bit
-            // command with dir on is the parity bit. Just check the
-            // following data word matches the expected parity.
+            // After the 32-bit write, the next 1-bit command with
+            // dir on is the parity bit. swd_phy_write_bits XOR-
+            // inverts data before push (OD emulation), so the FIFO
+            // entry equals ~expected_parity.
             uint32_t pdata = sm->tx_fifo[i + 1];
-            if (pdata == (uint32_t)expected_parity
-             || pdata == 0u) {  // 0 only when expected_parity == 0
-                found_parity = (pdata == (uint32_t)expected_parity);
-                if (found_parity) break;
+            if (pdata == OD_INV32((uint32_t)expected_parity)) {
+                found_parity = true;
+                break;
             }
         }
     }
@@ -227,7 +236,7 @@ static void test_abort_targets_dp_address_zero(void) {
     bool found = false;
     for (uint32_t i = 0; i + 1 < sm->tx_count; i++) {
         if (cmd_count(sm->tx_fifo[i]) == 8u) {
-            TEST_ASSERT_EQUAL_HEX8(0x81u, (uint8_t)sm->tx_fifo[i + 1]);
+            TEST_ASSERT_EQUAL_HEX8(OD_INV8(0x81u), (uint8_t)sm->tx_fifo[i + 1]);
             found = true;
             break;
         }
@@ -248,7 +257,7 @@ static void test_ap_read_sets_apndp_bit_in_request(void) {
     bool found = false;
     for (uint32_t i = 0; i + 1 < sm->tx_count; i++) {
         if (cmd_count(sm->tx_fifo[i]) == 8u) {
-            TEST_ASSERT_EQUAL_HEX8(0x87u, (uint8_t)sm->tx_fifo[i + 1]);
+            TEST_ASSERT_EQUAL_HEX8(OD_INV8(0x87u), (uint8_t)sm->tx_fifo[i + 1]);
             found = true;
             break;
         }
@@ -261,21 +270,26 @@ static void test_ap_read_sets_apndp_bit_in_request(void) {
 // -----------------------------------------------------------------------------
 
 static void test_connect_returns_ok_with_dpidr(void) {
-    // Pre-populate the read sequence the final swd_dp_read_dpidr
-    // performs; the line-reset writes go to TX (some are dropped by
-    // the fake's 16-entry FIFO, harmless for this test).
+    // swd_dp_connect now performs the SWDv2 multi-drop sequence:
+    //   ... line resets / dormant-to-SWD ...
+    //   TARGETSEL write — clocks 3 ACK bits (host discards them
+    //                     per multi-drop convention).
+    //   DPIDR  read    — clocks 3 ACK bits + 32 data + 1 parity.
+    // Pre-populate the RX FIFO with 1 dummy ACK for TARGETSEL (the
+    // value is discarded), then the OK + DPIDR + parity for DPIDR.
+    push_ack(SWD_ACK_NO_TARGET);   // TARGETSEL ack (discarded)
     push_ack(SWD_ACK_OK);
     push_data32(0x0BC12477u);
     push_parity(swd_dp_compute_parity(0x0BC12477u));
     uint32_t dpidr = 0u;
-    TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_connect(&dpidr));
+    TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_connect(SWD_DP_TARGETSEL_RP2040_CORE0, &dpidr));
     TEST_ASSERT_EQUAL_HEX32(0x0BC12477u, dpidr);
 }
 
 static void test_connect_propagates_no_target(void) {
     hal_fake_pio_push_rx(PIO1, SM0, isr_for(0b111u, 3u));
     uint32_t dpidr = 0xDEADu;
-    TEST_ASSERT_EQUAL(SWD_ACK_NO_TARGET, swd_dp_connect(&dpidr));
+    TEST_ASSERT_EQUAL(SWD_ACK_NO_TARGET, swd_dp_connect(SWD_DP_TARGETSEL_RP2040_CORE0, &dpidr));
     TEST_ASSERT_EQUAL_HEX32(0xDEADu, dpidr);
 }
 
