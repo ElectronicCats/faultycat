@@ -826,6 +826,17 @@ static void pump_shell_cdc(void) {
                 usb_composite_cdc_write(USB_CDC_SCANNER, "\n", 1);
                 process_shell_line(shell_buf);
                 shell_pos = 0u;
+                // F8-6: if `process_shell_line` flipped us into a
+                // binary mode (buspirate enter / serprog enter), the
+                // SECOND byte of the host's CR+LF would otherwise
+                // land in the new parser as 0x0A — for BusPirate's
+                // BBIO_IDLE that's "default → emit BBIO1", spurious.
+                // Drop the rest of this pump batch so the next
+                // iteration starts clean with the binary parser
+                // owning every host byte.
+                if (s_shell_mode != SHELL_MODE_TEXT) {
+                    break;
+                }
             } else if (b == '\n') {
                 // Bare newline — quietly ignore so paired \r\n from a
                 // terminal doesn't emit an empty-line error.

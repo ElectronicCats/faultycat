@@ -98,7 +98,24 @@ bool pinout_perm_next(pinout_perm_iter_t *it) {
 
 // -----------------------------------------------------------------------------
 // JTAG scan
+//
+// False-positive guard (F8-6): brute-force scanning over the v2.x
+// scanner header is noisy when a non-JTAG device is wired (e.g. an
+// RP2040 used as an SWD target presents parasitic edges that the
+// TXS0108E auto-direction logic forwards back to the host). Some of
+// those random patterns happen to satisfy `jtag_idcode_is_valid`
+// (bit0=1, mfg_id ∈ [1..126], bank ≤ 8 covers ~half of the 32-bit
+// space). Without a stability check the scanner would commit to the
+// noise and report a fake match.
+//
+// Mitigation: when a candidate IDCODE passes the validator, re-read
+// the chain twice more under the same pinout. Real silicon is
+// deterministic — three identical IDCODE reads in a row is virtually
+// certain. Pseudo-random bus noise rarely repeats. Only on full
+// consistency do we accept the match.
 // -----------------------------------------------------------------------------
+
+#define PINOUT_SCAN_CONFIRM_READS 2u   // initial + this many extras must all match
 
 bool pinout_scan_jtag(pinout_scan_jtag_result_t *out,
                       pinout_scanner_progress_cb cb) {
@@ -127,14 +144,28 @@ bool pinout_scan_jtag(pinout_scan_jtag_result_t *out,
         uint32_t ids[JTAG_MAX_DEVICES];
         size_t   n = jtag_read_idcodes(ids, JTAG_MAX_DEVICES);
         if (n >= 1u && jtag_idcode_is_valid(ids[0])) {
-            out->tdi          = pins.tdi;
-            out->tdo          = pins.tdo;
-            out->tms          = pins.tms;
-            out->tck          = pins.tck;
-            out->idcode       = ids[0];
-            out->chain_length = n;
-            jtag_deinit();
-            return true;
+            // Stability check — N more reads must all return the
+            // same IDCODE chain.
+            uint32_t baseline = ids[0];
+            bool stable = true;
+            for (uint8_t r = 0; r < PINOUT_SCAN_CONFIRM_READS; r++) {
+                uint32_t reread[JTAG_MAX_DEVICES];
+                size_t nr = jtag_read_idcodes(reread, JTAG_MAX_DEVICES);
+                if (nr != n || reread[0] != baseline) {
+                    stable = false;
+                    break;
+                }
+            }
+            if (stable) {
+                out->tdi          = pins.tdi;
+                out->tdo          = pins.tdo;
+                out->tms          = pins.tms;
+                out->tck          = pins.tck;
+                out->idcode       = baseline;
+                out->chain_length = n;
+                jtag_deinit();
+                return true;
+            }
         }
         jtag_deinit();
     }
@@ -167,12 +198,28 @@ bool pinout_scan_swd(uint32_t targetsel,
         uint32_t dpidr = 0u;
         swd_dp_ack_t ack = swd_dp_connect(targetsel, &dpidr);
         if (ack == SWD_ACK_OK && dpidr != 0u) {
-            out->swclk     = swclk;
-            out->swdio     = swdio;
-            out->dpidr     = dpidr;
-            out->targetsel = targetsel;
-            swd_phy_deinit();
-            return true;
+            // F8-6 stability check (same rationale as the JTAG scan):
+            // confirm by re-reading DPIDR. Bus noise that briefly
+            // produces an OK ACK on the first connect rarely
+            // produces matching DPIDR values across N reads.
+            uint32_t baseline = dpidr;
+            bool stable = true;
+            for (uint8_t r = 0; r < PINOUT_SCAN_CONFIRM_READS; r++) {
+                uint32_t re_dpidr = 0u;
+                swd_dp_ack_t re_ack = swd_dp_read_dpidr(&re_dpidr);
+                if (re_ack != SWD_ACK_OK || re_dpidr != baseline) {
+                    stable = false;
+                    break;
+                }
+            }
+            if (stable) {
+                out->swclk     = swclk;
+                out->swdio     = swdio;
+                out->dpidr     = baseline;
+                out->targetsel = targetsel;
+                swd_phy_deinit();
+                return true;
+            }
         }
         swd_phy_deinit();
     }
