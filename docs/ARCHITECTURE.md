@@ -13,13 +13,19 @@ See [`FAULTYCAT_REFACTOR_PLAN.md`](../FAULTYCAT_REFACTOR_PLAN.md) for
 the full phased roadmap (F0 → F11) and the 16 frozen design decisions.
 This document describes the **layering and data flow**, not the plan.
 
-## Status snapshot (as of F8-1, no tag yet)
+## Status snapshot (as of v3.0-f8)
 
-Branch `rewrite/v3`, last tag `v3.0-f5` (2026-04-24). F6 is
+Branch `rewrite/v3`, last tag `v3.0-f8` (2026-04-28). F6 is
 code-complete + spec-compliant but **not tagged** — physical gate
 blocked by the TXS0108EPW level shifter on the scanner header (see
-`HARDWARE_V2.md §2`). F7 deferred until that gate clears. F8 is the
-active phase: F8-1 (this commit) lands `services/jtag_core/`.
+`HARDWARE_V2.md §2`). F7 deferred until that gate clears. F8 closed
+on 2026-04-28 with full physical smoke validation on a v2.2 board
+(JTAG path, BusPirate handshake, serprog handshake, F4/F5
+regression, F3 BOOTSEL all green); the false-positive guard on
+`pinout_scanner` and a mode-switch trailing-byte fix in the shell
+landed as F8-6 polish before tagging. See
+[`JTAG_INTERNALS.md`](JTAG_INTERNALS.md) for F8 wire-protocol
+internals.
 
 | Phase | Tag | Status |
 |-------|-----|--------|
@@ -32,7 +38,7 @@ active phase: F8-1 (this commit) lands `services/jtag_core/`.
 | F5 — glitch engine crowbar (service, PIO-driven triggered fire on pio0/SM1, IRQ 1) | `v3.0-f5` | ✓ closed |
 | F6 — SWD core (debugprobe MIT port to swd_phy + scratch swd_dp / swd_mem; CDC2 shell) | — | code-complete + spec-compliant; **physical gate blocked** by TXS0108EPW HW path (see `HARDWARE_V2.md §2`). Open-drain PIO emulation in place; canonical raspberrypi/debugprobe also fails through the same HW path, confirming the bug is HW. Not tagged. |
 | F7 — CMSIS-DAP v2 + v1 daplink_usb | — | deferred until F6 physical gate passes (HW bypass on the TXS0108E) |
-| F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | — | **active — code complete, F8-6 docs / tag pending** — F8-1: `services/jtag_core/` (CPU bit-bang TAP + IDCODE chain detect). F8-2: `services/pinout_scanner/` (P(8,4) / P(8,2) permutation scan + first-match) + `tools/scanner_diag.py`. F8-3: unified CDC2 shell dispatcher with mode-switch placeholders. F8-4: `services/buspirate_compat/` (streaming BusPirate v1 BBIO + OOCD JTAG sub-mode) + `buspirate enter` shell command. F8-5: `services/flashrom_serprog/` (streaming Serial Flasher Protocol v1 — NOP / Q_IFACE / Q_CMDMAP / Q_PGMNAME / Q_SERBUF / Q_BUSTYPE / SYNCNOP / S_BUSTYPE / O_SPIOP / S_SPI_FREQ / S_PIN_STATE) + `serprog enter` shell command + 4-pin SPI bit-bang on the scanner header (CS / MOSI / MISO / SCK, defaults CH0..CH3). Disconnect detection in main loop fires `bp_on_exit_cb` / `sp_on_exit_cb` if the host drops DTR mid-session, releasing the scanner pins so the next session can claim them clean. Diag snapshot is still gagged while in binary modes. |
+| F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | `v3.0-f8` | ✓ closed — F8-1 `services/jtag_core/` (CPU bit-bang TAP + IDCODE chain). F8-2 `services/pinout_scanner/` (P(8,4) / P(8,2) brute-force scan + first-match). F8-3 unified CDC2 shell dispatcher. F8-4 `services/buspirate_compat/` (streaming BPv1 BBIO + OOCD JTAG sub-mode). F8-5 `services/flashrom_serprog/` (streaming serprog v1 + 4-pin CPU SPI bit-bang). F8-6 polish: 3-read consistency check on `pinout_scan_jtag`/`_swd` rejects bus-noise false positives empirically observed when a non-JTAG device is wired to the scanner header; `pump_shell_cdc` breaks out on mode-switch so the trailing `\n` of `\r\n` doesn't bleed into the new binary parser; new `docs/JTAG_INTERNALS.md`. Disconnect detection in main loop fires `bp_on_exit_cb` / `sp_on_exit_cb` if the host drops DTR mid-session. Diag snapshot gagged while in binary modes. Physical smoke 2026-04-28 on v2.2 board: 13/13 checks green (golden + regression). |
 | F9 — Campaign manager + SWD mutex | — | pending |
 | F10 — faultycmd-rs Rust workspace | — | pending |
 | F11 — Hardening, docs, release | — | pending |
@@ -80,6 +86,24 @@ Current tree health:
   vs `swd_phy` enforced shell-side: `swd init` while JTAG is held
   returns `SWD: ERR jtag_in_use`, and vice versa. F9 promotes the
   soft-lock to a `mutex_t`.
+- **F8-6 polish** (2026-04-28) — closed F8 with two empirical fixes
+  and the JTAG_INTERNALS.md reference doc:
+  - `services/pinout_scanner/` gains a 3-read consistency check on
+    every candidate match (`PINOUT_SCAN_CONFIRM_READS`). Fixed an
+    observed false positive when an RP2040 was wired to the scanner
+    header — bus noise forwarded through the TXS0108E produced
+    `0x6B5AD5AD` which passed `jtag_idcode_is_valid` even though
+    RP2040 has no JTAG TAP. Real silicon yields the same IDCODE on
+    every read; pseudo-random noise rarely repeats.
+  - `apps/faultycat_fw/main.c::pump_shell_cdc` breaks out of the
+    per-batch loop the moment `process_shell_line` flips
+    `s_shell_mode` away from TEXT. Without this, the trailing `\n`
+    of the operator's `\r\n` would land in the new BusPirate /
+    serprog parser as 0x0A and emit a spurious "BBIO1" reply.
+  - `docs/JTAG_INTERNALS.md` documents F8's full wire stack — TAP
+    state machine, BusPirate / serprog protocol surface, scanner
+    false-positive analysis, mutual-exclusion contract, physical
+    smoke results.
 - **`services/flashrom_serprog/`** (F8-5) complete:
   `flashrom_serprog.{c,h}` — streaming Serial Flasher Protocol v1
   (the spec flashrom's `serprog` backend speaks). Same structural

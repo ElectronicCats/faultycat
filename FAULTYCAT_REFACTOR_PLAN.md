@@ -421,7 +421,7 @@ Cada driver expone comando `diag <driver>` por UART serial (temporal, antes de U
 
 ---
 
-### F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag port)
+### F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag port) ✓ closed `v3.0-f8` (2026-04-28)
 
 **Entregables:**
 - `services/jtag_core/` — JTAG state machine + bitbang via PIO (blueTag-derived).
@@ -437,6 +437,17 @@ Cada driver expone comando `diag <driver>` por UART serial (temporal, antes de U
 - `openocd -f interface/buspirate.cfg -c "buspirate_port /dev/ttyACM2" -f target/stm32fX.cfg` flashea target JTAG.
 - `flashrom -p serprog:dev=/dev/ttyACM2 -r dump.bin` dumpea flash SPI.
 - Scanner detecta pinout JTAG de un target conocido.
+
+**Cierre F8 (2026-04-28):**
+
+- Sub-fases F8-1..F8-5 cerradas con tags incrementales en `rewrite/v3`. F8-6 polish lands antes del tag `v3.0-f8`:
+  - 3-read consistency check en `pinout_scan_jtag` / `_swd` para rechazar matches falsos por ruido del bus (observado empíricamente con un RP2040 cableado al scanner header — `0x6B5AD5AD` pasaba `jtag_idcode_is_valid` aunque RP2040 no tiene JTAG).
+  - Mode-switch trailing-byte fix en `pump_shell_cdc`: el `\n` de `\r\n` ya no se cuela en el parser binario después de `buspirate enter` / `serprog enter`.
+  - `docs/JTAG_INTERNALS.md` documenta TAP / scanner / BusPirate / serprog wire stack + mutual-exclusion contract + smoke results.
+- Smoke físico 2026-04-28 (v2.2 + RP2040 USB-only): 13/13 checks verde — JTAG init/chain/idcode (no target → ERR no_target), soft-lock SWD↔JTAG, scan jtag/swd NO_MATCH, BusPirate handshake exacto (5×BBIO1 + OCD1), serprog handshake (NOP/Q_*/SPIOP read floating), disconnect detection, F4/F5 regression, F3 BOOTSEL.
+- **No verificado físicamente** (necesita target externo): JTAG IDCODE contra STM32/ESP32, OpenOCD sobre BusPirate end-to-end, flashrom contra 25-series real. `scan swd` inherits F6 TXS0108E HW gate.
+- Tests host-side: 26 binarios / 347 cases / 100% verde.
+- Próxima fase activa: F9 (campaign manager + mutex SWD formal) — F7 sigue diferido hasta que un board rev / fly-wire bypass desbloquee F6 físicamente.
 
 ---
 

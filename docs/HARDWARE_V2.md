@@ -163,3 +163,40 @@ not initialise GP25 for any purpose.
 
 None for HW v2.x pinout as of 2026-04-23. This document is **closed for
 F0**; future amendments ride along with the driver work in F2.
+
+## 7. F8 scanner-header observations (2026-04-28)
+
+Closing F8 (tag `v3.0-f8`) added one observation worth recording for
+future work on the scanner header:
+
+- **Scanner-header noise from a parasitic non-target device.**
+  During F8-2 physical smoke an RP2040 was wired into the scanner
+  channels (powered separately, running its own firmware — *not* an
+  intended JTAG target). `scan jtag` reported a fake match
+  (`idcode = 0x6B5AD5AD` on perm `tdi=GP2 tdo=GP1 tms=GP3 tck=GP4`)
+  even though RP2040 has no JTAG TAP. The bit pattern passed
+  `jtag_idcode_is_valid` (bit 0 = 1, mfg id = 86, bank = 5 — all
+  individually plausible). The TXS0108E auto-direction logic
+  evidently amplified parasitic edges from the parasitic device into
+  enough of a signal that one of the 1680 brute-force permutations
+  hit a "valid-looking" pattern.
+
+  Mitigation lives in `services/pinout_scanner` as a 3-read
+  consistency check (F8-6 — see [`JTAG_INTERNALS.md §3`](JTAG_INTERNALS.md)).
+  No HW change required.
+
+- **JTAG-through-TXS0108E confirmed clean for unidirectional
+  push-pull.** F8-1's `jtag init/chain/idcode/deinit` cycle works
+  end-to-end with no HW workaround needed (unlike F6 SWD which
+  requires the open-drain emulation on SWDIO due to the TXS0108E
+  bidirectional bug). All four JTAG signals are unidirectional
+  push-pull at any given moment — TCK / TMS / TDI host→target,
+  TDO target→host — so the level shifter's auto-direction sniff
+  resolves them cleanly.
+
+- **`scan swd` still inherits the F6 HW gate.** Even with the F8-6
+  stability check in place, `scan swd` against an SWD target wired
+  through the scanner header still fails at the wire layer for the
+  same reason F6 SWD physical validation is blocked. Unblocks
+  together with F6 once a board rev or scanner-header fly-wire
+  bypass replaces the TXS0108EPW (see §2 above).

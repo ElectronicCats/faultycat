@@ -10,47 +10,82 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 > tocar nada. Las 16 decisiones congeladas del plan §1 **no se
 > relitigan**.
 
-## Fase actual: F8 — JTAG core + blueTag pinout scanner (saltando F7 por ahora)
+## Fase actual: F9 — Campaign manager + mutex SWD formal
 
-**Decisión 2026-04-27:** F6 código está completo y spec-compliant; F7 (CMSIS-DAP) depende de F6 funcionando físicamente, lo cual está **bloqueado por HW** (TXS0108EPW del scanner header). En vez de quedar parados, saltamos a F8 — JTAG es mayormente push-pull unidireccional desde host (TCK/TMS/TDI son host-driven; solo TDO es target-driven y unidirectional), así que el TXS0108E lo maneja bien y F8 es físicamente validable sin tocar el HW.
+**Decisión 2026-04-28 (post-tag `v3.0-f8`):** F8 cerrado con smoke
+físico verde. F9 promueve el soft-lock shell-level que F8-1 introdujo
+(SWD ↔ JTAG) a un `pico-sdk mutex_t` formal que cubra
+`daplink_usb` (host externo via CMSIS-DAP) + `glitch_engine/*`
+verificación post-glitch + `pinout_scanner` durante scan. Política
+estática: `campaign > scanner > daplink_host`.
+
+### F9 — entregables (ver `FAULTYCAT_REFACTOR_PLAN.md §F9`)
+
+- Mutex de bus SWD entre `daplink_usb`, `glitch_engine/*` y
+  `pinout_scanner` (pico-sdk `mutex_t`).
+- Campaign manager: sweep `(delay, width, power)` con verificación
+  SWD post-glitch y streaming de resultados.
+- `services/host_proto/campaign_proto/` — streaming binario de
+  resultados.
+- State machine del mutex documentado en `docs/ARCHITECTURE.md`.
+
+### F9 — criterios
+
+- Campaña real detecta glitches exitosos (target conocido, ej.
+  nRF52 APPROTECT bypass de la docu de faultier).
+- Mutex bloquea daplink_usb durante una fire window; daplink retorna
+  `DAP_ERROR(busy)` → host externo reintenta.
+- Tests host: state machine del mutex con prioridad estática
+  (campaign preempt scanner preempt daplink_host).
 
 ### F6 status — code complete, gate físico bloqueado
-- 4 fix commits F6-7 + docs(F6-7) on `rewrite/v3` (ver `git log`). 22/22 host tests verde. fw-release builds clean.
-- **NO tageado** — `v3.0-f6` se reserva para cuando un bypass HW (fly wires en el TXS0108E o board rev) deje pasar la validación física.
-- Workaround SW (open-drain SWDIO emulation) en `swd_phy.c` activo. Funcionará contra cualquier target RP2040 conectado por path no-bloqueado.
-- Documentado en `docs/HARDWARE_V2.md §2` con evidencia (canonical raspberrypi/debugprobe también falla por el mismo path).
 
-### F7 — diferido
-- Espera HW bypass (#1) o board rev (#2) que desbloquee F6 físico. Implementar F7 sin esa validación es construir CMSIS-DAP sobre una capa SWD no-validable end-to-end.
-- Alternativa si urge: F7 con setup loopback (debugprobe externo + Pico target externo, no toca FaultyCat scanner header). Decisión cuando llegue el momento.
+Sin cambios desde F8. SWD path no validado físicamente — TXS0108EPW
+del scanner header rompe bidirectional push-pull (SWDIO host↔target
+durante el ACK window). Workaround SW (open-drain SWDIO emulation)
+en `swd_phy.c` activo. Documentado en `docs/HARDWARE_V2.md §2`.
 
-### F8 — siguiente fase activa
+**NO tageado.** `v3.0-f6` se reserva para cuando un bypass HW (fly
+wires en el TXS0108E o board rev) deje pasar la validación física.
 
-**Entregables (ver `FAULTYCAT_REFACTOR_PLAN.md §F8`):**
-- `services/jtag_core/` — JTAG state machine + bitbang via PIO (blueTag-derived).
-- `services/pinout_scanner/` — JTAGulator algorithm sobre `drivers/scanner_io` (8 canales en HW v2.x).
-- `services/buspirate_compat/` — BusPirate binary protocol (OpenOCD JTAG vía FaultyCat).
-- `services/flashrom_serprog/` — flashrom serprog protocol.
-- Shell interactivo sobre CDC scanner (menú texto estilo blueTag).
-- Boot mode por GPIO dedicado.
+### F7 status — diferido
 
-**Criterios de éxito:**
-- `openocd -f interface/buspirate.cfg -c "buspirate_port /dev/ttyACM2" -f target/stm32fX.cfg` flashea target JTAG.
-- `flashrom -p serprog:dev=/dev/ttyACM2 -r dump.bin` dumpea flash SPI.
-- Scanner detecta pinout JTAG de un target conocido.
+Espera HW bypass de F6. Implementar F7 (CMSIS-DAP daplink_usb) sin
+F6 físicamente válido es construir sobre una capa SWD no-validable
+end-to-end. F8-1's `jtag_clock_bit` ya está listo para que F7 lo
+use cuando llegue el momento.
 
-**Notas técnicas a tener en cuenta:**
-- TCK/TMS/TDI son push-pull host→target → TXS0108E las maneja sin problemas.
-- TDO es target→host unidirectional → TXS0108E auto-direction lo resuelve.
-- Por eso F8 es físicamente validable aunque F6 (SWDIO bidireccional) esté bloqueado.
-- `third_party/blueTag @ v2.1.2` ya pineado desde F0 (MIT).
-- Reusar lo aprendido de F6: HAL pio sideset bit_count fix (commit `5f5d559`) aplica también a JTAG si se usa sideset.
+### F8 status — ✓ closed `v3.0-f8` (2026-04-28)
 
-**Protocolo de retake F6 (cuando llegue HW fix):**
-1. HW bypass o board rev disponible → reflash F6 HEAD (actual rewrite/v3 sin F8 si F8 ya está aplicado, hacer cherry-pick o branch).
-2. `tools/swd_diag.py connect` debería retornar `OK connect dpidr=0x0BC12477` contra un Pi Pico target.
-3. Si OK → rebase para foldear los 4 F6-7 commits dentro de F6-1/F6-2 padres → `git tag v3.0-f6`.
-4. Después F7.
+5 sub-fases + 1 polish:
+- F8-1: `services/jtag_core/` — CPU bit-bang TAP + IDCODE chain
+  (blueTag MIT). 24 host tests.
+- F8-2: `services/pinout_scanner/` — P(8,4)=1680 / P(8,2)=56
+  permutation iterator + first-match scan. 13 host tests.
+- F8-3: shell unificado en CDC2 (`process_shell_line` dispatcher)
+  con prefijos `SWD: / JTAG: / SCAN: / SHELL: / BPIRATE: /
+  SERPROG:` y placeholder slots para F8-4/F8-5.
+- F8-4: `services/buspirate_compat/` — streaming BPv1 BBIO + OOCD
+  JTAG sub-mode (no buffer 4KB). `buspirate enter` shell command.
+  22 host tests.
+- F8-5: `services/flashrom_serprog/` — streaming serprog v1 +
+  4-pin CPU SPI bit-bang. `serprog enter` shell command.
+  Disconnect detection (DTR drop) → exit. 25 host tests.
+- F8-6 polish: 3-read consistency check en `pinout_scan_jtag/swd`
+  (rechaza falso positivo `0x6B5AD5AD` observado con RP2040
+  parásito en el scanner header), mode-switch trailing-byte fix
+  en `pump_shell_cdc` (corrige BBIO1 espurio post-`buspirate
+  enter`), `docs/JTAG_INTERNALS.md`.
+
+Smoke físico 2026-04-28: 13/13 checks verde — JTAG init/chain (sin
+target → ERR no_target), soft-lock SWD↔JTAG, scan jtag/swd
+NO_MATCH bus limpio, BusPirate handshake exacto (5×BBIO1 + OCD1),
+serprog NOP/Q_*/SPIOP, disconnect detection, F4/F5 ping
+regression, F3 BOOTSEL.
+
+**No verificado físicamente** (falta target externo): JTAG IDCODE
+contra STM32/ESP32, OpenOCD vía BusPirate end-to-end, flashrom
+contra 25-series real. `scan swd` inherits F6 TXS0108E HW gate.
 
 ## Tags cerrados en `rewrite/v3`
 
@@ -74,35 +109,30 @@ control. `docs/SAFETY.md` creado.
 
 ### `v3.0-f3` — USB composite (2026-04-23)
 VID:PID `1209:FA17`. 10 interfaces (4×CDC + Vendor CMSIS-DAP v2 +
-HID CMSIS-DAP v1). 16/16 endpoints (RP2040 hard limit). BOS + MS OS
-2.0 for Windows WinUSB auto-bind. Magic baud 1200 on any CDC
-triggers `reset_usb_boot` (remote BOOTSEL). `tools/bootsel.sh` +
-`tools/flash.sh` auto-kick into BOOTSEL. Diag stream migrated from
-stdio_usb to CDC2 scanner. `dap_stub.c` shared by v1 HID + v2 vendor,
-DAP_Info responds correctly (strings + caps + packet size). F7
-replaces dap_stub with the full debugprobe-derived DAP engine.
+HID CMSIS-DAP v1). 16/16 endpoints. BOS + MS OS 2.0 for Windows
+WinUSB auto-bind. Magic baud 1200 on any CDC triggers
+`reset_usb_boot`.
 
 ### `v3.0-f4` — EMFI glitch engine + host proto (2026-04-24)
-hal/pio + hal/dma lifted. services/glitch_engine/emfi/ complete:
-emfi_pio (PIO trigger compiler, reimplemented from scratch),
-emfi_capture (8 KB ADC DMA ring on GP29), emfi_campaign (state
-machine + 100 ms HV invariant activated). services/host_proto/
-emfi_proto on CDC0 with CRC16-CCITT framing. Button PULSE kept on
-CPU fire path (F2b) for operator use. tools/emfi_client.py reference
-host client. SAFETY.md §3 #5 activated in F4-5.
+hal/pio + hal/dma lifted. `services/glitch_engine/emfi/` complete.
+`host_proto/emfi_proto` on CDC0 (CRC16-CCITT). 100 ms HV invariant
+gate. `tools/emfi_client.py`.
 
 ### `v3.0-f5` — Crowbar glitch engine + host proto (2026-04-24)
-services/glitch_engine/crowbar/ complete: crowbar_pio (pio0/SM1,
-IRQ 1, gate variable LP/HP, width_ns rounded-up), crowbar_campaign
-(state machine + break-before-make at arm/fire/teardown). NO HV cap
-involved. services/host_proto/crowbar_proto on CDC1 — CRC16-CCITT,
-PING reply "F5\0\0", STATUS payload 15 bytes. F2b demo
-CROWBAR_CYCLE removed; main runs pump_crowbar_cdc +
-crowbar_campaign_tick. usb_composite echo loop bumped to i=2 (CDC0
-+ CDC1 owned). tools/crowbar_client.py reference host client. F5-2
-+ F5-3 SIGNED. Verified end-to-end on physical board: HP cycle
-(200 ns / 10 µs / FIRED), LP cycle (100 ns / FIRED), EMFI
-unaffected. 7 HV-SIGNED commits in history.
+`services/glitch_engine/crowbar/` complete (pio0/SM1, IRQ 1).
+`host_proto/crowbar_proto` on CDC1. F2b CROWBAR_CYCLE removed —
+operator owns gate via crowbar_proto. `tools/crowbar_client.py`.
+Verified end-to-end on physical board: HP/LP cycles fire correctly,
+EMFI unaffected. 7 HV-SIGNED commits.
+
+### `v3.0-f8` — JTAG / scanner / BusPirate / serprog (2026-04-28)
+`services/{jtag_core, pinout_scanner, buspirate_compat,
+flashrom_serprog}` all from blueTag@v2.1.2 MIT. Unified CDC2 shell
+with mode-switch into binary protocols. F6/F7 still gated; F8 path
+via JTAG (unidirectional push-pull) is not blocked by the TXS0108E.
+False-positive guard (3-read consistency) on the scanner. Smoke
+13/13 verde. 26 host-test binaries / 347 cases.
+`docs/JTAG_INTERNALS.md` documenta el wire stack completo.
 
 ## Estado del HAL
 
@@ -125,37 +155,40 @@ unaffected. 7 HV-SIGNED commits in history.
 ## Estado USB
 
 Composite activo en **1209:FA17**:
-- 4 CDC: emfi(0) → emfi_proto binary, crowbar(1) → crowbar_proto
-  binary, scanner(2) diag, target-uart(3) echo.
+- 4 CDC:
+  - CDC0 emfi → `emfi_proto` binary (F4)
+  - CDC1 crowbar → `crowbar_proto` binary (F5)
+  - CDC2 scanner → unified shell (F6 SWD + F8-1..F8-5
+    JTAG/scan/buspirate/serprog) — diag snapshot stream gagged
+    durante modos binarios
+  - CDC3 target-uart → echo (futuro target-UART passthru)
 - Vendor CMSIS-DAP v2 (IF 8) + HID CMSIS-DAP v1 (IF 9) — ambos
-  stub (DAP_Info responde, otras DAP commands → DAP_ERROR). F7
-  implementa el engine real.
+  todavía stub (DAP_Info responde). F7 implementa el engine real
+  cuando F6 desbloquee físicamente.
 - Windows auto-bind via MS OS 2.0 (WinUSB, GUID compartida con
   debugprobe).
 - Magic baud 1200 → BOOTSEL. `tools/flash.sh` lo usa.
-- usb_composite_task echo loop arranca en i=2 (CDC2/CDC3 todavía
-  echo). Próxima fase que tome CDC2 o CDC3 debe BUMPEAR el i= start.
+- `usb_composite_task` echo loop arranca en `i=3` (CDC0/1/2
+  owned, CDC3 todavía echo). Próxima fase que tome CDC3 debe
+  bumpear el `i=` start.
+
+## Estado de servicios
+
+- `services/glitch_engine/{emfi, crowbar}/` — F4 / F5.
+- `services/swd_core/` — F6 (code complete, no tag).
+- `services/host_proto/{emfi_proto, crowbar_proto}/` — F4 / F5.
+- `services/jtag_core/` — F8-1.
+- `services/pinout_scanner/` — F8-2 + F8-6 stability check.
+- `services/buspirate_compat/` — F8-4.
+- `services/flashrom_serprog/` — F8-5.
+- `services/daplink_usb/` — F7 (todavía stub).
+- `services/host_proto/campaign_proto/` — F9 entregable.
 
 ## Tests
 
-212 Unity cases en 19 binarios, verde. `host-tests` preset + CI.
-
-## En qué estamos ahora — F6 (SWD core, debugprobe port)
-
-Siguiente servicio: portar `third_party/debugprobe/` (MIT, pineado
-@v2.3.0) a la arquitectura v3 como `services/swd_core/`. Plan §6 F6.
-SWD phy via PIO sobre `pio1` (no compite con glitch engines en
-pio0). API interna: `swd_connect`, `swd_read32`, `swd_write32`,
-`swd_halt`, `swd_resume`, etc. Comando diag por CDC2 scanner:
-`swd probe` → DPIDR del target.
-
-Pautas validadas en F4/F5:
-- Service owns PIO program build-from-scratch (o portea desde
-  debugprobe upstream que SÍ tiene licencia MIT).
-- host_proto/* pattern con CRC16-CCITT framing aún disponible si
-  F6 quiere binary protocol; pero el plan dice que SWD se expone
-  vía CMSIS-DAP (F7) → no necesita CDC propio.
-- usb_composite echo loop NO cambia en F6 (no toma CDC nueva).
+26 Unity binarios / 347 cases / 100% verde. `host-tests` preset + CI.
+Plus `hal_fake_gpio` edge sampler + per-pin input scripts (F8-1
+infra, reusable para SPI/serial/JTAG-style clocked-bus tests).
 
 ## Qué NO tocar
 
@@ -164,7 +197,9 @@ Pautas validadas en F4/F5:
 - `third_party/*` — pineados.
 - `third_party/faultier/` — **jamás** portar código literal
   (`LICENSES/NOTICE-faultier.md`).
-- En F6: no empezar F7 antes del tag `v3.0-f6`.
+- En F9: no tocar el wire layer SWD (espera F6 HW gate); no
+  cambiar el shell prefix conventions (`SHELL: SWD: JTAG: SCAN:
+  BPIRATE: SERPROG:`) sin actualizar `tools/{swd,jtag,scanner}_diag.py`.
 
 ## Reglas de oro
 
@@ -182,19 +217,40 @@ Pautas validadas en F4/F5:
    fase es aceptable; el tag va sobre el docs commit para que el
    snapshot coincida con la etiqueta.
 
-## Reglas extra activas ahora mismo (F6)
+## Reglas extra activas ahora mismo (F9)
 
-- **PIO**: `pio0` ya está saturado de glitch engines (SM0 EMFI / SM1
-  crowbar; IRQ 0 EMFI / IRQ 1 crowbar). F6 ARRANCA el uso de `pio1`
-  con SWD. Quedan SMs disponibles en pio1 para target-uart y
-  scanner (F8). Documentar la asignación en
-  ARCHITECTURE.md al cierre.
-- **No romper F3/F4/F5**: composite + vendor IF + HID IF siguen
-  operando; `pump_emfi_cdc` y `pump_crowbar_cdc` en main.c deben
-  seguir vivos. Los host tools existentes (`lsusb`,
-  `picocom /dev/ttyACM4`, `tools/emfi_client.py ping`,
-  `tools/crowbar_client.py ping`) no deben regresionar.
-- **Branch de seguridad**: `rewrite/v3-pre-f5-rebase` quedó del
-  rebase de firma F5; borrar con `git branch -D
-  rewrite/v3-pre-f5-rebase` cuando confirmes que `v3.0-f5` está
-  estable.
+- **PIO** sigue: pio0 saturado (EMFI SM0 / crowbar SM1).
+  pio1 SM0 swd_phy. SM1..3 disponibles para target-uart y futuros.
+- **No romper F4/F5/F8**: composite + glitch engines + shell + binary
+  modes deben seguir operando. Los smoke tools de F8-6 son
+  referencia: `tools/{swd,jtag,scanner}_diag.py`,
+  `tools/{emfi,crowbar}_client.py`, `tools/flash.sh`,
+  `tools/bootsel.sh`.
+- **Mutex F9 ≠ shell soft-lock F8**. F8-1 protege solo entre swd y
+  jtag a nivel de comandos del shell. F9 lo extiende a:
+  - daplink_usb (F7) cuando llegue.
+  - glitch_engine post-fire SWD verification.
+  - pinout_scanner durante scan.
+  Política prioridad estática `campaign > scanner > daplink_host`.
+  daplink retorna `DAP_ERROR(busy)` cuando otro consumer tiene el
+  bus → host externo reintenta.
+- **F9 no toca el wire SWD**. Si necesitás validar contra HW real,
+  tenés que esperar el bypass del TXS0108E o usar loopback con
+  debugprobe externo + Pico target externo (no scanner header).
+
+## Protocolo de retake F6 (cuando llegue HW fix)
+
+1. HW bypass (fly wire) o board rev disponible → reflash actual
+   `rewrite/v3` HEAD.
+2. `tools/swd_diag.py connect` debería retornar `OK connect
+   dpidr=0x0BC12477` contra un Pi Pico target.
+3. Si OK → rebase para foldear los 4 F6-7 commits dentro de
+   F6-1/F6-2 padres → `git tag v3.0-f6`.
+4. Después F7 (CMSIS-DAP).
+5. Después re-tag F9 con SWD path validado.
+
+## Branches huérfanos
+
+- `rewrite/v3-pre-f5-rebase` — del rebase de firma F5; borrar con
+  `git branch -D rewrite/v3-pre-f5-rebase` cuando confirmes que
+  `v3.0-f5` está estable. **TODO de Sabas**.
