@@ -26,6 +26,7 @@
 #include "hv_charger.h"
 #include "jtag_core.h"
 #include "board_v2.h"
+#include "pinout_scanner.h"
 #include "scanner_io.h"
 #include "swd_dp.h"
 #include "swd_mem.h"
@@ -134,6 +135,9 @@ static void swd_shell_help(void) {
     swd_print("SHELL:   jtag trst                                    pulse TRST low ~1 ms\n");
     swd_print("SHELL:   jtag chain                                   detect # of TAPs\n");
     swd_print("SHELL:   jtag idcode                                  read IDCODE chain\n");
+    swd_print("SHELL: --- Pinout scan (F8-2) ---\n");
+    swd_print("SHELL:   scan jtag                                    P(8,4)=1680 perms\n");
+    swd_print("SHELL:   scan swd  [<targetsel_hex>]                  P(8,2)=56 perms\n");
     swd_print("SHELL: NOTE: SWD and JTAG share scanner pins (GP0..GP7) — only one\n");
     swd_print("SHELL:       may be inited at a time. F9 lifts this to a real mutex.\n");
 }
@@ -377,6 +381,109 @@ static void cmd_jtag_idcode(void) {
     }
 }
 
+// -----------------------------------------------------------------------------
+// F8-2 pinout scanner sub-shell — `scan jtag` / `scan swd`
+//
+// Both scans iterate hundreds of permutations; each iteration calls
+// usb_composite_task + the EMFI/crowbar pumps via scan_yield_progress
+// so a long scan doesn't starve TinyUSB or stall an active campaign.
+// Progress is printed on CDC2 every 100 iterations.
+// -----------------------------------------------------------------------------
+
+// Forward decls of the per-CDC pumps so scan_yield_progress can call
+// them without dragging the function above the SWD shell block.
+static void pump_emfi_cdc(void);
+static void pump_crowbar_cdc(void);
+
+static uint32_t s_scan_last_progress_print = 0u;
+
+static void scan_yield_progress(uint32_t cur, uint32_t total) {
+    // Keep TinyUSB and the campaigns alive between candidates so the
+    // host sees CDC enumeration + can interrupt; honour the memory
+    // rule on never starving tud_task during a long blocking op.
+    usb_composite_task();
+    pump_emfi_cdc();
+    pump_crowbar_cdc();
+    emfi_campaign_tick();
+    crowbar_campaign_tick();
+
+    // Print progress every 100 iterations. The 0-th iteration always
+    // prints so the operator sees the scan started. Reset the
+    // throttle counter at scan-start (cur=0) so a back-to-back
+    // `scan jtag` then `scan swd` doesn't race the 100-step throttle.
+    if (cur == 0u) s_scan_last_progress_print = 0u;
+    if (cur == 0u || (cur - s_scan_last_progress_print) >= 100u) {
+        swd_printf("SCAN: progress %lu/%lu\n",
+                   (unsigned long)cur, (unsigned long)total);
+        s_scan_last_progress_print = cur;
+    }
+}
+
+static void cmd_scan_jtag(void) {
+    if (jtag_is_inited()) {
+        swd_print("SCAN: ERR jtag_in_use (run `jtag deinit` first)\n");
+        return;
+    }
+    if (swd_shell_inited) {
+        swd_print("SCAN: ERR swd_in_use (run `swd deinit` first)\n");
+        return;
+    }
+    swd_printf("SCAN: starting JTAG pinout scan over %u channels (P(%u,%u)=%lu)\n",
+               PINOUT_SCANNER_CHANNELS, PINOUT_SCANNER_CHANNELS,
+               PINOUT_SCANNER_JTAG_PINS,
+               (unsigned long)PINOUT_SCANNER_JTAG_TOTAL);
+    pinout_scan_jtag_result_t r;
+    bool found = pinout_scan_jtag(&r, scan_yield_progress);
+    if (!found) {
+        swd_print("SCAN: jtag NO_MATCH (no valid IDCODE found)\n");
+        return;
+    }
+    swd_printf("SCAN: jtag MATCH tdi=GP%u tdo=GP%u tms=GP%u tck=GP%u\n",
+               r.tdi, r.tdo, r.tms, r.tck);
+    swd_printf("SCAN:   chain=%u idcode[0]=0x%08lX\n",
+               (unsigned)r.chain_length, (unsigned long)r.idcode);
+}
+
+static void cmd_scan_swd(int argc, char **argv) {
+    if (jtag_is_inited()) {
+        swd_print("SCAN: ERR jtag_in_use (run `jtag deinit` first)\n");
+        return;
+    }
+    if (swd_shell_inited) {
+        swd_print("SCAN: ERR swd_in_use (run `swd deinit` first)\n");
+        return;
+    }
+    uint32_t targetsel = (argc >= 3) ? (uint32_t)strtoul(argv[2], NULL, 16)
+                                     : SWD_DP_TARGETSEL_RP2040_CORE0;
+    swd_printf("SCAN: starting SWD pinout scan over %u channels "
+               "(P(%u,%u)=%u) targetsel=0x%08lX\n",
+               PINOUT_SCANNER_CHANNELS, PINOUT_SCANNER_CHANNELS,
+               PINOUT_SCANNER_SWD_PINS, PINOUT_SCANNER_SWD_TOTAL,
+               (unsigned long)targetsel);
+    pinout_scan_swd_result_t r;
+    bool found = pinout_scan_swd(targetsel, &r, scan_yield_progress);
+    if (!found) {
+        swd_print("SCAN: swd NO_MATCH (no OK DPIDR found)\n");
+        return;
+    }
+    swd_printf("SCAN: swd MATCH swclk=GP%u swdio=GP%u\n", r.swclk, r.swdio);
+    swd_printf("SCAN:   dpidr=0x%08lX targetsel=0x%08lX\n",
+               (unsigned long)r.dpidr, (unsigned long)r.targetsel);
+}
+
+static void process_scan_subcmd(int argc, char **argv) {
+    if (argc < 2) {
+        swd_print("SCAN: ERR scan needs subcommand: jtag | swd\n");
+        return;
+    }
+    const char *sub = argv[1];
+    if      (!strcmp(sub, "jtag")) cmd_scan_jtag();
+    else if (!strcmp(sub, "swd"))  cmd_scan_swd(argc, argv);
+    else {
+        swd_printf("SCAN: ERR unknown_subcmd: %s (try `?`)\n", sub);
+    }
+}
+
 static void process_jtag_subcmd(int argc, char **argv) {
     if (argc < 2) {
         swd_print("JTAG: ERR jtag needs subcommand (try `?`)\n");
@@ -414,6 +521,10 @@ static void process_swd_line(char *line) {
     }
     if (!strcmp(argv[0], "jtag")) {
         process_jtag_subcmd(argc, argv);
+        return;
+    }
+    if (!strcmp(argv[0], "scan")) {
+        process_scan_subcmd(argc, argv);
         return;
     }
     if (strcmp(argv[0], "swd") != 0) {

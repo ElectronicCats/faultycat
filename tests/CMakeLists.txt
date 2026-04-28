@@ -160,3 +160,28 @@ endfunction()
 
 # F8-1 — jtag_core TAP + IDCODE
 faultycat_add_service_jtag_test(test_jtag_core)
+
+# Pinout scanner test helper — links pinout_scanner.c only (the
+# permutation iterator is the unit under test; pinout_scan_jtag /
+# pinout_scan_swd end-to-end runs are deferred to physical smoke).
+function(faultycat_add_service_pinout_test name)
+    add_executable(${name}
+        ${name}.c
+        ${CMAKE_SOURCE_DIR}/services/pinout_scanner/pinout_scanner.c
+        ${CMAKE_SOURCE_DIR}/services/jtag_core/jtag_core.c
+        ${CMAKE_SOURCE_DIR}/services/swd_core/swd_phy.c
+        ${CMAKE_SOURCE_DIR}/services/swd_core/swd_dp.c
+        ${CMAKE_SOURCE_DIR}/services/swd_core/swd_mem.c
+    )
+    target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_include_directories(${name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/drivers/include
+        ${CMAKE_SOURCE_DIR}/services/pinout_scanner
+        ${CMAKE_SOURCE_DIR}/services/jtag_core
+        ${CMAKE_SOURCE_DIR}/services/swd_core
+    )
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+# F8-2 — pinout_scanner permutation iterator
+faultycat_add_service_pinout_test(test_pinout_scanner)
