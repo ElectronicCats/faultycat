@@ -32,7 +32,7 @@ active phase: F8-1 (this commit) lands `services/jtag_core/`.
 | F5 — glitch engine crowbar (service, PIO-driven triggered fire on pio0/SM1, IRQ 1) | `v3.0-f5` | ✓ closed |
 | F6 — SWD core (debugprobe MIT port to swd_phy + scratch swd_dp / swd_mem; CDC2 shell) | — | code-complete + spec-compliant; **physical gate blocked** by TXS0108EPW HW path (see `HARDWARE_V2.md §2`). Open-drain PIO emulation in place; canonical raspberrypi/debugprobe also fails through the same HW path, confirming the bug is HW. Not tagged. |
 | F7 — CMSIS-DAP v2 + v1 daplink_usb | — | deferred until F6 physical gate passes (HW bypass on the TXS0108E) |
-| F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | — | **active** — F8-1: `services/jtag_core/` (CPU bit-bang TAP + IDCODE chain detect, blueTag-derived MIT) + CDC2 shell `jtag <subcmd>` + `tools/jtag_diag.py`. F8-2: `services/pinout_scanner/` (P(8,4) JTAG + P(8,2) SWD permutation iterator + first-match search) + CDC2 shell `scan jtag` / `scan swd` + cooperative yield hook so usb_composite_task / EMFI / crowbar campaigns stay alive during the scan + `tools/scanner_diag.py`. F8-3: CDC2 shell unified — internal renames (`process_swd_line` → `process_shell_line`, `swd_print/printf` → `shell_print/printf`, etc.), top-level help groups SWD / JTAG / SCAN / mode-switch sections, and `buspirate enter` / `serprog enter` placeholders dispatch through stable parser slots so F8-4 / F8-5 plug in without further parser surgery. JTAG path is mostly host-driven push-pull (TXS0108E handles unidirectional fine); SWD path inherits F6's open-drain SWDIO emulation but the TXS0108E HW gate still applies, so `scan swd` is unit-tested + code-validated but waits on the same HW bypass as F6 for physical verification. F8-4..F8-5 pending: buspirate_compat, flashrom_serprog. |
+| F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | — | **active** — F8-1: `services/jtag_core/` (CPU bit-bang TAP + IDCODE chain detect, blueTag-derived MIT) + CDC2 shell `jtag <subcmd>` + `tools/jtag_diag.py`. F8-2: `services/pinout_scanner/` (P(8,4) JTAG + P(8,2) SWD permutation iterator + first-match search) + CDC2 shell `scan jtag` / `scan swd` + cooperative yield hook + `tools/scanner_diag.py`. F8-3: CDC2 shell unified — `process_shell_line` dispatcher, top-level help, `buspirate` / `serprog` placeholder slots. F8-4: `services/buspirate_compat/` (streaming BusPirate v1 BBIO + OpenOCD JTAG sub-mode parser — `BBIO1` / `OCD1` / `CMD_TAP_SHIFT` / supporting OOCD subcommands + 0x0F user-terminal exit) — feeds bytes one at a time so a long TAP_SHIFT session doesn't starve TinyUSB or stall a glitch campaign; CDC2 shell gains `buspirate enter [<tdi> <tdo> <tms> <tck>]` which jtag_init's the chosen pinout and routes every CDC2 byte through `buspirate_compat_feed_byte` until 0x0F flips back to text shell. The diag snapshot stream is gagged while in binary modes so OpenOCD / flashrom traffic isn't corrupted. F8-5 pending: flashrom_serprog. |
 | F9 — Campaign manager + SWD mutex | — | pending |
 | F10 — faultycmd-rs Rust workspace | — | pending |
 | F11 — Hardening, docs, release | — | pending |
@@ -80,6 +80,27 @@ Current tree health:
   vs `swd_phy` enforced shell-side: `swd init` while JTAG is held
   returns `SWD: ERR jtag_in_use`, and vice versa. F9 promotes the
   soft-lock to a `mutex_t`.
+- **`services/buspirate_compat/`** (F8-4) complete:
+  `buspirate_compat.{c,h}` — streaming BusPirate v1 binary protocol
+  (BBIO entry + OpenOCD JTAG sub-mode). 14-state state machine
+  consumes bytes one at a time so OpenOCD's CMD_TAP_SHIFT
+  (potentially thousands of bits) never blocks the main loop.
+  Algorithm shape adapted from blueTag@v2.1.2's
+  `src/modules/openocd/openocdJTAG.c` (MIT) but reworked from
+  blocking `getc(stdin)` + 4 KB stage buffer to streaming
+  feed_byte(). Callback-based JTAG clocker so the test build can
+  mock both the byte sink and the JTAG primitive. `apps/
+  faultycat_fw/main.c` adds bridge callbacks (`bp_write_byte_cb`,
+  `bp_jtag_clock_bit_cb`, `bp_on_exit_cb`) and a shell-level
+  `buspirate enter [<tdi> <tdo> <tms> <tck>]` command that pre-
+  inits jtag_core with the requested pinout (defaults
+  scanner CH0..CH3) and flips `s_shell_mode` to BUSPIRATE.
+  `pump_shell_cdc` routes every byte through
+  `buspirate_compat_feed_byte` while in that mode; 0x0F fires
+  `bp_on_exit_cb` which deinits jtag_core and flips back to text.
+  `diag_printf` and `print_snapshot` gag themselves while
+  `s_shell_mode != SHELL_MODE_TEXT` to keep the binary stream
+  clean for OpenOCD.
 - **`services/pinout_scanner/`** (F8-2) complete:
   `pinout_scanner.{c,h}` — pure k-permutation iterator
   (`pinout_perm_init` / `_next` / `_total`) plus `pinout_scan_jtag`
@@ -95,12 +116,15 @@ Current tree health:
   `SCAN: progress N/total` every 100 iterations — long scans don't
   starve TinyUSB or stall an active glitch campaign. Reference
   client `tools/scanner_diag.py` streams the progress + verdict.
-- **300 unit tests** across 24 binaries, all green under
+- **322 unit tests** across 25 binaries, all green under
   `cmake --preset host-tests && ctest --preset host-tests`. F8-1
   added `test_jtag_core` (24 cases) plus a generic `hal_fake_gpio`
   edge sampler + per-pin input-script API; F8-2 adds
   `test_pinout_scanner` (13 cases — permutation iterator total /
-  uniqueness / lex-order / edge cases). End-to-end
+  uniqueness / lex-order / edge cases); F8-4 adds
+  `test_buspirate_compat` (22 cases — BBIO entry, OOCD subcmds,
+  CMD_TAP_SHIFT bit packing for empty / 4 / 8 / 12 bits, max-length
+  clamp, OpenOCD-like full session). End-to-end
   `pinout_scan_jtag` / `_swd` runs are deferred to physical smoke
   (per-iteration teardown + re-init makes scripted-input testing
   more bookkeeping than value).
@@ -156,7 +180,8 @@ compatible — existing EMFI / crowbar configures are unaffected.
 │    daplink_usb/                       │    CMSIS-DAP v2 + v1 HID     … F7    │
 │    jtag_core/                         │    blueTag-derived (CPU)     ✓ F8-1  │
 │    pinout_scanner/                    │    JTAGulator over scanner   ✓ F8-2  │
-│    buspirate_compat/ flashrom_serprog/│    blueTag-derived           … F8    │
+│    buspirate_compat/                  │    blueTag BBIO + OpenOCD    ✓ F8-4  │
+│    flashrom_serprog/                  │    blueTag-derived           … F8-5  │
 │    host_proto/emfi_proto              │    binary framing on CDC0    ✓ F4    │
 │    host_proto/crowbar_proto           │    binary framing on CDC1    ✓ F5    │
 │    host_proto/campaign_proto          │    streamed sweep results    … F9    │
