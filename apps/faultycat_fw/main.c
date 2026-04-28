@@ -1200,16 +1200,23 @@ static void try_fire_emfi(void) {
 
 // Pump CDC0 bytes through emfi_proto. Writes any reply to CDC0
 // without blocking.
+//
+// `reply[]` is `static` rather than stack-allocated. The 768-byte
+// buffer is needed for F4 CMD_CAPTURE (512 B sample window + frame
+// overhead) and F9-4 CAMPAIGN_DRAIN (≤ 505 B). With F9-3's executor
+// wait loops calling this through campaign_yield_pump from a deeply
+// nested call stack (main → campaign_manager_tick → executor while-
+// loop → campaign_yield_pump → pump_emfi_cdc), 768 B on stack would
+// silently overflow the RP2040 default 2 KB main-thread stack and
+// corrupt the executor frame. Single-CDC, single-pump means there's
+// no re-entrance risk on the static buffer.
 static void pump_emfi_cdc(void) {
     uint8_t buf[64];
-    // We reuse tinyusb's read interface via usb_composite; a small
-    // internal shim keeps usb_composite as the only owner of
-    // tud_cdc_n_read.
     size_t n = usb_composite_cdc_read(USB_CDC_EMFI, buf, sizeof(buf));
     if (n == 0) return;
     for (size_t i = 0; i < n; i++) {
         if (emfi_proto_feed(buf[i], hal_now_ms())) {
-            uint8_t reply[768];
+            static uint8_t reply[768];
             size_t rn = emfi_proto_dispatch(reply, sizeof(reply));
             if (rn > 0) {
                 usb_composite_cdc_write(USB_CDC_EMFI, reply, rn);
@@ -1219,14 +1226,22 @@ static void pump_emfi_cdc(void) {
 }
 
 // Pump CDC1 bytes through crowbar_proto. Replies max out at ~21 bytes
-// (STATUS) so a small stack buffer is plenty.
+// (STATUS) was the largest reply when this was first written.
+// F9-4 made CAMPAIGN_DRAIN the new max — 1 + 18×28 = 505 B payload
+// + 6 B framing = 511 B. Bumped reply[] to 768 (matching pump_emfi_cdc)
+// so DRAIN replies aren't silently dropped by a write_frame cap-overflow.
+//
+// `reply[]` is `static` for the same reason as pump_emfi_cdc — F9-3's
+// executor wait loop calls this via campaign_yield_pump from a deep
+// nested call stack and 768 B on stack overflows the default 2 KB
+// main-thread stack on RP2040.
 static void pump_crowbar_cdc(void) {
     uint8_t buf[64];
     size_t n = usb_composite_cdc_read(USB_CDC_CROWBAR, buf, sizeof(buf));
     if (n == 0) return;
     for (size_t i = 0; i < n; i++) {
         if (crowbar_proto_feed(buf[i], hal_now_ms())) {
-            uint8_t reply[64];
+            static uint8_t reply[768];
             size_t rn = crowbar_proto_dispatch(reply, sizeof(reply));
             if (rn > 0) {
                 usb_composite_cdc_write(USB_CDC_CROWBAR, reply, rn);

@@ -17,12 +17,14 @@
 //
 // 100 ms inter-byte timeout resets the parser.
 //
-// Crowbar has no large capture buffer (see crowbar_campaign for the
-// rationale), so MAX_PAYLOAD is small — 64 bytes is plenty for the
-// status reply and the CONFIGURE payload.
+// Originally 64 B — plenty for F5 STATUS / CONFIGURE. F9-4 extends
+// with CAMPAIGN_DRAIN whose reply can be up to 1 + 18 × 28 = 505
+// bytes, so MAX_PAYLOAD bumped to 512 (matching EMFI_PROTO_MAX_PAYLOAD).
+// Without the bump, write_frame's `len > MAX` guard silently rejected
+// the DRAIN reply and the host saw a timeout.
 
 #define CROWBAR_PROTO_SOF            0xFAu
-#define CROWBAR_PROTO_MAX_PAYLOAD    64u
+#define CROWBAR_PROTO_MAX_PAYLOAD    512u
 #define CROWBAR_PROTO_INTERBYTE_MS   100u
 
 typedef enum {
