@@ -4,7 +4,7 @@
 
 Layered C/C++ firmware for RP2040, running on the existing FaultyCat
 **v2.x hardware** (no board change). Exposes a USB composite device
-that talks to a Rust host tool (`faultycmd-rs`) for two distinct
+that talks to a Python host tool (`faultycmd`) for two distinct
 attack types — **EMFI** (electromagnetic, legacy FaultyCat speciality)
 and **crowbar** (voltage glitching, added in HW v2.1) — plus a **JTAG /
 SWD pinout scanner** and a standard **CMSIS-DAP** probe.
@@ -41,7 +41,7 @@ unblocks. See `MUTEX_INTERNALS.md` for the F9 wire stack.
 | F7 — CMSIS-DAP v2 + v1 daplink_usb | — | deferred until F6 physical gate passes (HW bypass on the TXS0108E) |
 | F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | `v3.0-f8` | ✓ closed — F8-1 `services/jtag_core/` (CPU bit-bang TAP + IDCODE chain). F8-2 `services/pinout_scanner/` (P(8,4) / P(8,2) brute-force scan + first-match). F8-3 unified CDC2 shell dispatcher. F8-4 `services/buspirate_compat/` (streaming BPv1 BBIO + OOCD JTAG sub-mode). F8-5 `services/flashrom_serprog/` (streaming serprog v1 + 4-pin CPU SPI bit-bang). F8-6 polish: 3-read consistency check on `pinout_scan_jtag`/`_swd` rejects bus-noise false positives empirically observed when a non-JTAG device is wired to the scanner header; `pump_shell_cdc` breaks out on mode-switch so the trailing `\n` of `\r\n` doesn't bleed into the new binary parser; new `docs/JTAG_INTERNALS.md`. Disconnect detection in main loop fires `bp_on_exit_cb` / `sp_on_exit_cb` if the host drops DTR mid-session. Diag snapshot gagged while in binary modes. Physical smoke 2026-04-28 on v2.2 board: 13/13 checks green (golden + regression). |
 | F9 — Campaign manager + SWD mutex | `v3.0-f9` | ✓ closed — F9-1 `services/swd_bus_lock/` (volatile-flag cooperative mutex over the scanner-header SWD bus, 4 owner tags IDLE/CAMPAIGN/SCANNER/DAPLINK, single-owner no-reentrance; 13 host tests). F9-2 `services/campaign_manager/` (6-state machine over cartesian sweep + 256-entry × 28 B result ringbuffer + pluggable step executor with no-op default; 27 host tests). F9-3 engine adapters in `apps/faultycat_fw/main.c` — `campaign_executor_emfi/_crowbar` blocking-with-cooperative-yield; verify hook acquires/releases swd_bus_lock around a no-op call (F-future plugs real SWD post-fire verify). Shell `campaign <subcmd>` for status/stop/drain/`demo crowbar` smoke. F9-4 `services/host_proto/campaign_proto/` — CRC16-CCITT framing extending emfi_proto / crowbar_proto with CAMPAIGN_CONFIG/START/STOP/STATUS/DRAIN opcodes; engine implied by CDC; 17 host tests. F9-5 `tools/campaign_client.py` reference pyserial CLI mirroring emfi/crowbar_client.py. F9-6 polish: bumped CROWBAR_PROTO_MAX_PAYLOAD from 64 → 512 (DRAIN replies were silently dropped); made pump_emfi/crowbar_cdc reply[768] static (defensive vs stack overflow in deep executor wait loops). Smoke 2026-04-28: `campaign demo crowbar` shell + `campaign_client.py configure → start → watch` both stream complete sweeps end-to-end on v2.2. |
-| F10 — faultycmd-rs Rust workspace | — | pending |
+| F10 — faultycmd Python (Textual TUI + Rich CLI) | — | pending — plan §1 #6 revisited 2026-04-28; see §F10 override block |
 | F11 — Hardening, docs, release | — | pending |
 
 Current tree health:
@@ -360,20 +360,40 @@ state machine in this doc, updated in F9.
 
 ## Host tool (F10)
 
-`host/faultycmd-rs/` is a Rust workspace:
+`host/faultycmd-py/` is a Python package. Plan §1 decision #6
+originally specified a Rust workspace + ratatui TUI; the 2026-04-28
+override (see plan §F10 override block) switched to Python +
+Textual + Rich based on team familiarity, faster iteration, direct
+reuse of the F4/F5/F9 reference clients, and a lower contributor
+onboarding cost. The wire protocols (host_proto/* opcodes, frame
+format, mutex contract) are unchanged — only the host language
+changed.
 
 ```
-faultycmd-core    — shared types, USB enumeration, logger
-faultycmd-emfi    — client over CDC0
-faultycmd-crowbar — client over CDC1
-faultycmd-scanner — client over CDC2
-faultycmd-dap     — thin wrapper around probe-rs talking to Vendor IF
-faultycmd-cli     — clap-based CLI
-faultycmd-tui     — ratatui-based dashboard (HV / trigger / SWD / campaign)
+faultycmd.framing               — CRC16-CCITT helper + frame builder
+faultycmd.usb                   — port → CDC mapping (udevadm helper)
+faultycmd.protocols.emfi        — F4 emfi_proto client (CDC0)
+faultycmd.protocols.crowbar     — F5 crowbar_proto client (CDC1)
+faultycmd.protocols.campaign    — F9-4 campaign_proto over CDC0/CDC1
+faultycmd.protocols.scanner     — text-shell wrapper over CDC2
+                                  (consolidates F6 swd / F8-1 jtag /
+                                   F8-2 scan / F8-4 buspirate / F8-5
+                                   serprog mode-switch helpers)
+faultycmd.protocols.dap         — pyocd / cmsis-dap thin wrapper
+                                  (stub until F7 daplink_usb lands)
+faultycmd.cli                   — click-based CLI; Rich-rendered
+                                  output (tables, progress bars,
+                                  status panels)
+faultycmd.tui                   — Textual app (HV / trigger / SWD /
+                                  campaign panels + E/C/S/D hotkeys)
 ```
 
 A campaign manager streams (delay, width, power) sweeps with SWD
 verification after each glitch and captures the result on the host.
+
+The four legacy reference clients (`tools/{emfi,crowbar,campaign}_
+client.py`, `tools/{swd,jtag,scanner}_diag.py`) stay in the tree as
+a debugging fallback through v3.0.0 release; F11 will archive them.
 
 ## What each phase delivers
 

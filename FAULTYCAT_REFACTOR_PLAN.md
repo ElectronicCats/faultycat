@@ -15,7 +15,7 @@
 | 3 | Dependencias | **Vendored total** en `third_party/`, submódulos pineados |
 | 4 | Integración SWD | **Dual:** CMSIS-DAP expuesto por USB + hooks internos al glitch engine |
 | 5 | MCU del propio device | **RP2040** únicamente |
-| 6 | Host tool `faultycmd` | **Rust**, workspace multi-crate, CLI + TUI ratatui |
+| 6 | Host tool `faultycmd` | **Python** package — `click` CLI + **Textual** TUI + **Rich** styled output. *(revisited 2026-04-28 — see §F10 override block; original spec was Rust workspace + ratatui)* |
 | 7 | Features extra | **Solo SWD** (blueTag trae JTAG + multi-protocolo gratis) |
 | 8 | Backward compat | **Romper si hace falta** (firmware nuevo, protocolo nuevo) |
 | 9 | Hardware dev | **FaultyCat v2.x real + target disponibles** |
@@ -480,17 +480,28 @@ Cada driver expone comando `diag <driver>` por UART serial (temporal, antes de U
 
 ---
 
-### F10 — faultycmd en Rust (workspace multi-crate)
+### F10 — faultycmd en Python (Textual TUI + Rich CLI)
+
+> **Override 2026-04-28** de la decisión §1 #6. El equipo (Sabas + Electronic Cats) ya tiene reps con Textual + Rich en otros proyectos; reusar esa experiencia + reusar los 4 reference clients Python existentes (`tools/{emfi,crowbar,campaign}_client.py`, `tools/{swd,jtag,scanner}_diag.py`) baja el riesgo de framework choice a casi cero. El stack Rust (probe-rs + ratatui + clap) era técnicamente sólido pero implicaba contributor-onboarding más alto + cross-compile pain para distribución Win/Mac. Wire protocols (host_proto/* opcodes, frame format, mutex contract) **no cambian** — solo cambia el host language. Memoria `project_faultycmd_python_override.md` documenta el override formal para auditoría futura.
 
 **Entregables:**
-- `faultycmd-core` — tipos comunes, USB enumeration, logger.
-- `faultycmd-emfi`, `faultycmd-crowbar`, `faultycmd-scanner` — clients por CDC.
-- `faultycmd-dap` — thin wrapper de `probe-rs`.
-- `faultycmd-cli` — `clap`-based CLI.
-- `faultycmd-tui` — `ratatui`-based TUI (paneles HV, trigger, SWD, campaign log).
-- CI compila binarios release para Linux/macOS/Windows.
+- `host/faultycmd-py/` package monorepo (single `pyproject.toml`).
+- `faultycmd.framing` — CRC16-CCITT helper + frame builder (shared by todos los protocol modules).
+- `faultycmd.usb` — port → CDC mapping helper (envuelve el snippet `udevadm` actual).
+- `faultycmd.protocols.{emfi, crowbar, campaign, scanner, dap}` — clients consolidados (port directo de los 4 reference Python clients, no rewrite).
+- `faultycmd.cli` — top-level CLI con `click` (command groups: `emfi`, `crowbar`, `campaign`, `scanner`, `tui`). Rich-rendered output (tablas, progress bars, status panels coloreados).
+- `faultycmd.tui` — Textual app. Paneles HV / trigger / SWD-JTAG / campaign log. Hotkeys `E/C/S/D` para mode switch.
+- Test suite: pytest + pytest-mock + Textual `Pilot` (snapshot tests para widgets).
+- PyPI publish (TestPyPI primero, luego production como `faultycmd-tools` o nombre similar).
+- Opcional: `pyinstaller` smoke binary para v3.0.0 release.
+- CI workflow `host-py.yml` paralelo a `firmware.yml` (lint + tests + opcional PyInstaller cross-compile).
 
-**Criterio:** TUI interactiva cubre 100% del `faultycmd` viejo + campañas + switch entre EMFI/crowbar/scanner.
+**Stack:**
+- `pyproject.toml` estándar — operator elige su tooling (uv / poetry / hatch / plain pip).
+- Python 3.10+ baseline.
+- USB enum: `pyserial` + `udevadm` helper (Linux primary; Windows/macOS = TODO de F11 polish).
+
+**Criterio:** TUI interactiva cubre 100% del faultycmd viejo + campañas + switch entre EMFI/crowbar/scanner. CLI cubre 100% de los 4 reference Python clients (estos quedan como deprecated reference hasta F11 archive).
 
 ---
 

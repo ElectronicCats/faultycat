@@ -10,38 +10,43 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 > tocar nada. Las 16 decisiones congeladas del plan §1 **no se
 > relitigan**.
 
-## Fase actual: F10 — faultycmd Rust workspace + ratatui TUI
+## Fase actual: F10 — faultycmd Python (Textual TUI + Rich CLI)
 
 **Decisión 2026-04-28 (post-tag `v3.0-f9`):** F9 cerrado con smoke
-físico verde — sweep + mutex + binary protocol funcionan end-to-end
-contra el shell + el reference Python client. El "killer feature"
-de detectar glitches exitosos vía SWD verify queda gated por F6
-HW (TXS0108E), pero la infra (campaign_manager + ringbuffer +
-host_proto + mutex) está sólida.
+físico verde. F10 entrega el host tool definitivo.
 
-F10 reemplaza los 3 reference clients Python (`tools/{emfi,crowbar,
-campaign}_client.py`) con un workspace Rust multi-crate +
-`ratatui` TUI dashboard. Los Python clients quedan como debugging
-fallback hasta v3.0.0 release.
+**Override formal de §1 #6 (2026-04-28):** plan original especificaba
+Rust workspace + ratatui. Sabas confirmó usar Python + Textual +
+Rich basado en team familiarity (equipo ya tiene reps con la combo)
++ reuso directo de los 4 reference clients Python (no port mecánico
+desde cero) + onboarding contributors más bajo. Wire protocols
+(host_proto/* opcodes, frame format, mutex contract) **no cambian**
+— solo cambia el host language. Memoria
+`project_faultycmd_python_override.md` documenta el override.
 
 ### F10 — entregables (ver `FAULTYCAT_REFACTOR_PLAN.md §F10`)
 
-- `host/faultycmd-rs/` Rust workspace.
-  - `faultycmd-core` — tipos comunes, USB enumeration, logger.
-  - `faultycmd-emfi`, `faultycmd-crowbar`, `faultycmd-scanner`,
-    `faultycmd-campaign` — clients por CDC.
-  - `faultycmd-dap` — thin wrapper de `probe-rs`.
-  - `faultycmd-cli` — `clap`-based CLI.
-  - `faultycmd-tui` — `ratatui`-based dashboard (HV / trigger / SWD
-    / campaign log).
-- CI compila binarios release para Linux/macOS/Windows.
+- `host/faultycmd-py/` package monorepo (single `pyproject.toml`).
+- `faultycmd.framing` — CRC16-CCITT helper + frame builder.
+- `faultycmd.usb` — port → CDC mapping (udevadm helper).
+- `faultycmd.protocols.{emfi, crowbar, campaign, scanner, dap}` —
+  consolidated clients.
+- `faultycmd.cli` — `click`-based CLI con Rich-rendered output.
+- `faultycmd.tui` — Textual app, panels HV/trigger/SWD/campaign,
+  hotkeys E/C/S/D.
+- pytest + Textual Pilot tests.
+- CI workflow `host-py.yml` paralelo a `firmware.yml`.
+- PyPI publish (TestPyPI primero) + opcional pyinstaller binary
+  para v3.0.0 release.
 
 ### F10 — criterios
 
 - TUI interactiva cubre 100% del faultycmd viejo + campañas + switch
   entre EMFI/crowbar/scanner.
-- Configure-start-watch flow funciona vía Rust client equivalente
-  al Python `campaign_client.py watch`.
+- CLI cubre 100% de los 4 reference Python clients
+  (`tools/{emfi,crowbar,campaign}_client.py` + `tools/{swd,jtag,
+  scanner}_diag.py`). Estos se mantienen como deprecated reference
+  hasta F11 archive.
 
 ### F9 status — ✓ closed `v3.0-f9` (2026-04-28)
 
