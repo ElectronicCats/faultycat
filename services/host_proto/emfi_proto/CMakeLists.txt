@@ -8,4 +8,5 @@ target_include_directories(host_proto_emfi
 target_link_libraries(host_proto_emfi
     PUBLIC
         service_emfi
+        host_proto_campaign
 )

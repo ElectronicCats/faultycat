@@ -8,4 +8,5 @@ target_include_directories(host_proto_crowbar
 target_link_libraries(host_proto_crowbar
     PUBLIC
         service_crowbar
+        host_proto_campaign
 )

@@ -48,6 +48,8 @@ function(faultycat_add_service_emfi_test name)
         ${CMAKE_SOURCE_DIR}/services/glitch_engine/emfi/emfi_capture.c
         ${CMAKE_SOURCE_DIR}/services/glitch_engine/emfi/emfi_campaign.c
         ${CMAKE_SOURCE_DIR}/services/host_proto/emfi_proto/emfi_proto.c
+        ${CMAKE_SOURCE_DIR}/services/host_proto/campaign_proto/campaign_proto.c
+        ${CMAKE_SOURCE_DIR}/services/campaign_manager/campaign_manager.c
     )
     target_link_libraries(${name} PRIVATE unity hal_fake)
     target_include_directories(${name} PRIVATE
@@ -57,6 +59,8 @@ function(faultycat_add_service_emfi_test name)
         ${CMAKE_SOURCE_DIR}/drivers/ext_trigger
         ${CMAKE_SOURCE_DIR}/services/glitch_engine/emfi
         ${CMAKE_SOURCE_DIR}/services/host_proto/emfi_proto
+        ${CMAKE_SOURCE_DIR}/services/host_proto/campaign_proto
+        ${CMAKE_SOURCE_DIR}/services/campaign_manager
     )
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
@@ -102,6 +106,8 @@ function(faultycat_add_service_crowbar_test name)
         ${CMAKE_SOURCE_DIR}/services/glitch_engine/crowbar/crowbar_pio.c
         ${CMAKE_SOURCE_DIR}/services/glitch_engine/crowbar/crowbar_campaign.c
         ${CMAKE_SOURCE_DIR}/services/host_proto/crowbar_proto/crowbar_proto.c
+        ${CMAKE_SOURCE_DIR}/services/host_proto/campaign_proto/campaign_proto.c
+        ${CMAKE_SOURCE_DIR}/services/campaign_manager/campaign_manager.c
     )
     target_link_libraries(${name} PRIVATE unity hal_fake)
     target_include_directories(${name} PRIVATE
@@ -110,6 +116,8 @@ function(faultycat_add_service_crowbar_test name)
         ${CMAKE_SOURCE_DIR}/drivers/ext_trigger
         ${CMAKE_SOURCE_DIR}/services/glitch_engine/crowbar
         ${CMAKE_SOURCE_DIR}/services/host_proto/crowbar_proto
+        ${CMAKE_SOURCE_DIR}/services/host_proto/campaign_proto
+        ${CMAKE_SOURCE_DIR}/services/campaign_manager
     )
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
@@ -249,3 +257,21 @@ function(faultycat_add_service_campaign_test name)
 endfunction()
 
 faultycat_add_service_campaign_test(test_campaign_manager)
+
+# F9-4 — campaign_proto (host_proto helpers shared by emfi/crowbar)
+function(faultycat_add_service_campaign_proto_test name)
+    add_executable(${name}
+        ${name}.c
+        ${CMAKE_SOURCE_DIR}/services/host_proto/campaign_proto/campaign_proto.c
+        ${CMAKE_SOURCE_DIR}/services/campaign_manager/campaign_manager.c
+    )
+    target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_include_directories(${name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/drivers/include
+        ${CMAKE_SOURCE_DIR}/services/host_proto/campaign_proto
+        ${CMAKE_SOURCE_DIR}/services/campaign_manager
+    )
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+faultycat_add_service_campaign_proto_test(test_campaign_proto)

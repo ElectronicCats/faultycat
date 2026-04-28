@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "campaign_proto.h"
 #include "emfi_campaign.h"
 
 // Parser state ---------------------------------------------------------------
@@ -230,6 +231,49 @@ size_t emfi_proto_dispatch(uint8_t *reply, size_t reply_cap) {
             return write_frame(reply, reply_cap,
                               (uint8_t)(s_frame_cmd | 0x80u),
                               &buf[off], len);
+        }
+        // F9-4 — campaign opcodes. Engine forced to EMFI since we
+        // arrived on CDC0; the wire format itself is engine-agnostic
+        // (crowbar_proto uses identical payloads, sets engine =
+        // CROWBAR before calling campaign_proto helpers).
+        case CAMPAIGN_CMD_CONFIG: {
+            campaign_config_t cfg;
+            if (!campaign_proto_decode_config(s_frame_payload, s_frame_len,
+                                              CAMPAIGN_ENGINE_EMFI, &cfg)) {
+                rpl[0] = CAMPAIGN_PROTO_ERR_BAD_LEN;
+            } else {
+                rpl[0] = campaign_proto_apply_config(&cfg);
+            }
+            rpl_len = 1;
+            break;
+        }
+        case CAMPAIGN_CMD_START: {
+            rpl[0] = campaign_manager_start() ? CAMPAIGN_PROTO_OK
+                                              : CAMPAIGN_PROTO_ERR_REJECTED;
+            rpl_len = 1;
+            break;
+        }
+        case CAMPAIGN_CMD_STOP: {
+            campaign_manager_stop();
+            rpl[0] = CAMPAIGN_PROTO_OK;
+            rpl_len = 1;
+            break;
+        }
+        case CAMPAIGN_CMD_STATUS: {
+            rpl_len = (uint16_t)campaign_proto_serialize_status(rpl, sizeof(rpl));
+            break;
+        }
+        case CAMPAIGN_CMD_DRAIN: {
+            uint8_t max_count = (s_frame_len >= 1u) ? s_frame_payload[0] : 1u;
+            // Build the reply payload in a stack buffer big enough
+            // for CAMPAIGN_DRAIN_MAX_COUNT × 28 + 1 hdr.
+            static uint8_t drain_buf[1u + (CAMPAIGN_DRAIN_MAX_COUNT * 28u)];
+            size_t drain_len = campaign_proto_serialize_drain(drain_buf,
+                                                              sizeof(drain_buf),
+                                                              max_count);
+            return write_frame(reply, reply_cap,
+                              (uint8_t)(s_frame_cmd | 0x80u),
+                              drain_buf, (uint16_t)drain_len);
         }
         default:
             err = EMFI_ERR_BAD_CONFIG;
