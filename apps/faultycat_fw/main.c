@@ -21,6 +21,7 @@
 #include "emfi_capture.h"
 #include "emfi_proto.h"
 #include "emfi_pulse.h"
+#include "buspirate_compat.h"
 #include "ext_trigger.h"
 #include "hal/time.h"
 #include "hv_charger.h"
@@ -43,6 +44,20 @@
 #define SNAPSHOT_PERIOD_MS       500u
 #define EMFI_MANUAL_WIDTH_US     5u
 
+// Shell input modes — F8-3 introduced the dispatcher, F8-4 plugs in
+// the BusPirate binary parser, F8-5 will plug in serprog. While in a
+// binary mode we route every CDC2 byte through the corresponding
+// service's feed_byte() and we GAG the diag snapshot stream so it
+// doesn't shred the binary protocol. Declared this high in the file
+// so diag_printf (just below) can see it.
+typedef enum {
+    SHELL_MODE_TEXT       = 0,
+    SHELL_MODE_BUSPIRATE  = 1,
+    SHELL_MODE_SERPROG    = 2,
+} shell_mode_t;
+
+static shell_mode_t s_shell_mode = SHELL_MODE_TEXT;
+
 // -----------------------------------------------------------------------------
 // Diag log — vsnprintf into a stack buffer, shove into CDC2. Non-blocking;
 // drops on a full TX FIFO, which is the right behaviour for diagnostics.
@@ -50,6 +65,12 @@
 
 static void diag_printf(const char *fmt, ...) {
     if (!usb_composite_cdc_connected(USB_CDC_SCANNER)) {
+        return;
+    }
+    // F8-4: while CDC2 is in a binary mode (BusPirate / serprog) the
+    // shell stream is owned by the foreign protocol — emitting diag
+    // text would corrupt OpenOCD / flashrom traffic. Gag.
+    if (s_shell_mode != SHELL_MODE_TEXT) {
         return;
     }
     char buf[128];
@@ -151,8 +172,9 @@ static void shell_help(void) {
     shell_print("SHELL: --- Pinout scan (F8-2) ---\n");
     shell_print("SHELL:   scan jtag                                    P(8,4)=1680 perms\n");
     shell_print("SHELL:   scan swd  [<targetsel_hex>]                  P(8,2)=56 perms\n");
-    shell_print("SHELL: --- Mode switches (F8-3 entry, F8-4/F8-5 backend) ---\n");
-    shell_print("SHELL:   buspirate enter                              OpenOCD via BPv1 binary (F8-4 stub)\n");
+    shell_print("SHELL: --- Mode switches (binary protocols) ---\n");
+    shell_print("SHELL:   buspirate enter [<tdi> <tdo> <tms> <tck>]    OpenOCD via BPv1 binary (F8-4)\n");
+    shell_print("SHELL:                                                defaults: 0 1 2 3, exit with 0x0F\n");
     shell_print("SHELL:   serprog enter                                flashrom serprog (F8-5 stub)\n");
     shell_print("SHELL: NOTE: SWD and JTAG share scanner pins (GP0..GP7) — only one\n");
     shell_print("SHELL:       may be inited at a time. F9 lifts this to a real mutex.\n");
@@ -514,12 +536,69 @@ static void process_scan_subcmd(int argc, char **argv) {
 //      and a clear "not yet" status.
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// F8-4 BusPirate compat — bridge callbacks + entry command
+// -----------------------------------------------------------------------------
+
+static void bp_write_byte_cb(uint8_t b, void *u) {
+    (void)u;
+    usb_composite_cdc_write(USB_CDC_SCANNER, &b, 1);
+}
+
+static bool bp_jtag_clock_bit_cb(bool tms, bool tdi, void *u) {
+    (void)u;
+    return jtag_clock_bit(tms, tdi);
+}
+
+static void bp_on_exit_cb(void *u) {
+    (void)u;
+    if (jtag_is_inited()) jtag_deinit();
+    s_shell_mode = SHELL_MODE_TEXT;
+    shell_print("\nBPIRATE: OK exited (back to text shell)\n");
+}
+
+static const buspirate_compat_callbacks_t BP_CALLBACKS = {
+    .write_byte     = bp_write_byte_cb,
+    .jtag_clock_bit = bp_jtag_clock_bit_cb,
+    .on_exit        = bp_on_exit_cb,
+    .user           = NULL,
+};
+
 static void process_buspirate_subcmd(int argc, char **argv) {
     if (argc < 2 || strcmp(argv[1], "enter") != 0) {
-        shell_print("BPIRATE: ERR usage: buspirate enter\n");
+        shell_print("BPIRATE: ERR usage: buspirate enter [<tdi> <tdo> <tms> <tck>]\n");
         return;
     }
-    shell_print("BPIRATE: ERR not_yet_implemented (F8-4)\n");
+    if (jtag_is_inited()) {
+        shell_print("BPIRATE: ERR jtag_in_use (run `jtag deinit` first)\n");
+        return;
+    }
+    if (swd_shell_inited) {
+        shell_print("BPIRATE: ERR swd_in_use (run `swd deinit` first)\n");
+        return;
+    }
+    bool explicit_pins = (argc >= 6);
+    jtag_pinout_t p = {
+        .tdi  = explicit_pins ? (uint8_t)strtoul(argv[2], NULL, 0)
+                              : BOARD_GP_SCANNER_CH0,
+        .tdo  = explicit_pins ? (uint8_t)strtoul(argv[3], NULL, 0)
+                              : BOARD_GP_SCANNER_CH1,
+        .tms  = explicit_pins ? (uint8_t)strtoul(argv[4], NULL, 0)
+                              : BOARD_GP_SCANNER_CH2,
+        .tck  = explicit_pins ? (uint8_t)strtoul(argv[5], NULL, 0)
+                              : BOARD_GP_SCANNER_CH3,
+        .trst = JTAG_PIN_TRST_NONE,
+    };
+    if (!jtag_init(&p)) {
+        shell_print("BPIRATE: ERR jtag_init_failed (pin range or duplicate?)\n");
+        return;
+    }
+    buspirate_compat_init(&BP_CALLBACKS);
+    shell_printf("BPIRATE: OK entering BBIO mode tdi=GP%u tdo=GP%u tms=GP%u tck=GP%u\n",
+                 p.tdi, p.tdo, p.tms, p.tck);
+    shell_print("BPIRATE: send 0x00 to handshake (BBIO1), 0x06 → OCD1, 0x0F to exit\n");
+    // Set mode AFTER the prints so the diag-gate doesn't swallow them.
+    s_shell_mode = SHELL_MODE_BUSPIRATE;
 }
 
 static void process_serprog_subcmd(int argc, char **argv) {
@@ -609,6 +688,17 @@ static void pump_shell_cdc(void) {
     if (n == 0) return;
     for (size_t i = 0; i < n; i++) {
         uint8_t b = buf[i];
+
+        // F8-4 / F8-5: in a binary mode every byte goes through the
+        // foreign protocol parser. The mode-switch back to TEXT is
+        // owned by the parser (e.g. BusPirate's 0x0F invokes
+        // bp_on_exit_cb which clears s_shell_mode).
+        if (s_shell_mode == SHELL_MODE_BUSPIRATE) {
+            buspirate_compat_feed_byte(b);
+            continue;
+        }
+        // SHELL_MODE_SERPROG path lands in F8-5.
+
         if (b == '\r' || b == '\n') {
             if (shell_pos > 0u) {
                 shell_buf[shell_pos] = '\0';

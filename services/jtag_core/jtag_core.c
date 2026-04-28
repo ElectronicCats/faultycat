@@ -219,6 +219,13 @@ void jtag_assert_trst(void) {
     hal_gpio_put(t, true);
 }
 
+bool jtag_clock_bit(bool tms, bool tdi) {
+    if (!s_inited) return false;
+    set_tms(tms);
+    set_tdi(tdi);
+    return tck_pulse_read_tdo();
+}
+
 uint32_t jtag_bit_reverse32(uint32_t v) {
     uint32_t r = 0u;
     for (uint8_t i = 0; i < 32u; i++) {

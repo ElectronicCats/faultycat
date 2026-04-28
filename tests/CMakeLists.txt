@@ -185,3 +185,19 @@ endfunction()
 
 # F8-2 — pinout_scanner permutation iterator
 faultycat_add_service_pinout_test(test_pinout_scanner)
+
+# F8-4 — buspirate_compat (BusPirate v1 BBIO + OpenOCD JTAG)
+function(faultycat_add_service_buspirate_test name)
+    add_executable(${name}
+        ${name}.c
+        ${CMAKE_SOURCE_DIR}/services/buspirate_compat/buspirate_compat.c
+    )
+    target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_include_directories(${name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/drivers/include
+        ${CMAKE_SOURCE_DIR}/services/buspirate_compat
+    )
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+faultycat_add_service_buspirate_test(test_buspirate_compat)

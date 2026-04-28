@@ -84,6 +84,13 @@ void jtag_reset_to_run_test_idle(void);
 // JTAG_PIN_TRST_NONE.
 void jtag_assert_trst(void);
 
+// Clock one bit: drive TMS = `tms` and TDI = `tdi`, pulse TCK rising
+// edge (target latches), sample TDO, lower TCK. Returns the sampled
+// TDO bit. F8-4 (services/buspirate_compat) drives this directly to
+// implement BusPirate's CMD_TAP_SHIFT in streaming mode (no 4 KB
+// buffer for the bit pairs). Undefined if !jtag_is_inited().
+bool jtag_clock_bit(bool tms, bool tdi);
+
 // IDCODE chain readout. Detects how many devices are on the chain
 // (via jtag_detect_chain_length internally), shifts 32 bits per
 // device out of the IDCODE register (the post-reset default DR for
