@@ -32,7 +32,7 @@ active phase: F8-1 (this commit) lands `services/jtag_core/`.
 | F5 — glitch engine crowbar (service, PIO-driven triggered fire on pio0/SM1, IRQ 1) | `v3.0-f5` | ✓ closed |
 | F6 — SWD core (debugprobe MIT port to swd_phy + scratch swd_dp / swd_mem; CDC2 shell) | — | code-complete + spec-compliant; **physical gate blocked** by TXS0108EPW HW path (see `HARDWARE_V2.md §2`). Open-drain PIO emulation in place; canonical raspberrypi/debugprobe also fails through the same HW path, confirming the bug is HW. Not tagged. |
 | F7 — CMSIS-DAP v2 + v1 daplink_usb | — | deferred until F6 physical gate passes (HW bypass on the TXS0108E) |
-| F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | — | **active** — F8-1: `services/jtag_core/` (CPU bit-bang TAP + IDCODE chain detect, blueTag-derived MIT) + CDC2 shell `jtag <subcmd>` + `tools/jtag_diag.py` reference client. JTAG is mostly host-driven push-pull (TXS0108E handles unidirectional fine), so the sub-phases can validate physically without unblocking F6 first. F8-2..F8-5 pending: pinout_scanner, top-level shell, buspirate_compat, flashrom_serprog. |
+| F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | — | **active** — F8-1: `services/jtag_core/` (CPU bit-bang TAP + IDCODE chain detect, blueTag-derived MIT) + CDC2 shell `jtag <subcmd>` + `tools/jtag_diag.py`. F8-2: `services/pinout_scanner/` (P(8,4) JTAG + P(8,2) SWD permutation iterator + first-match search) + CDC2 shell `scan jtag` / `scan swd` + cooperative yield hook so usb_composite_task / EMFI / crowbar campaigns stay alive during the scan + `tools/scanner_diag.py`. JTAG path is mostly host-driven push-pull (TXS0108E handles unidirectional fine); SWD path inherits F6's open-drain SWDIO emulation but the TXS0108E HW gate still applies, so `scan swd` is unit-tested + code-validated but waits on the same HW bypass as F6 for physical verification. F8-3..F8-5 pending: top-level shell, buspirate_compat, flashrom_serprog. |
 | F9 — Campaign manager + SWD mutex | — | pending |
 | F10 — faultycmd-rs Rust workspace | — | pending |
 | F11 — Hardening, docs, release | — | pending |
@@ -80,11 +80,30 @@ Current tree health:
   vs `swd_phy` enforced shell-side: `swd init` while JTAG is held
   returns `SWD: ERR jtag_in_use`, and vice versa. F9 promotes the
   soft-lock to a `mutex_t`.
-- **287 unit tests** across 23 binaries, all green under
+- **`services/pinout_scanner/`** (F8-2) complete:
+  `pinout_scanner.{c,h}` — pure k-permutation iterator
+  (`pinout_perm_init` / `_next` / `_total`) plus `pinout_scan_jtag`
+  (P(8,4) = 1680 candidates, validated by `jtag_idcode_is_valid`)
+  and `pinout_scan_swd` (P(8,2) = 56 candidates, validated by
+  `swd_dp_connect` returning `SWD_ACK_OK` with non-zero DPIDR).
+  Shell on CDC2 gains `scan jtag` and `scan swd [<targetsel_hex>]`
+  (default TARGETSEL = `SWD_DP_TARGETSEL_RP2040_CORE0`). The
+  candidate-iteration progress callback in `apps/faultycat_fw/
+  main.c::scan_yield_progress` calls `usb_composite_task`,
+  `pump_emfi_cdc`, `pump_crowbar_cdc`, `emfi_campaign_tick` and
+  `crowbar_campaign_tick` between candidates and prints
+  `SCAN: progress N/total` every 100 iterations — long scans don't
+  starve TinyUSB or stall an active glitch campaign. Reference
+  client `tools/scanner_diag.py` streams the progress + verdict.
+- **300 unit tests** across 24 binaries, all green under
   `cmake --preset host-tests && ctest --preset host-tests`. F8-1
   added `test_jtag_core` (24 cases) plus a generic `hal_fake_gpio`
-  edge sampler + per-pin input-script API that future clocked-bus
-  tests (SPI in F8-5, JTAG buspirate-compat in F8-4) will reuse.
+  edge sampler + per-pin input-script API; F8-2 adds
+  `test_pinout_scanner` (13 cases — permutation iterator total /
+  uniqueness / lex-order / edge cases). End-to-end
+  `pinout_scan_jtag` / `_swd` runs are deferred to physical smoke
+  (per-iteration teardown + re-init makes scripted-input testing
+  more bookkeeping than value).
 - **CI**: parallel `host-tests` + `fw-release` jobs on every push.
 - **7 HV-SIGNED commits** in history: `f450d43` (hv_charger),
   `69792ac` (emfi_pulse), F4-3 (`emfi_pio` + driver PIO attach),
@@ -136,7 +155,7 @@ compatible — existing EMFI / crowbar configures are unaffected.
 │      + swd_dp + swd_mem (scratch)     │    + DPIDR/MEM-AP shell      ✓ F6    │
 │    daplink_usb/                       │    CMSIS-DAP v2 + v1 HID     … F7    │
 │    jtag_core/                         │    blueTag-derived (CPU)     ✓ F8-1  │
-│    pinout_scanner/                    │    JTAGulator over scanner   … F8-2  │
+│    pinout_scanner/                    │    JTAGulator over scanner   ✓ F8-2  │
 │    buspirate_compat/ flashrom_serprog/│    blueTag-derived           … F8    │
 │    host_proto/emfi_proto              │    binary framing on CDC0    ✓ F4    │
 │    host_proto/crowbar_proto           │    binary framing on CDC1    ✓ F5    │
