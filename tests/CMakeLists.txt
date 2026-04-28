@@ -217,3 +217,19 @@ function(faultycat_add_service_serprog_test name)
 endfunction()
 
 faultycat_add_service_serprog_test(test_flashrom_serprog)
+
+# F9-1 — swd_bus_lock (service-layer SWD/JTAG bus mutex)
+function(faultycat_add_service_swd_bus_lock_test name)
+    add_executable(${name}
+        ${name}.c
+        ${CMAKE_SOURCE_DIR}/services/swd_bus_lock/swd_bus_lock.c
+    )
+    target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_include_directories(${name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/drivers/include
+        ${CMAKE_SOURCE_DIR}/services/swd_bus_lock
+    )
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+faultycat_add_service_swd_bus_lock_test(test_swd_bus_lock)
