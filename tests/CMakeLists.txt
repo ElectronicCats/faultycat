@@ -143,3 +143,20 @@ faultycat_add_service_swd_test(test_swd_phy)
 faultycat_add_service_swd_test(test_swd_dp)
 # F6-4 — swd_mem MEM-AP read32/write32
 faultycat_add_service_swd_test(test_swd_mem)
+
+# JTAG test helper — links jtag_core sources for unit tests.
+function(faultycat_add_service_jtag_test name)
+    add_executable(${name}
+        ${name}.c
+        ${CMAKE_SOURCE_DIR}/services/jtag_core/jtag_core.c
+    )
+    target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_include_directories(${name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/drivers/include
+        ${CMAKE_SOURCE_DIR}/services/jtag_core
+    )
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+# F8-1 — jtag_core TAP + IDCODE
+faultycat_add_service_jtag_test(test_jtag_core)

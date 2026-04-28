@@ -18,8 +18,9 @@ Usage:
 
 The CDC2 stream interleaves the periodic snapshot diag line and the
 banner; this client filters those out and returns only lines that
-start with "SWD:" (the convention the firmware uses for shell
-output).
+start with "SWD:" or "SHELL:" (the prefix conventions the firmware
+uses — F6 cmds reply with SWD:, the post-F8-1 unified help text uses
+SHELL:).
 """
 import argparse
 import sys
@@ -31,8 +32,11 @@ except ImportError:
     sys.exit("pip install pyserial")
 
 
+_ACCEPTED_PREFIXES = ("SWD:", "SHELL:")
+
+
 def send_cmd(ser: "serial.Serial", cmd: str, timeout: float = 3.0) -> str:
-    """Send `cmd` and return the first line beginning with 'SWD:'."""
+    """Send `cmd` and return the first SWD: or SHELL: reply line."""
     ser.reset_input_buffer()
     ser.write((cmd + "\r\n").encode())
     deadline = time.time() + timeout
@@ -44,7 +48,7 @@ def send_cmd(ser: "serial.Serial", cmd: str, timeout: float = 3.0) -> str:
         c = b.decode(errors="replace")
         if c == "\n":
             stripped = line.strip()
-            if stripped.startswith("SWD:"):
+            if any(stripped.startswith(p) for p in _ACCEPTED_PREFIXES):
                 return stripped
             line = ""
         elif c == "\r":

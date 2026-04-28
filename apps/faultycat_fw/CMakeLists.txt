@@ -16,6 +16,7 @@ target_link_libraries(faultycat PRIVATE
     service_emfi
     service_crowbar
     service_swd
+    service_jtag
     host_proto_emfi
     host_proto_crowbar
     usb_composite

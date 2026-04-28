@@ -4,3 +4,4 @@
 add_subdirectory(glitch_engine)
 add_subdirectory(host_proto)
 add_subdirectory(swd_core)
+add_subdirectory(jtag_core)
