@@ -326,6 +326,9 @@ infra, reusable para SPI/serial/JTAG-style clocked-bus tests).
 
 ## Branches huérfanos
 
-- `rewrite/v3-pre-f5-rebase` — del rebase de firma F5; borrar con
-  `git branch -D rewrite/v3-pre-f5-rebase` cuando confirmes que
-  `v3.0-f5` está estable. **TODO de Sabas**.
+Limpio (2026-04-28). `rewrite/v3-pre-f5-rebase` borrado local
+después de confirmar tree-equality con tag `v3.0-f5` (mismo árbol
+`03e87b29...`, diff vacío). Si todavía aparece
+`origin/rewrite/v3-pre-f5-rebase` en `git fetch`, correr
+`git push origin --delete rewrite/v3-pre-f5-rebase` desde un shell
+con credenciales GitHub configuradas.
