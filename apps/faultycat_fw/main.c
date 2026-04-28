@@ -22,6 +22,7 @@
 #include "emfi_proto.h"
 #include "emfi_pulse.h"
 #include "buspirate_compat.h"
+#include "campaign_manager.h"
 #include "ext_trigger.h"
 #include "flashrom_serprog.h"
 #include "hal/gpio.h"
@@ -30,6 +31,7 @@
 #include "jtag_core.h"
 #include "board_v2.h"
 #include "pinout_scanner.h"
+#include "swd_bus_lock.h"
 #include "scanner_io.h"
 #include "swd_dp.h"
 #include "swd_mem.h"
@@ -174,6 +176,11 @@ static void shell_help(void) {
     shell_print("SHELL: --- Pinout scan (F8-2) ---\n");
     shell_print("SHELL:   scan jtag                                    P(8,4)=1680 perms\n");
     shell_print("SHELL:   scan swd  [<targetsel_hex>]                  P(8,2)=56 perms\n");
+    shell_print("SHELL: --- Campaign (F9) ---\n");
+    shell_print("SHELL:   campaign status                              show state + counters\n");
+    shell_print("SHELL:   campaign stop                                halt running sweep\n");
+    shell_print("SHELL:   campaign drain [<n>]                         pop up to N results\n");
+    shell_print("SHELL:   campaign demo crowbar                        6-step LP sweep (HV-safe)\n");
     shell_print("SHELL: --- Mode switches (binary protocols) ---\n");
     shell_print("SHELL:   buspirate enter [<tdi> <tdo> <tms> <tck>]    OpenOCD via BPv1 binary (F8-4)\n");
     shell_print("SHELL:                                                defaults: 0 1 2 3, exit with 0x0F\n");
@@ -727,6 +734,265 @@ static void process_serprog_subcmd(int argc, char **argv) {
     s_shell_mode = SHELL_MODE_SERPROG;
 }
 
+// -----------------------------------------------------------------------------
+// F9-3 campaign manager — engine adapters + shell sub-shell
+//
+// Two adapter executors bridge campaign_manager's per-step API onto
+// the existing emfi_campaign / crowbar_campaign engine state
+// machines. A single dispatcher picks the right one per
+// `cfg->engine`. SWD bus mutex (swd_bus_lock) is acquired around the
+// verify hook only — campaign_manager doesn't hold the bus during
+// the fire path itself (engines don't touch SWD; only the optional
+// post-fire verify hook does).
+// -----------------------------------------------------------------------------
+
+#define CAMPAIGN_FIRE_TIMEOUT_MS    10000u
+#define CAMPAIGN_HV_CHARGE_WAIT_MS  3000u
+
+// Cooperative wait — yields tud_task between checks so a long fire
+// doesn't starve TinyUSB or the host.
+static void campaign_yield_pump(void) {
+    usb_composite_task();
+    pump_emfi_cdc();
+    pump_crowbar_cdc();
+}
+
+static bool campaign_executor_emfi(uint32_t step, uint32_t delay,
+                                   uint32_t width, uint32_t power,
+                                   uint8_t *out_fire, uint8_t *out_verify,
+                                   uint32_t *out_target) {
+    (void)step; (void)power;     // F9-3: power axis unused for EMFI
+                                 // (HV is binary armed/charged); F10
+                                 // may map it to charge dwell time.
+    emfi_config_t cfg = {
+        .trigger           = EMFI_TRIG_IMMEDIATE,
+        .delay_us          = delay,
+        .width_us          = width,
+        .charge_timeout_ms = CAMPAIGN_HV_CHARGE_WAIT_MS,
+    };
+    if (!emfi_campaign_configure(&cfg)) { *out_fire = 1; return false; }
+    if (!emfi_campaign_arm())           { *out_fire = 2; return false; }
+    if (!emfi_campaign_fire(CAMPAIGN_FIRE_TIMEOUT_MS)) {
+        *out_fire = 3; return false;
+    }
+
+    // Wait for the engine to complete this fire. Yields cooperatively
+    // every iteration so TinyUSB and the host_proto pumps stay alive.
+    uint32_t start = hal_now_ms();
+    while (true) {
+        emfi_campaign_tick();
+        emfi_status_t st;
+        emfi_campaign_get_status(&st);
+        if (st.state == EMFI_STATE_FIRED) {
+            *out_fire = 0;
+            *out_target = st.delay_us_actual;   // diag echo
+            break;
+        }
+        if (st.state == EMFI_STATE_ERROR) {
+            *out_fire = (uint8_t)(0x80u | (uint8_t)st.err);
+            return false;
+        }
+        if ((uint32_t)(hal_now_ms() - start) > CAMPAIGN_FIRE_TIMEOUT_MS) {
+            *out_fire = 4;   // engine-side stuck timeout
+            return false;
+        }
+        campaign_yield_pump();
+        hal_sleep_ms(1u);
+    }
+    return true;
+}
+
+static bool campaign_executor_crowbar(uint32_t step, uint32_t delay,
+                                      uint32_t width, uint32_t power,
+                                      uint8_t *out_fire, uint8_t *out_verify,
+                                      uint32_t *out_target) {
+    (void)step;
+    crowbar_out_t output = (power == 2u) ? CROWBAR_OUT_HP : CROWBAR_OUT_LP;
+    crowbar_config_t cfg = {
+        .trigger  = CROWBAR_TRIG_IMMEDIATE,
+        .output   = output,
+        .delay_us = delay,
+        .width_ns = width,
+    };
+    if (!crowbar_campaign_configure(&cfg)) { *out_fire = 1; return false; }
+    if (!crowbar_campaign_arm())           { *out_fire = 2; return false; }
+    if (!crowbar_campaign_fire(CAMPAIGN_FIRE_TIMEOUT_MS)) {
+        *out_fire = 3; return false;
+    }
+
+    uint32_t start = hal_now_ms();
+    while (true) {
+        crowbar_campaign_tick();
+        crowbar_status_t st;
+        crowbar_campaign_get_status(&st);
+        if (st.state == CROWBAR_STATE_FIRED) {
+            *out_fire = 0;
+            *out_target = (uint32_t)output;   // diag echo
+            break;
+        }
+        if (st.state == CROWBAR_STATE_ERROR) {
+            *out_fire = (uint8_t)(0x80u | (uint8_t)st.err);
+            return false;
+        }
+        if ((uint32_t)(hal_now_ms() - start) > CAMPAIGN_FIRE_TIMEOUT_MS) {
+            *out_fire = 4;
+            return false;
+        }
+        campaign_yield_pump();
+        hal_sleep_ms(1u);
+    }
+    return true;
+}
+
+// Single dispatcher registered with campaign_manager. Picks the
+// engine adapter, runs the post-fire verify hook (default no-op
+// until F6 unblocks SWD physically), and reports per-step status.
+static bool campaign_dispatch_executor(uint32_t step,
+                                       const campaign_config_t *cfg,
+                                       uint32_t delay, uint32_t width,
+                                       uint32_t power,
+                                       uint8_t *out_fire,
+                                       uint8_t *out_verify,
+                                       uint32_t *out_target,
+                                       void *user) {
+    (void)user;
+
+    *out_fire   = 0u;
+    *out_verify = 0u;
+    *out_target = 0u;
+
+    bool fire_ok = false;
+    if (cfg->engine == CAMPAIGN_ENGINE_EMFI) {
+        fire_ok = campaign_executor_emfi(step, delay, width, power,
+                                         out_fire, out_verify, out_target);
+    } else {
+        fire_ok = campaign_executor_crowbar(step, delay, width, power,
+                                            out_fire, out_verify, out_target);
+    }
+    if (!fire_ok) return false;
+
+    // Post-fire verify hook. F9-3 ships with no-op verify (verify_status
+    // = 0 = "skipped"). F-future will attach a real SWD read here that
+    // diffs the target's PC / flag register against a baseline. The
+    // SWD bus mutex is acquired around the call so any concurrent
+    // daplink_usb host (F7) gets DAP_ERROR(busy) per plan §4.
+    if (swd_bus_try_acquire(SWD_BUS_OWNER_CAMPAIGN)) {
+        // Hook is no-op today — just leave verify_status at 0.
+        // When the real hook lands (e.g. swd_dp_read32 against a
+        // baseline address), it goes here.
+        *out_verify = 0u;
+        swd_bus_release(SWD_BUS_OWNER_CAMPAIGN);
+    } else {
+        // Bus held by daplink/scanner — flag verify as "busy/skipped".
+        *out_verify = 0xFEu;
+    }
+    return true;
+}
+
+// -----------------------------------------------------------------------------
+// Campaign shell — minimal subset for F9-3 smoke. Real config + start
+// goes through F9-4's host_proto over CDC0 (EMFI campaigns) and CDC1
+// (crowbar campaigns); this text shell exposes status / stop / drain
+// + a canned `campaign demo crowbar` for hardware smoke without an
+// SPI flash chip or HV target.
+// -----------------------------------------------------------------------------
+
+static const char *campaign_state_label(campaign_state_t s) {
+    switch (s) {
+        case CAMPAIGN_STATE_IDLE:        return "IDLE";
+        case CAMPAIGN_STATE_CONFIGURING: return "CONFIGURING";
+        case CAMPAIGN_STATE_SWEEPING:    return "SWEEPING";
+        case CAMPAIGN_STATE_DONE:        return "DONE";
+        case CAMPAIGN_STATE_STOPPED:     return "STOPPED";
+        case CAMPAIGN_STATE_ERROR:       return "ERROR";
+        default:                         return "???";
+    }
+}
+
+static void cmd_campaign_status(void) {
+    campaign_status_t st;
+    campaign_manager_get_status(&st);
+    shell_printf("CAMPAIGN: state=%s err=%u step=%u/%u pushed=%u dropped=%u\n",
+                 campaign_state_label(st.state), (unsigned)st.err,
+                 (unsigned)st.step_n, (unsigned)st.total_steps,
+                 (unsigned)st.results_pushed,
+                 (unsigned)st.results_dropped);
+}
+
+static void cmd_campaign_stop(void) {
+    campaign_manager_stop();
+    shell_print("CAMPAIGN: OK stopped\n");
+}
+
+static void cmd_campaign_drain(int argc, char **argv) {
+    uint32_t max = 8u;
+    if (argc >= 3) {
+        max = (uint32_t)strtoul(argv[2], NULL, 0);
+        if (max == 0u || max > 64u) max = 8u;
+    }
+    campaign_result_t buf[64];
+    if (max > sizeof(buf)/sizeof(buf[0])) max = sizeof(buf)/sizeof(buf[0]);
+    size_t n = campaign_manager_drain_results(buf, max);
+    shell_printf("CAMPAIGN: drained=%u\n", (unsigned)n);
+    for (size_t i = 0; i < n; i++) {
+        shell_printf("CAMPAIGN:   step=%u d=%u w=%u p=%u fire=0x%02X verify=0x%02X target=0x%08lX ts=%lu us\n",
+                     (unsigned)buf[i].step_n,
+                     (unsigned)buf[i].delay,
+                     (unsigned)buf[i].width,
+                     (unsigned)buf[i].power,
+                     buf[i].fire_status,
+                     buf[i].verify_status,
+                     (unsigned long)buf[i].target_state,
+                     (unsigned long)buf[i].ts_us);
+    }
+}
+
+static void cmd_campaign_demo_crowbar(void) {
+    // 6-step crowbar sweep on the LP path. NO HV CAP involved.
+    // delay 1000-3000 step 1000  (3 values: 1000, 2000, 3000 µs)
+    // width 200-300 step 100     (2 values: 200, 300 ns)
+    // power 1 (LP only)
+    // → 6 steps total. settle 50 ms keeps things visibly stepped.
+    campaign_config_t cfg = {
+        .engine    = CAMPAIGN_ENGINE_CROWBAR,
+        .delay     = { 1000u, 3000u, 1000u },
+        .width     = { 200u,  300u,  100u },
+        .power     = { 1u,    1u,    0u   },
+        .settle_ms = 50u,
+    };
+    if (!campaign_manager_configure(&cfg)) {
+        shell_print("CAMPAIGN: ERR demo_configure_failed\n");
+        return;
+    }
+    if (!campaign_manager_start()) {
+        shell_print("CAMPAIGN: ERR demo_start_failed\n");
+        return;
+    }
+    shell_print("CAMPAIGN: OK demo crowbar started — 6 steps, ~300 ms total\n");
+    shell_print("CAMPAIGN:   poll with `campaign status`, fetch via `campaign drain`\n");
+}
+
+static void process_campaign_subcmd(int argc, char **argv) {
+    if (argc < 2) {
+        shell_print("CAMPAIGN: ERR campaign needs subcommand: status | stop | drain | demo\n");
+        return;
+    }
+    const char *sub = argv[1];
+    if      (!strcmp(sub, "status")) cmd_campaign_status();
+    else if (!strcmp(sub, "stop"))   cmd_campaign_stop();
+    else if (!strcmp(sub, "drain"))  cmd_campaign_drain(argc, argv);
+    else if (!strcmp(sub, "demo")) {
+        if (argc >= 3 && !strcmp(argv[2], "crowbar")) {
+            cmd_campaign_demo_crowbar();
+        } else {
+            shell_print("CAMPAIGN: ERR demo needs target (only `crowbar` is HV-safe)\n");
+        }
+    }
+    else {
+        shell_printf("CAMPAIGN: ERR unknown_subcmd: %s (try `?`)\n", sub);
+    }
+}
+
 static void process_jtag_subcmd(int argc, char **argv) {
     if (argc < 2) {
         shell_print("JTAG: ERR jtag needs subcommand (try `?`)\n");
@@ -768,6 +1034,10 @@ static void process_shell_line(char *line) {
     }
     if (!strcmp(argv[0], "scan")) {
         process_scan_subcmd(argc, argv);
+        return;
+    }
+    if (!strcmp(argv[0], "campaign")) {
+        process_campaign_subcmd(argc, argv);
         return;
     }
     if (!strcmp(argv[0], "buspirate")) {
@@ -985,6 +1255,11 @@ int main(void) {
     crowbar_campaign_init();
     crowbar_proto_init();
 
+    // F9-1 / F9-3 — service-layer SWD bus mutex + sweep orchestrator.
+    swd_bus_lock_init();
+    campaign_manager_init();
+    campaign_manager_set_step_executor(campaign_dispatch_executor, NULL);
+
     bool     last_arm              = false;
     bool     last_pulse            = false;
     bool     last_scanner_conn     = false;
@@ -998,6 +1273,7 @@ int main(void) {
         pump_shell_cdc();
         emfi_campaign_tick();
         crowbar_campaign_tick();
+        campaign_manager_tick();
 
         // Print banner on first CDC2 connection so a freshly-attached
         // terminal sees the intro without needing a board reset.
