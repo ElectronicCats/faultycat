@@ -68,7 +68,7 @@ static void diag_printf(const char *fmt, ...) {
 
 static void diag_banner(void) {
     diag_printf("\n========================================\n");
-    diag_printf("FaultyCat v3 — F6 diag (composite scanner CDC + SWD shell)\n");
+    diag_printf("FaultyCat v3 — F8 diag (composite scanner CDC + unified shell)\n");
     diag_printf("========================================\n");
     diag_printf("!! HV WARNING — plastic shield + coil MUST be installed.\n");
     diag_printf("!! Do NOT leave the SMA open with HV armed.\n\n");
@@ -86,27 +86,40 @@ static void diag_banner(void) {
 }
 
 // -----------------------------------------------------------------------------
-// SWD diagnostic shell on CDC2 (F6-5)
+// Top-level diagnostic shell on CDC2 (F6-5 → F8-3)
 //
-// Tiny line-buffered text parser. Lets the operator drive the F6
-// services from a serial terminal or from tools/swd_diag.py without
-// needing a host-side CMSIS-DAP stack (that lands in F7). The shell
-// shares CDC2 with the diag snapshot stream — outputs are prefixed
-// "SWD: " so they stay distinguishable.
+// Tiny line-buffered text parser shared by all the v3 debug services.
+// Lets the operator drive everything from a serial terminal or from
+// tools/{swd,jtag,scanner}_diag.py without needing a host-side
+// CMSIS-DAP stack (that lands in F7). The shell shares CDC2 with the
+// diag snapshot stream — outputs use a service prefix so the
+// host-side filters can demux:
+//
+//   SHELL:    top-level menu / help / unknown-cmd errors
+//   SWD:      F6 SWD subshell (`swd <subcmd>`)
+//   JTAG:     F8-1 JTAG subshell (`jtag <subcmd>`)
+//   SCAN:     F8-2 pinout scanner (`scan jtag` / `scan swd`)
+//   BPIRATE:  F8-4 BusPirate binary mode entry/exit (placeholder
+//             until F8-4 lands the real protocol parser).
+//   SERPROG:  F8-5 flashrom serprog mode entry/exit (placeholder).
+//
+// Mode switches (`buspirate enter`, `serprog enter`) currently emit
+// a "not_yet_implemented" error so the parser shape is stable for
+// F8-4 / F8-5 to plug in without further surgery on this file.
 // -----------------------------------------------------------------------------
 
-#define SWD_SHELL_BUF_LEN  96u
+#define SHELL_BUF_LEN  96u
 
-static char     swd_shell_buf[SWD_SHELL_BUF_LEN];
-static uint16_t swd_shell_pos = 0u;
+static char     shell_buf[SHELL_BUF_LEN];
+static uint16_t shell_pos = 0u;
 static bool     swd_shell_inited = false;
 
-static void swd_print(const char *s) {
+static void shell_print(const char *s) {
     if (!s) return;
     usb_composite_cdc_write(USB_CDC_SCANNER, s, strlen(s));
 }
 
-static void swd_printf(const char *fmt, ...) {
+static void shell_printf(const char *fmt, ...) {
     char buf[96];
     va_list ap;
     va_start(ap, fmt);
@@ -117,29 +130,32 @@ static void swd_printf(const char *fmt, ...) {
     usb_composite_cdc_write(USB_CDC_SCANNER, buf, (size_t)n);
 }
 
-static void swd_shell_help(void) {
-    swd_print("SHELL: commands —\n");
-    swd_print("SHELL:   ? | help\n");
-    swd_print("SHELL: --- SWD (F6) ---\n");
-    swd_print("SHELL:   swd init <swclk_gp> <swdio_gp> [<nrst_gp>]   defaults 0 1 2\n");
-    swd_print("SHELL:   swd deinit\n");
-    swd_print("SHELL:   swd freq <khz>                               (100..24000)\n");
-    swd_print("SHELL:   swd connect | swd probe                      line reset + DPIDR\n");
-    swd_print("SHELL:   swd read32 <hex_addr>\n");
-    swd_print("SHELL:   swd write32 <hex_addr> <hex_val>\n");
-    swd_print("SHELL:   swd reset 0|1                                nRST release / assert\n");
-    swd_print("SHELL: --- JTAG (F8-1) ---\n");
-    swd_print("SHELL:   jtag init <tdi_gp> <tdo_gp> <tms_gp> <tck_gp> [<trst_gp>]\n");
-    swd_print("SHELL:   jtag deinit\n");
-    swd_print("SHELL:   jtag reset                                   TAP → Run-Test/Idle\n");
-    swd_print("SHELL:   jtag trst                                    pulse TRST low ~1 ms\n");
-    swd_print("SHELL:   jtag chain                                   detect # of TAPs\n");
-    swd_print("SHELL:   jtag idcode                                  read IDCODE chain\n");
-    swd_print("SHELL: --- Pinout scan (F8-2) ---\n");
-    swd_print("SHELL:   scan jtag                                    P(8,4)=1680 perms\n");
-    swd_print("SHELL:   scan swd  [<targetsel_hex>]                  P(8,2)=56 perms\n");
-    swd_print("SHELL: NOTE: SWD and JTAG share scanner pins (GP0..GP7) — only one\n");
-    swd_print("SHELL:       may be inited at a time. F9 lifts this to a real mutex.\n");
+static void shell_help(void) {
+    shell_print("SHELL: commands —\n");
+    shell_print("SHELL:   ? | help\n");
+    shell_print("SHELL: --- SWD (F6) ---\n");
+    shell_print("SHELL:   swd init <swclk_gp> <swdio_gp> [<nrst_gp>]   defaults 0 1 2\n");
+    shell_print("SHELL:   swd deinit\n");
+    shell_print("SHELL:   swd freq <khz>                               (100..24000)\n");
+    shell_print("SHELL:   swd connect | swd probe                      line reset + DPIDR\n");
+    shell_print("SHELL:   swd read32 <hex_addr>\n");
+    shell_print("SHELL:   swd write32 <hex_addr> <hex_val>\n");
+    shell_print("SHELL:   swd reset 0|1                                nRST release / assert\n");
+    shell_print("SHELL: --- JTAG (F8-1) ---\n");
+    shell_print("SHELL:   jtag init <tdi_gp> <tdo_gp> <tms_gp> <tck_gp> [<trst_gp>]\n");
+    shell_print("SHELL:   jtag deinit\n");
+    shell_print("SHELL:   jtag reset                                   TAP → Run-Test/Idle\n");
+    shell_print("SHELL:   jtag trst                                    pulse TRST low ~1 ms\n");
+    shell_print("SHELL:   jtag chain                                   detect # of TAPs\n");
+    shell_print("SHELL:   jtag idcode                                  read IDCODE chain\n");
+    shell_print("SHELL: --- Pinout scan (F8-2) ---\n");
+    shell_print("SHELL:   scan jtag                                    P(8,4)=1680 perms\n");
+    shell_print("SHELL:   scan swd  [<targetsel_hex>]                  P(8,2)=56 perms\n");
+    shell_print("SHELL: --- Mode switches (F8-3 entry, F8-4/F8-5 backend) ---\n");
+    shell_print("SHELL:   buspirate enter                              OpenOCD via BPv1 binary (F8-4 stub)\n");
+    shell_print("SHELL:   serprog enter                                flashrom serprog (F8-5 stub)\n");
+    shell_print("SHELL: NOTE: SWD and JTAG share scanner pins (GP0..GP7) — only one\n");
+    shell_print("SHELL:       may be inited at a time. F9 lifts this to a real mutex.\n");
 }
 
 static const char *ack_label(swd_dp_ack_t a) {
@@ -161,7 +177,7 @@ static bool ensure_inited(void) {
     if (!swd_phy_init(BOARD_GP_SWCLK_DEFAULT,
                       BOARD_GP_SWDIO_DEFAULT,
                       BOARD_GP_SWRST_DEFAULT)) {
-        swd_print("SWD: ERR phy_init_failed\n");
+        shell_print("SWD: ERR phy_init_failed\n");
         return false;
     }
     swd_shell_inited = true;
@@ -172,7 +188,7 @@ static void cmd_init(int argc, char **argv) {
     // F8-1 soft-lock: SWD and JTAG share GP0..GP7. Refuse SWD init
     // while JTAG owns the bus instead of silently corrupting both.
     if (jtag_is_inited()) {
-        swd_print("SWD: ERR jtag_in_use (run `jtag deinit` first)\n");
+        shell_print("SWD: ERR jtag_in_use (run `jtag deinit` first)\n");
         return;
     }
     if (swd_shell_inited) {
@@ -186,33 +202,33 @@ static void cmd_init(int argc, char **argv) {
     int8_t  nrst  = (argc >= 5) ? (int8_t)strtol(argv[4], NULL, 0)
                                 : (int8_t)BOARD_GP_SWRST_DEFAULT;
     if (!swd_phy_init(swclk, swdio, nrst)) {
-        swd_print("SWD: ERR phy_init_failed\n");
+        shell_print("SWD: ERR phy_init_failed\n");
         return;
     }
     swd_shell_inited = true;
-    swd_printf("SWD: OK init swclk=GP%u swdio=GP%u nrst=%d\n",
+    shell_printf("SWD: OK init swclk=GP%u swdio=GP%u nrst=%d\n",
                swclk, swdio, nrst);
 }
 
 static void cmd_deinit(void) {
     if (!swd_shell_inited) {
-        swd_print("SWD: OK deinit (was already idle)\n");
+        shell_print("SWD: OK deinit (was already idle)\n");
         return;
     }
     swd_phy_deinit();
     swd_shell_inited = false;
-    swd_print("SWD: OK deinit\n");
+    shell_print("SWD: OK deinit\n");
 }
 
 static void cmd_freq(int argc, char **argv) {
     if (argc < 3) {
-        swd_print("SWD: ERR missing_khz\n");
+        shell_print("SWD: ERR missing_khz\n");
         return;
     }
     if (!ensure_inited()) return;
     uint32_t khz = (uint32_t)strtoul(argv[2], NULL, 0);
     swd_phy_set_clk_khz(khz);
-    swd_printf("SWD: OK freq %u khz (clamped to range if needed)\n", khz);
+    shell_printf("SWD: OK freq %u khz (clamped to range if needed)\n", khz);
 }
 
 static void cmd_connect(void) {
@@ -222,37 +238,37 @@ static void cmd_connect(void) {
     // a different TARGETID via the shell once jtag_core lands.
     swd_dp_ack_t ack = swd_dp_connect(SWD_DP_TARGETSEL_RP2040_CORE0, &dpidr);
     if (ack == SWD_ACK_OK) {
-        swd_printf("SWD: OK connect dpidr=0x%08lX\n", (unsigned long)dpidr);
+        shell_printf("SWD: OK connect dpidr=0x%08lX\n", (unsigned long)dpidr);
     } else {
-        swd_printf("SWD: ERR connect ack=%s\n", ack_label(ack));
+        shell_printf("SWD: ERR connect ack=%s\n", ack_label(ack));
     }
 }
 
 static void cmd_read32(int argc, char **argv) {
     if (argc < 3) {
-        swd_print("SWD: ERR missing_addr\n");
+        shell_print("SWD: ERR missing_addr\n");
         return;
     }
     if (!ensure_inited()) return;
     uint32_t addr = (uint32_t)strtoul(argv[2], NULL, 16);
     swd_dp_ack_t ack = swd_mem_init();
     if (ack != SWD_ACK_OK) {
-        swd_printf("SWD: ERR mem_init ack=%s\n", ack_label(ack));
+        shell_printf("SWD: ERR mem_init ack=%s\n", ack_label(ack));
         return;
     }
     uint32_t val = 0u;
     ack = swd_mem_read32(addr, &val);
     if (ack == SWD_ACK_OK) {
-        swd_printf("SWD: OK read32 [0x%08lX]=0x%08lX\n",
+        shell_printf("SWD: OK read32 [0x%08lX]=0x%08lX\n",
                    (unsigned long)addr, (unsigned long)val);
     } else {
-        swd_printf("SWD: ERR read32 ack=%s\n", ack_label(ack));
+        shell_printf("SWD: ERR read32 ack=%s\n", ack_label(ack));
     }
 }
 
 static void cmd_write32(int argc, char **argv) {
     if (argc < 4) {
-        swd_print("SWD: ERR missing_addr_or_val\n");
+        shell_print("SWD: ERR missing_addr_or_val\n");
         return;
     }
     if (!ensure_inited()) return;
@@ -260,27 +276,27 @@ static void cmd_write32(int argc, char **argv) {
     uint32_t val  = (uint32_t)strtoul(argv[3], NULL, 16);
     swd_dp_ack_t ack = swd_mem_init();
     if (ack != SWD_ACK_OK) {
-        swd_printf("SWD: ERR mem_init ack=%s\n", ack_label(ack));
+        shell_printf("SWD: ERR mem_init ack=%s\n", ack_label(ack));
         return;
     }
     ack = swd_mem_write32(addr, val);
     if (ack == SWD_ACK_OK) {
-        swd_printf("SWD: OK write32 [0x%08lX]<=0x%08lX\n",
+        shell_printf("SWD: OK write32 [0x%08lX]<=0x%08lX\n",
                    (unsigned long)addr, (unsigned long)val);
     } else {
-        swd_printf("SWD: ERR write32 ack=%s\n", ack_label(ack));
+        shell_printf("SWD: ERR write32 ack=%s\n", ack_label(ack));
     }
 }
 
 static void cmd_reset(int argc, char **argv) {
     if (argc < 3) {
-        swd_print("SWD: ERR missing_state\n");
+        shell_print("SWD: ERR missing_state\n");
         return;
     }
     if (!ensure_inited()) return;
     bool assert_low = (argv[2][0] == '1');
     swd_phy_assert_reset(assert_low);
-    swd_printf("SWD: OK reset asserted=%d level=%d\n",
+    shell_printf("SWD: OK reset asserted=%d level=%d\n",
                assert_low ? 1 : 0, swd_phy_reset_level());
 }
 
@@ -294,11 +310,11 @@ static void cmd_reset(int argc, char **argv) {
 
 static void cmd_jtag_init(int argc, char **argv) {
     if (swd_shell_inited) {
-        swd_print("JTAG: ERR swd_in_use (run `swd deinit` first)\n");
+        shell_print("JTAG: ERR swd_in_use (run `swd deinit` first)\n");
         return;
     }
     if (argc < 6) {
-        swd_print("JTAG: ERR usage: jtag init <tdi> <tdo> <tms> <tck> [<trst>]\n");
+        shell_print("JTAG: ERR usage: jtag init <tdi> <tdo> <tms> <tck> [<trst>]\n");
         return;
     }
     if (jtag_is_inited()) jtag_deinit();
@@ -311,68 +327,68 @@ static void cmd_jtag_init(int argc, char **argv) {
                             : (int8_t)JTAG_PIN_TRST_NONE,
     };
     if (!jtag_init(&p)) {
-        swd_print("JTAG: ERR init_failed (pin range or duplicate?)\n");
+        shell_print("JTAG: ERR init_failed (pin range or duplicate?)\n");
         return;
     }
-    swd_printf("JTAG: OK init tdi=GP%u tdo=GP%u tms=GP%u tck=GP%u trst=%d\n",
+    shell_printf("JTAG: OK init tdi=GP%u tdo=GP%u tms=GP%u tck=GP%u trst=%d\n",
                p.tdi, p.tdo, p.tms, p.tck, p.trst);
 }
 
 static void cmd_jtag_deinit(void) {
     if (!jtag_is_inited()) {
-        swd_print("JTAG: OK deinit (was already idle)\n");
+        shell_print("JTAG: OK deinit (was already idle)\n");
         return;
     }
     jtag_deinit();
-    swd_print("JTAG: OK deinit\n");
+    shell_print("JTAG: OK deinit\n");
 }
 
 static void cmd_jtag_reset(void) {
     if (!jtag_is_inited()) {
-        swd_print("JTAG: ERR not_inited (run `jtag init ...` first)\n");
+        shell_print("JTAG: ERR not_inited (run `jtag init ...` first)\n");
         return;
     }
     jtag_reset_to_run_test_idle();
-    swd_print("JTAG: OK reset (TAP → Run-Test/Idle)\n");
+    shell_print("JTAG: OK reset (TAP → Run-Test/Idle)\n");
 }
 
 static void cmd_jtag_trst(void) {
     if (!jtag_is_inited()) {
-        swd_print("JTAG: ERR not_inited\n");
+        shell_print("JTAG: ERR not_inited\n");
         return;
     }
     jtag_assert_trst();   // no-op if no TRST wired
-    swd_print("JTAG: OK trst pulse (no-op if no TRST)\n");
+    shell_print("JTAG: OK trst pulse (no-op if no TRST)\n");
 }
 
 static void cmd_jtag_chain(void) {
     if (!jtag_is_inited()) {
-        swd_print("JTAG: ERR not_inited\n");
+        shell_print("JTAG: ERR not_inited\n");
         return;
     }
     size_t n = jtag_detect_chain_length();
-    swd_printf("JTAG: OK chain devices=%u\n", (unsigned)n);
+    shell_printf("JTAG: OK chain devices=%u\n", (unsigned)n);
 }
 
 static void cmd_jtag_idcode(void) {
     if (!jtag_is_inited()) {
-        swd_print("JTAG: ERR not_inited\n");
+        shell_print("JTAG: ERR not_inited\n");
         return;
     }
     uint32_t ids[JTAG_MAX_DEVICES];
     size_t n = jtag_read_idcodes(ids, JTAG_MAX_DEVICES);
     if (n == 0u) {
-        swd_print("JTAG: ERR no_target (chain length 0)\n");
+        shell_print("JTAG: ERR no_target (chain length 0)\n");
         return;
     }
-    swd_printf("JTAG: OK idcodes count=%u\n", (unsigned)n);
+    shell_printf("JTAG: OK idcodes count=%u\n", (unsigned)n);
     for (size_t i = 0; i < n; i++) {
         bool valid = jtag_idcode_is_valid(ids[i]);
         uint32_t bank = (ids[i] >> 8) & 0xFu;
         uint32_t mfg  = (ids[i] >> 1) & 0x7Fu;
         uint32_t part = (ids[i] >> 12) & 0xFFFFu;
         uint32_t ver  = (ids[i] >> 28) & 0xFu;
-        swd_printf("JTAG:   [%u] 0x%08lX %s mfg_bank=0x%X mfg_id=0x%02X "
+        shell_printf("JTAG:   [%u] 0x%08lX %s mfg_bank=0x%X mfg_id=0x%02X "
                    "part=0x%04X ver=0x%X\n",
                    (unsigned)i, (unsigned long)ids[i],
                    valid ? "VALID" : "INVALID",
@@ -413,7 +429,7 @@ static void scan_yield_progress(uint32_t cur, uint32_t total) {
     // `scan jtag` then `scan swd` doesn't race the 100-step throttle.
     if (cur == 0u) s_scan_last_progress_print = 0u;
     if (cur == 0u || (cur - s_scan_last_progress_print) >= 100u) {
-        swd_printf("SCAN: progress %lu/%lu\n",
+        shell_printf("SCAN: progress %lu/%lu\n",
                    (unsigned long)cur, (unsigned long)total);
         s_scan_last_progress_print = cur;
     }
@@ -421,41 +437,41 @@ static void scan_yield_progress(uint32_t cur, uint32_t total) {
 
 static void cmd_scan_jtag(void) {
     if (jtag_is_inited()) {
-        swd_print("SCAN: ERR jtag_in_use (run `jtag deinit` first)\n");
+        shell_print("SCAN: ERR jtag_in_use (run `jtag deinit` first)\n");
         return;
     }
     if (swd_shell_inited) {
-        swd_print("SCAN: ERR swd_in_use (run `swd deinit` first)\n");
+        shell_print("SCAN: ERR swd_in_use (run `swd deinit` first)\n");
         return;
     }
-    swd_printf("SCAN: starting JTAG pinout scan over %u channels (P(%u,%u)=%lu)\n",
+    shell_printf("SCAN: starting JTAG pinout scan over %u channels (P(%u,%u)=%lu)\n",
                PINOUT_SCANNER_CHANNELS, PINOUT_SCANNER_CHANNELS,
                PINOUT_SCANNER_JTAG_PINS,
                (unsigned long)PINOUT_SCANNER_JTAG_TOTAL);
     pinout_scan_jtag_result_t r;
     bool found = pinout_scan_jtag(&r, scan_yield_progress);
     if (!found) {
-        swd_print("SCAN: jtag NO_MATCH (no valid IDCODE found)\n");
+        shell_print("SCAN: jtag NO_MATCH (no valid IDCODE found)\n");
         return;
     }
-    swd_printf("SCAN: jtag MATCH tdi=GP%u tdo=GP%u tms=GP%u tck=GP%u\n",
+    shell_printf("SCAN: jtag MATCH tdi=GP%u tdo=GP%u tms=GP%u tck=GP%u\n",
                r.tdi, r.tdo, r.tms, r.tck);
-    swd_printf("SCAN:   chain=%u idcode[0]=0x%08lX\n",
+    shell_printf("SCAN:   chain=%u idcode[0]=0x%08lX\n",
                (unsigned)r.chain_length, (unsigned long)r.idcode);
 }
 
 static void cmd_scan_swd(int argc, char **argv) {
     if (jtag_is_inited()) {
-        swd_print("SCAN: ERR jtag_in_use (run `jtag deinit` first)\n");
+        shell_print("SCAN: ERR jtag_in_use (run `jtag deinit` first)\n");
         return;
     }
     if (swd_shell_inited) {
-        swd_print("SCAN: ERR swd_in_use (run `swd deinit` first)\n");
+        shell_print("SCAN: ERR swd_in_use (run `swd deinit` first)\n");
         return;
     }
     uint32_t targetsel = (argc >= 3) ? (uint32_t)strtoul(argv[2], NULL, 16)
                                      : SWD_DP_TARGETSEL_RP2040_CORE0;
-    swd_printf("SCAN: starting SWD pinout scan over %u channels "
+    shell_printf("SCAN: starting SWD pinout scan over %u channels "
                "(P(%u,%u)=%u) targetsel=0x%08lX\n",
                PINOUT_SCANNER_CHANNELS, PINOUT_SCANNER_CHANNELS,
                PINOUT_SCANNER_SWD_PINS, PINOUT_SCANNER_SWD_TOTAL,
@@ -463,30 +479,60 @@ static void cmd_scan_swd(int argc, char **argv) {
     pinout_scan_swd_result_t r;
     bool found = pinout_scan_swd(targetsel, &r, scan_yield_progress);
     if (!found) {
-        swd_print("SCAN: swd NO_MATCH (no OK DPIDR found)\n");
+        shell_print("SCAN: swd NO_MATCH (no OK DPIDR found)\n");
         return;
     }
-    swd_printf("SCAN: swd MATCH swclk=GP%u swdio=GP%u\n", r.swclk, r.swdio);
-    swd_printf("SCAN:   dpidr=0x%08lX targetsel=0x%08lX\n",
+    shell_printf("SCAN: swd MATCH swclk=GP%u swdio=GP%u\n", r.swclk, r.swdio);
+    shell_printf("SCAN:   dpidr=0x%08lX targetsel=0x%08lX\n",
                (unsigned long)r.dpidr, (unsigned long)r.targetsel);
 }
 
 static void process_scan_subcmd(int argc, char **argv) {
     if (argc < 2) {
-        swd_print("SCAN: ERR scan needs subcommand: jtag | swd\n");
+        shell_print("SCAN: ERR scan needs subcommand: jtag | swd\n");
         return;
     }
     const char *sub = argv[1];
     if      (!strcmp(sub, "jtag")) cmd_scan_jtag();
     else if (!strcmp(sub, "swd"))  cmd_scan_swd(argc, argv);
     else {
-        swd_printf("SCAN: ERR unknown_subcmd: %s (try `?`)\n", sub);
+        shell_printf("SCAN: ERR unknown_subcmd: %s (try `?`)\n", sub);
     }
+}
+
+// -----------------------------------------------------------------------------
+// F8-3 mode-switch placeholders for `buspirate enter` (F8-4) and
+// `serprog enter` (F8-5).
+//
+// These emit a stable error shape today so:
+//   1. The parser dispatch table is in place — F8-4 / F8-5 just
+//      replace the placeholder with the real binary-mode pump.
+//   2. tools/jtag_diag.py and friends can probe whether the firmware
+//      already supports a given mode by sending the `enter` command
+//      and inspecting the prefix.
+//   3. The help text doesn't lie — operators see the planned modes
+//      and a clear "not yet" status.
+// -----------------------------------------------------------------------------
+
+static void process_buspirate_subcmd(int argc, char **argv) {
+    if (argc < 2 || strcmp(argv[1], "enter") != 0) {
+        shell_print("BPIRATE: ERR usage: buspirate enter\n");
+        return;
+    }
+    shell_print("BPIRATE: ERR not_yet_implemented (F8-4)\n");
+}
+
+static void process_serprog_subcmd(int argc, char **argv) {
+    if (argc < 2 || strcmp(argv[1], "enter") != 0) {
+        shell_print("SERPROG: ERR usage: serprog enter\n");
+        return;
+    }
+    shell_print("SERPROG: ERR not_yet_implemented (F8-5)\n");
 }
 
 static void process_jtag_subcmd(int argc, char **argv) {
     if (argc < 2) {
-        swd_print("JTAG: ERR jtag needs subcommand (try `?`)\n");
+        shell_print("JTAG: ERR jtag needs subcommand (try `?`)\n");
         return;
     }
     const char *sub = argv[1];
@@ -498,11 +544,11 @@ static void process_jtag_subcmd(int argc, char **argv) {
     else if (!strcmp(sub, "idcode")
           || !strcmp(sub, "idcodes")) cmd_jtag_idcode();
     else {
-        swd_printf("JTAG: ERR unknown_subcmd: %s (try `?`)\n", sub);
+        shell_printf("JTAG: ERR unknown_subcmd: %s (try `?`)\n", sub);
     }
 }
 
-static void process_swd_line(char *line) {
+static void process_shell_line(char *line) {
     // Tokenize on whitespace; up to 8 tokens — `jtag init <tdi> <tdo>
     // <tms> <tck> <trst>` is the longest at 7 tokens.
     char *argv[8];
@@ -516,7 +562,7 @@ static void process_swd_line(char *line) {
     if (argc == 0) return;
 
     if (!strcmp(argv[0], "?") || !strcmp(argv[0], "help")) {
-        swd_shell_help();
+        shell_help();
         return;
     }
     if (!strcmp(argv[0], "jtag")) {
@@ -527,12 +573,20 @@ static void process_swd_line(char *line) {
         process_scan_subcmd(argc, argv);
         return;
     }
+    if (!strcmp(argv[0], "buspirate")) {
+        process_buspirate_subcmd(argc, argv);
+        return;
+    }
+    if (!strcmp(argv[0], "serprog")) {
+        process_serprog_subcmd(argc, argv);
+        return;
+    }
     if (strcmp(argv[0], "swd") != 0) {
-        swd_printf("SHELL: ERR unknown_cmd: %s (try `?`)\n", argv[0]);
+        shell_printf("SHELL: ERR unknown_cmd: %s (try `?`)\n", argv[0]);
         return;
     }
     if (argc < 2) {
-        swd_print("SWD: ERR swd needs subcommand (try `?`)\n");
+        shell_print("SWD: ERR swd needs subcommand (try `?`)\n");
         return;
     }
     const char *sub = argv[1];
@@ -545,34 +599,34 @@ static void process_swd_line(char *line) {
     else if (!strcmp(sub, "write32")) cmd_write32(argc, argv);
     else if (!strcmp(sub, "reset"))   cmd_reset(argc, argv);
     else {
-        swd_printf("SWD: ERR unknown_subcmd: %s (try `?`)\n", sub);
+        shell_printf("SWD: ERR unknown_subcmd: %s (try `?`)\n", sub);
     }
 }
 
-static void pump_swd_shell_cdc(void) {
+static void pump_shell_cdc(void) {
     uint8_t buf[64];
     size_t n = usb_composite_cdc_read(USB_CDC_SCANNER, buf, sizeof(buf));
     if (n == 0) return;
     for (size_t i = 0; i < n; i++) {
         uint8_t b = buf[i];
         if (b == '\r' || b == '\n') {
-            if (swd_shell_pos > 0u) {
-                swd_shell_buf[swd_shell_pos] = '\0';
+            if (shell_pos > 0u) {
+                shell_buf[shell_pos] = '\0';
                 usb_composite_cdc_write(USB_CDC_SCANNER, "\n", 1);
-                process_swd_line(swd_shell_buf);
-                swd_shell_pos = 0u;
+                process_shell_line(shell_buf);
+                shell_pos = 0u;
             } else if (b == '\n') {
                 // Bare newline — quietly ignore so paired \r\n from a
                 // terminal doesn't emit an empty-line error.
             }
         } else if (b == 0x7Fu || b == 0x08u) {   // backspace / DEL
-            if (swd_shell_pos > 0u) {
-                swd_shell_pos--;
+            if (shell_pos > 0u) {
+                shell_pos--;
                 usb_composite_cdc_write(USB_CDC_SCANNER, "\b \b", 3);
             }
         } else if (b >= 0x20u && b < 0x7Fu) {
-            if (swd_shell_pos + 1u < SWD_SHELL_BUF_LEN) {
-                swd_shell_buf[swd_shell_pos++] = (char)b;
+            if (shell_pos + 1u < SHELL_BUF_LEN) {
+                shell_buf[shell_pos++] = (char)b;
                 usb_composite_cdc_write(USB_CDC_SCANNER, &b, 1);
             }
         }
@@ -719,7 +773,7 @@ int main(void) {
 
         pump_emfi_cdc();
         pump_crowbar_cdc();
-        pump_swd_shell_cdc();
+        pump_shell_cdc();
         emfi_campaign_tick();
         crowbar_campaign_tick();
 
