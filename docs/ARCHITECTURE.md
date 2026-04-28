@@ -32,7 +32,7 @@ active phase: F8-1 (this commit) lands `services/jtag_core/`.
 | F5 — glitch engine crowbar (service, PIO-driven triggered fire on pio0/SM1, IRQ 1) | `v3.0-f5` | ✓ closed |
 | F6 — SWD core (debugprobe MIT port to swd_phy + scratch swd_dp / swd_mem; CDC2 shell) | — | code-complete + spec-compliant; **physical gate blocked** by TXS0108EPW HW path (see `HARDWARE_V2.md §2`). Open-drain PIO emulation in place; canonical raspberrypi/debugprobe also fails through the same HW path, confirming the bug is HW. Not tagged. |
 | F7 — CMSIS-DAP v2 + v1 daplink_usb | — | deferred until F6 physical gate passes (HW bypass on the TXS0108E) |
-| F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | — | **active** — F8-1: `services/jtag_core/` (CPU bit-bang TAP + IDCODE chain detect, blueTag-derived MIT) + CDC2 shell `jtag <subcmd>` + `tools/jtag_diag.py`. F8-2: `services/pinout_scanner/` (P(8,4) JTAG + P(8,2) SWD permutation iterator + first-match search) + CDC2 shell `scan jtag` / `scan swd` + cooperative yield hook + `tools/scanner_diag.py`. F8-3: CDC2 shell unified — `process_shell_line` dispatcher, top-level help, `buspirate` / `serprog` placeholder slots. F8-4: `services/buspirate_compat/` (streaming BusPirate v1 BBIO + OpenOCD JTAG sub-mode parser — `BBIO1` / `OCD1` / `CMD_TAP_SHIFT` / supporting OOCD subcommands + 0x0F user-terminal exit) — feeds bytes one at a time so a long TAP_SHIFT session doesn't starve TinyUSB or stall a glitch campaign; CDC2 shell gains `buspirate enter [<tdi> <tdo> <tms> <tck>]` which jtag_init's the chosen pinout and routes every CDC2 byte through `buspirate_compat_feed_byte` until 0x0F flips back to text shell. The diag snapshot stream is gagged while in binary modes so OpenOCD / flashrom traffic isn't corrupted. F8-5 pending: flashrom_serprog. |
+| F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | — | **active — code complete, F8-6 docs / tag pending** — F8-1: `services/jtag_core/` (CPU bit-bang TAP + IDCODE chain detect). F8-2: `services/pinout_scanner/` (P(8,4) / P(8,2) permutation scan + first-match) + `tools/scanner_diag.py`. F8-3: unified CDC2 shell dispatcher with mode-switch placeholders. F8-4: `services/buspirate_compat/` (streaming BusPirate v1 BBIO + OOCD JTAG sub-mode) + `buspirate enter` shell command. F8-5: `services/flashrom_serprog/` (streaming Serial Flasher Protocol v1 — NOP / Q_IFACE / Q_CMDMAP / Q_PGMNAME / Q_SERBUF / Q_BUSTYPE / SYNCNOP / S_BUSTYPE / O_SPIOP / S_SPI_FREQ / S_PIN_STATE) + `serprog enter` shell command + 4-pin SPI bit-bang on the scanner header (CS / MOSI / MISO / SCK, defaults CH0..CH3). Disconnect detection in main loop fires `bp_on_exit_cb` / `sp_on_exit_cb` if the host drops DTR mid-session, releasing the scanner pins so the next session can claim them clean. Diag snapshot is still gagged while in binary modes. |
 | F9 — Campaign manager + SWD mutex | — | pending |
 | F10 — faultycmd-rs Rust workspace | — | pending |
 | F11 — Hardening, docs, release | — | pending |
@@ -80,6 +80,25 @@ Current tree health:
   vs `swd_phy` enforced shell-side: `swd init` while JTAG is held
   returns `SWD: ERR jtag_in_use`, and vice versa. F9 promotes the
   soft-lock to a `mutex_t`.
+- **`services/flashrom_serprog/`** (F8-5) complete:
+  `flashrom_serprog.{c,h}` — streaming Serial Flasher Protocol v1
+  (the spec flashrom's `serprog` backend speaks). Same structural
+  pattern as F8-4: 14-state state machine consuming bytes one at a
+  time, callback-based SPI primitive (so tests stub it without
+  hal_fake_pio). Upstream blueTag uses pico-sdk's `hardware_spi`
+  peripheral on fixed pins GP0..GP3; we go with a 4-pin CPU
+  bit-bang (mode 0, MSB-first) so the operator picks any 4 scanner
+  channels for CS / MOSI / MISO / SCK. Yield hook fires every 128
+  bytes of SPIOP traffic to keep `tud_task` and the glitch
+  campaigns alive during a multi-MB chip read. `apps/
+  faultycat_fw/main.c` adds bridge callbacks (`sp_write_byte_cb`,
+  `sp_xfer_byte_cb`, `sp_cs_set_cb`, `sp_yield_cb`,
+  `sp_on_exit_cb`), a `serprog enter [<cs> <mosi> <miso> <sck>]`
+  command, and disconnect detection — when DTR drops on CDC2 mid
+  session the appropriate `*_on_exit_cb` runs, restoring scanner
+  pins to plain inputs so `scanner_io` / `swd_phy` / `jtag_core`
+  can re-claim them. Programmer name reported via S_CMD_Q_PGMNAME
+  is `"FaultyCat"` (16-byte NUL-padded).
 - **`services/buspirate_compat/`** (F8-4) complete:
   `buspirate_compat.{c,h}` — streaming BusPirate v1 binary protocol
   (BBIO entry + OpenOCD JTAG sub-mode). 14-state state machine
@@ -116,7 +135,7 @@ Current tree health:
   `SCAN: progress N/total` every 100 iterations — long scans don't
   starve TinyUSB or stall an active glitch campaign. Reference
   client `tools/scanner_diag.py` streams the progress + verdict.
-- **322 unit tests** across 25 binaries, all green under
+- **347 unit tests** across 26 binaries, all green under
   `cmake --preset host-tests && ctest --preset host-tests`. F8-1
   added `test_jtag_core` (24 cases) plus a generic `hal_fake_gpio`
   edge sampler + per-pin input-script API; F8-2 adds
@@ -124,10 +143,14 @@ Current tree health:
   uniqueness / lex-order / edge cases); F8-4 adds
   `test_buspirate_compat` (22 cases — BBIO entry, OOCD subcmds,
   CMD_TAP_SHIFT bit packing for empty / 4 / 8 / 12 bits, max-length
-  clamp, OpenOCD-like full session). End-to-end
-  `pinout_scan_jtag` / `_swd` runs are deferred to physical smoke
-  (per-iteration teardown + re-init makes scripted-input testing
-  more bookkeeping than value).
+  clamp, OpenOCD-like full session); F8-5 adds
+  `test_flashrom_serprog` (25 cases — query commands, S_BUSTYPE
+  accept/reject, S_SPI_FREQ ack-with-actual, SPIOP read-only /
+  write-only / write+read JEDEC ID / zero-zero / yield throttling
+  during long read+write, unknown-cmd NAK, full handshake-then-RDID
+  session). End-to-end `pinout_scan_jtag` / `_swd` runs are
+  deferred to physical smoke (per-iteration teardown + re-init
+  makes scripted-input testing more bookkeeping than value).
 - **CI**: parallel `host-tests` + `fw-release` jobs on every push.
 - **7 HV-SIGNED commits** in history: `f450d43` (hv_charger),
   `69792ac` (emfi_pulse), F4-3 (`emfi_pio` + driver PIO attach),
@@ -181,7 +204,7 @@ compatible — existing EMFI / crowbar configures are unaffected.
 │    jtag_core/                         │    blueTag-derived (CPU)     ✓ F8-1  │
 │    pinout_scanner/                    │    JTAGulator over scanner   ✓ F8-2  │
 │    buspirate_compat/                  │    blueTag BBIO + OpenOCD    ✓ F8-4  │
-│    flashrom_serprog/                  │    blueTag-derived           … F8-5  │
+│    flashrom_serprog/                  │    serprog v1 + SPI bitbang  ✓ F8-5  │
 │    host_proto/emfi_proto              │    binary framing on CDC0    ✓ F4    │
 │    host_proto/crowbar_proto           │    binary framing on CDC1    ✓ F5    │
 │    host_proto/campaign_proto          │    streamed sweep results    … F9    │
