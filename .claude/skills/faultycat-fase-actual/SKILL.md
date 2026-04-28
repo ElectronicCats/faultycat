@@ -10,33 +10,76 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 > tocar nada. Las 16 decisiones congeladas del plan §1 **no se
 > relitigan**.
 
-## Fase actual: F9 — Campaign manager + mutex SWD formal
+## Fase actual: F10 — faultycmd Rust workspace + ratatui TUI
 
-**Decisión 2026-04-28 (post-tag `v3.0-f8`):** F8 cerrado con smoke
-físico verde. F9 promueve el soft-lock shell-level que F8-1 introdujo
-(SWD ↔ JTAG) a un `pico-sdk mutex_t` formal que cubra
-`daplink_usb` (host externo via CMSIS-DAP) + `glitch_engine/*`
-verificación post-glitch + `pinout_scanner` durante scan. Política
-estática: `campaign > scanner > daplink_host`.
+**Decisión 2026-04-28 (post-tag `v3.0-f9`):** F9 cerrado con smoke
+físico verde — sweep + mutex + binary protocol funcionan end-to-end
+contra el shell + el reference Python client. El "killer feature"
+de detectar glitches exitosos vía SWD verify queda gated por F6
+HW (TXS0108E), pero la infra (campaign_manager + ringbuffer +
+host_proto + mutex) está sólida.
 
-### F9 — entregables (ver `FAULTYCAT_REFACTOR_PLAN.md §F9`)
+F10 reemplaza los 3 reference clients Python (`tools/{emfi,crowbar,
+campaign}_client.py`) con un workspace Rust multi-crate +
+`ratatui` TUI dashboard. Los Python clients quedan como debugging
+fallback hasta v3.0.0 release.
 
-- Mutex de bus SWD entre `daplink_usb`, `glitch_engine/*` y
-  `pinout_scanner` (pico-sdk `mutex_t`).
-- Campaign manager: sweep `(delay, width, power)` con verificación
-  SWD post-glitch y streaming de resultados.
-- `services/host_proto/campaign_proto/` — streaming binario de
-  resultados.
-- State machine del mutex documentado en `docs/ARCHITECTURE.md`.
+### F10 — entregables (ver `FAULTYCAT_REFACTOR_PLAN.md §F10`)
 
-### F9 — criterios
+- `host/faultycmd-rs/` Rust workspace.
+  - `faultycmd-core` — tipos comunes, USB enumeration, logger.
+  - `faultycmd-emfi`, `faultycmd-crowbar`, `faultycmd-scanner`,
+    `faultycmd-campaign` — clients por CDC.
+  - `faultycmd-dap` — thin wrapper de `probe-rs`.
+  - `faultycmd-cli` — `clap`-based CLI.
+  - `faultycmd-tui` — `ratatui`-based dashboard (HV / trigger / SWD
+    / campaign log).
+- CI compila binarios release para Linux/macOS/Windows.
 
-- Campaña real detecta glitches exitosos (target conocido, ej.
-  nRF52 APPROTECT bypass de la docu de faultier).
-- Mutex bloquea daplink_usb durante una fire window; daplink retorna
-  `DAP_ERROR(busy)` → host externo reintenta.
-- Tests host: state machine del mutex con prioridad estática
-  (campaign preempt scanner preempt daplink_host).
+### F10 — criterios
+
+- TUI interactiva cubre 100% del faultycmd viejo + campañas + switch
+  entre EMFI/crowbar/scanner.
+- Configure-start-watch flow funciona vía Rust client equivalente
+  al Python `campaign_client.py watch`.
+
+### F9 status — ✓ closed `v3.0-f9` (2026-04-28)
+
+5 sub-fases + 1 polish:
+- F9-1: `services/swd_bus_lock/` — service-layer mutex sobre flag
+  volátil + owner tag (4 tags: IDLE/CAMPAIGN/SCANNER/DAPLINK). 13
+  host tests. Coexiste con F8-1 shell soft-lock — distintas capas.
+- F9-2: `services/campaign_manager/` — 6-state machine + cartesian
+  sweep generator + 256-entry × 28 B ringbuffer + pluggable step
+  executor. Default executor es no-op (lets host tests drive sin
+  motores). 27 host tests.
+- F9-3: engine adapters in `apps/faultycat_fw/main.c` —
+  `campaign_executor_emfi/_crowbar` blocking-with-cooperative-
+  yield. Verify hook acquires/releases swd_bus_lock alrededor de
+  un no-op call (F-future plugs real SWD post-fire verify cuando
+  F6 unblock). Shell `campaign demo crowbar / status / drain /
+  stop` para smoke en CDC2.
+- F9-4: `services/host_proto/campaign_proto/` — opcodes
+  `CAMPAIGN_CONFIG/START/STOP/STATUS/DRAIN` (0x20..0x24)
+  multiplex en CDC0 (EMFI) / CDC1 (crowbar). 17 host tests.
+  **Polish requerido**: `CROWBAR_PROTO_MAX_PAYLOAD` era 64 B,
+  bumped a 512 (DRAIN replies caían silentamente al guard); también
+  `pump_emfi/crowbar_cdc reply[768]` ahora `static` (defensivo vs
+  stack overflow en deep executor wait loops).
+- F9-5: `tools/campaign_client.py` pyserial CLI mirror de
+  emfi/crowbar_client.py. 30 ms gap intencional en watch loop
+  para race en dispatch ordering durante executor wait.
+- F9-6: `docs/MUTEX_INTERNALS.md` documenta el wire stack F9
+  completo + smoke results.
+
+Smoke 2026-04-28: `campaign demo crowbar` shell + `campaign_client.py
+configure → start → watch` ambos completan sweeps end-to-end.
+Mutex acquire/release sin deadlock. Result streaming exacto.
+
+**No verificado físicamente**: SWD verify hook real (F6 gated) y
+detect-glitch-success contra target real. Killer feature
+**partially validated** — infra funciona; falta SWD verify post-
+fire.
 
 ### F6 status — code complete, gate físico bloqueado
 
@@ -134,6 +177,24 @@ False-positive guard (3-read consistency) on the scanner. Smoke
 13/13 verde. 26 host-test binaries / 347 cases.
 `docs/JTAG_INTERNALS.md` documenta el wire stack completo.
 
+### `v3.0-f9` — Campaign manager + SWD bus mutex (2026-04-28)
+`services/swd_bus_lock/` — service-layer cooperative mutex (4 owner
+tags, 13 tests). `services/campaign_manager/` — 6-state machine +
+cartesian sweep + 256×28 B ringbuffer + pluggable executor (27
+tests). `apps/faultycat_fw/main.c` — engine adapters
+(emfi/crowbar) blocking-with-cooperative-yield + verify hook (no-op
+until F6 unblocks SWD physically). Shell `campaign <subcmd>` (smoke
+demo). `services/host_proto/campaign_proto/` — opcodes 0x20..0x24
+multiplex en CDC0/CDC1 (17 tests). `tools/campaign_client.py`
+pyserial CLI. Polish: `CROWBAR_PROTO_MAX_PAYLOAD` 64 → 512
+(silent-drop bug); pump_emfi/crowbar_cdc reply[768] static
+(stack-overflow defensa). 29 binarios / 404 cases.
+`docs/MUTEX_INTERNALS.md` documenta el wire stack completo +
+smoke 2026-04-28: `campaign demo crowbar` + `campaign_client.py
+watch` ambos completan sweeps end-to-end. **Killer feature
+partially validated** — sweep + result streaming físicamente
+verde; SWD verify post-fire gated by F6.
+
 ## Estado del HAL
 
 | Header | Estado | Lifted / planned |
@@ -176,17 +237,21 @@ Composite activo en **1209:FA17**:
 
 - `services/glitch_engine/{emfi, crowbar}/` — F4 / F5.
 - `services/swd_core/` — F6 (code complete, no tag).
-- `services/host_proto/{emfi_proto, crowbar_proto}/` — F4 / F5.
+- `services/host_proto/{emfi_proto, crowbar_proto}/` — F4 / F5,
+  extended con CAMPAIGN_* opcodes en F9-4.
 - `services/jtag_core/` — F8-1.
 - `services/pinout_scanner/` — F8-2 + F8-6 stability check.
 - `services/buspirate_compat/` — F8-4.
 - `services/flashrom_serprog/` — F8-5.
-- `services/daplink_usb/` — F7 (todavía stub).
-- `services/host_proto/campaign_proto/` — F9 entregable.
+- `services/swd_bus_lock/` — F9-1.
+- `services/campaign_manager/` — F9-2 (+ engine adapters in apps/
+  via F9-3).
+- `services/host_proto/campaign_proto/` — F9-4.
+- `services/daplink_usb/` — F7 (todavía stub, gated by F6 HW).
 
 ## Tests
 
-26 Unity binarios / 347 cases / 100% verde. `host-tests` preset + CI.
+29 Unity binarios / 404 cases / 100% verde. `host-tests` preset + CI.
 Plus `hal_fake_gpio` edge sampler + per-pin input scripts (F8-1
 infra, reusable para SPI/serial/JTAG-style clocked-bus tests).
 
@@ -197,9 +262,11 @@ infra, reusable para SPI/serial/JTAG-style clocked-bus tests).
 - `third_party/*` — pineados.
 - `third_party/faultier/` — **jamás** portar código literal
   (`LICENSES/NOTICE-faultier.md`).
-- En F9: no tocar el wire layer SWD (espera F6 HW gate); no
-  cambiar el shell prefix conventions (`SHELL: SWD: JTAG: SCAN:
-  BPIRATE: SERPROG:`) sin actualizar `tools/{swd,jtag,scanner}_diag.py`.
+- En F10: no tocar el firmware estructural (F4..F9 ya tagged);
+  cambios al wire protocol requieren bumpear opcodes con cuidado
+  para no romper retro-compat con los Python clients de F4/F5/F9.
+  `host/faultycmd-rs/` es el directorio nuevo; firmware ya no
+  necesita cambios para F10 (es puro client-side).
 
 ## Reglas de oro
 
@@ -217,26 +284,27 @@ infra, reusable para SPI/serial/JTAG-style clocked-bus tests).
    fase es aceptable; el tag va sobre el docs commit para que el
    snapshot coincida con la etiqueta.
 
-## Reglas extra activas ahora mismo (F9)
+## Reglas extra activas ahora mismo (F10)
 
-- **PIO** sigue: pio0 saturado (EMFI SM0 / crowbar SM1).
-  pio1 SM0 swd_phy. SM1..3 disponibles para target-uart y futuros.
-- **No romper F4/F5/F8**: composite + glitch engines + shell + binary
-  modes deben seguir operando. Los smoke tools de F8-6 son
-  referencia: `tools/{swd,jtag,scanner}_diag.py`,
-  `tools/{emfi,crowbar}_client.py`, `tools/flash.sh`,
-  `tools/bootsel.sh`.
-- **Mutex F9 ≠ shell soft-lock F8**. F8-1 protege solo entre swd y
-  jtag a nivel de comandos del shell. F9 lo extiende a:
-  - daplink_usb (F7) cuando llegue.
-  - glitch_engine post-fire SWD verification.
-  - pinout_scanner durante scan.
-  Política prioridad estática `campaign > scanner > daplink_host`.
-  daplink retorna `DAP_ERROR(busy)` cuando otro consumer tiene el
-  bus → host externo reintenta.
-- **F9 no toca el wire SWD**. Si necesitás validar contra HW real,
-  tenés que esperar el bypass del TXS0108E o usar loopback con
-  debugprobe externo + Pico target externo (no scanner header).
+- **F10 es puro host-side** — `host/faultycmd-rs/` Rust workspace.
+  No tocar firmware. Si surgen issues funcionales mientras se prueba
+  contra firmware F9, son F-future fixes, no F10.
+- **Wire protocol frozen**: emfi_proto / crowbar_proto / scanner
+  shell (CDC2) / campaign_proto (CDC0+CDC1 opcodes 0x20..0x24) están
+  todos especificados en `docs/{ARCHITECTURE.md, JTAG_INTERNALS.md,
+  MUTEX_INTERNALS.md}` y en los headers `services/host_proto/*/*.h`.
+  El Rust workspace los re-implementa en `faultycmd-core`.
+- **Reference Python clients permanecen** hasta v3.0.0 release —
+  útiles para debugging side-by-side cuando algo se compara raro
+  entre Rust y Python. Borrar / archivar en F11 release polish.
+- **Mutex F9 + shell soft-lock F8 coexisten** — `MUTEX_INTERNALS.md
+  §6` explica la mutex layering. F10's faultycmd-dap usa probe-rs
+  (que habla CMSIS-DAP) → cuando F7 daplink_usb llegue, ese path
+  pasará por el F9 swd_bus_lock con prioridad daplink_host.
+- **No romper F4/F5/F8/F9**: 29 binarios / 404 cases verde, smoke
+  físico verde sobre v2.2. Cualquier regresión observada durante
+  F10 client testing apunta al firmware (si es) o al client (más
+  probable).
 
 ## Protocolo de retake F6 (cuando llegue HW fix)
 
@@ -246,8 +314,15 @@ infra, reusable para SPI/serial/JTAG-style clocked-bus tests).
    dpidr=0x0BC12477` contra un Pi Pico target.
 3. Si OK → rebase para foldear los 4 F6-7 commits dentro de
    F6-1/F6-2 padres → `git tag v3.0-f6`.
-4. Después F7 (CMSIS-DAP).
-5. Después re-tag F9 con SWD path validado.
+4. Después F7 (CMSIS-DAP) — adopta `swd_bus_lock` con prioridad
+   `daplink_host` (replica plan §4 contract: DAP_ERROR busy on
+   contention).
+5. Después wire `swd_dp_read32` real al campaign_manager verify
+   hook en `apps/faultycat_fw/main.c::campaign_dispatch_executor`
+   (una línea — el hook ya está armado). Re-smoke con un target
+   real — no requiere re-tag F9.
+6. Después F8-2 scanner adopta `swd_bus_lock(SCANNER)` per
+   candidate (cleanup mostly, hoy no hay race reachable por shell).
 
 ## Branches huérfanos
 

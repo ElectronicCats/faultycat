@@ -13,19 +13,20 @@ See [`FAULTYCAT_REFACTOR_PLAN.md`](../FAULTYCAT_REFACTOR_PLAN.md) for
 the full phased roadmap (F0 → F11) and the 16 frozen design decisions.
 This document describes the **layering and data flow**, not the plan.
 
-## Status snapshot (as of v3.0-f8)
+## Status snapshot (as of v3.0-f9)
 
-Branch `rewrite/v3`, last tag `v3.0-f8` (2026-04-28). F6 is
+Branch `rewrite/v3`, last tag `v3.0-f9` (2026-04-28). F6 is
 code-complete + spec-compliant but **not tagged** — physical gate
 blocked by the TXS0108EPW level shifter on the scanner header (see
 `HARDWARE_V2.md §2`). F7 deferred until that gate clears. F8 closed
-on 2026-04-28 with full physical smoke validation on a v2.2 board
-(JTAG path, BusPirate handshake, serprog handshake, F4/F5
-regression, F3 BOOTSEL all green); the false-positive guard on
-`pinout_scanner` and a mode-switch trailing-byte fix in the shell
-landed as F8-6 polish before tagging. See
-[`JTAG_INTERNALS.md`](JTAG_INTERNALS.md) for F8 wire-protocol
-internals.
+2026-04-28 (JTAG / scanner / BusPirate / serprog from blueTag); see
+`JTAG_INTERNALS.md`. F9 closed same day — service-layer SWD bus
+mutex (`swd_bus_lock`), campaign manager (`campaign_manager`)
+orchestrating cartesian sweeps over the F4/F5 engines, binary
+host_proto (`campaign_proto`) multiplexed on CDC0 (EMFI) and CDC1
+(crowbar), `tools/campaign_client.py` reference client. Verify hook
+ships as no-op placeholder; F-future wires real SWD verify when F6
+unblocks. See `MUTEX_INTERNALS.md` for the F9 wire stack.
 
 | Phase | Tag | Status |
 |-------|-----|--------|
@@ -39,7 +40,7 @@ internals.
 | F6 — SWD core (debugprobe MIT port to swd_phy + scratch swd_dp / swd_mem; CDC2 shell) | — | code-complete + spec-compliant; **physical gate blocked** by TXS0108EPW HW path (see `HARDWARE_V2.md §2`). Open-drain PIO emulation in place; canonical raspberrypi/debugprobe also fails through the same HW path, confirming the bug is HW. Not tagged. |
 | F7 — CMSIS-DAP v2 + v1 daplink_usb | — | deferred until F6 physical gate passes (HW bypass on the TXS0108E) |
 | F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | `v3.0-f8` | ✓ closed — F8-1 `services/jtag_core/` (CPU bit-bang TAP + IDCODE chain). F8-2 `services/pinout_scanner/` (P(8,4) / P(8,2) brute-force scan + first-match). F8-3 unified CDC2 shell dispatcher. F8-4 `services/buspirate_compat/` (streaming BPv1 BBIO + OOCD JTAG sub-mode). F8-5 `services/flashrom_serprog/` (streaming serprog v1 + 4-pin CPU SPI bit-bang). F8-6 polish: 3-read consistency check on `pinout_scan_jtag`/`_swd` rejects bus-noise false positives empirically observed when a non-JTAG device is wired to the scanner header; `pump_shell_cdc` breaks out on mode-switch so the trailing `\n` of `\r\n` doesn't bleed into the new binary parser; new `docs/JTAG_INTERNALS.md`. Disconnect detection in main loop fires `bp_on_exit_cb` / `sp_on_exit_cb` if the host drops DTR mid-session. Diag snapshot gagged while in binary modes. Physical smoke 2026-04-28 on v2.2 board: 13/13 checks green (golden + regression). |
-| F9 — Campaign manager + SWD mutex | — | pending |
+| F9 — Campaign manager + SWD mutex | `v3.0-f9` | ✓ closed — F9-1 `services/swd_bus_lock/` (volatile-flag cooperative mutex over the scanner-header SWD bus, 4 owner tags IDLE/CAMPAIGN/SCANNER/DAPLINK, single-owner no-reentrance; 13 host tests). F9-2 `services/campaign_manager/` (6-state machine over cartesian sweep + 256-entry × 28 B result ringbuffer + pluggable step executor with no-op default; 27 host tests). F9-3 engine adapters in `apps/faultycat_fw/main.c` — `campaign_executor_emfi/_crowbar` blocking-with-cooperative-yield; verify hook acquires/releases swd_bus_lock around a no-op call (F-future plugs real SWD post-fire verify). Shell `campaign <subcmd>` for status/stop/drain/`demo crowbar` smoke. F9-4 `services/host_proto/campaign_proto/` — CRC16-CCITT framing extending emfi_proto / crowbar_proto with CAMPAIGN_CONFIG/START/STOP/STATUS/DRAIN opcodes; engine implied by CDC; 17 host tests. F9-5 `tools/campaign_client.py` reference pyserial CLI mirroring emfi/crowbar_client.py. F9-6 polish: bumped CROWBAR_PROTO_MAX_PAYLOAD from 64 → 512 (DRAIN replies were silently dropped); made pump_emfi/crowbar_cdc reply[768] static (defensive vs stack overflow in deep executor wait loops). Smoke 2026-04-28: `campaign demo crowbar` shell + `campaign_client.py configure → start → watch` both stream complete sweeps end-to-end on v2.2. |
 | F10 — faultycmd-rs Rust workspace | — | pending |
 | F11 — Hardening, docs, release | — | pending |
 
@@ -86,6 +87,51 @@ Current tree health:
   vs `swd_phy` enforced shell-side: `swd init` while JTAG is held
   returns `SWD: ERR jtag_in_use`, and vice versa. F9 promotes the
   soft-lock to a `mutex_t`.
+- **`services/swd_bus_lock/`** (F9-1) complete:
+  `swd_bus_lock.{c,h}` — service-layer mutual exclusion over the
+  shared scanner-header SWD/JTAG bus. Volatile bool + owner tag,
+  cooperative single-core (no IRQ-side acquires). API:
+  `swd_bus_acquire(who, timeout_ms)`, `swd_bus_try_acquire(who)`,
+  `swd_bus_release(who)`, `swd_bus_owner()`, `swd_bus_is_held()`.
+  Owner enum: IDLE / CAMPAIGN / SCANNER / DAPLINK. Static priority
+  is call-site responsibility (campaign > scanner > daplink_host
+  per plan §4); the lock itself is FIFO-fair exclusion only.
+  Coexists with F8-1's shell-level soft-lock — orthogonal layers
+  for different consumer kinds.
+- **`services/campaign_manager/`** (F9-2 + F9-3) complete:
+  `campaign_manager.{c,h}` — 6-state machine
+  (IDLE/CONFIGURING/SWEEPING/DONE/STOPPED/ERROR) over cartesian
+  (delay, width, power) sweep. Pluggable step executor; default
+  `campaign_noop_executor` lets host tests drive without engines.
+  256-entry × 28 B result ringbuffer with overflow-drop counter.
+  `apps/faultycat_fw/main.c` registers
+  `campaign_dispatch_executor` which picks `campaign_executor_emfi`
+  or `_crowbar` per `cfg->engine`. Engine adapters block with
+  cooperative yield (usb_composite_task + emfi/crowbar pumps every
+  ms) so a long step doesn't starve TinyUSB. Verify hook wraps
+  `swd_bus_try_acquire(CAMPAIGN)` / `release` around a no-op call —
+  F-future plugs in real `swd_dp_read32` against a target baseline.
+  Shell on CDC2 gains `campaign status / stop / drain [<n>] / demo
+  crowbar` for HV-safe physical smoke without HV cap.
+- **`services/host_proto/campaign_proto/`** (F9-4) complete:
+  shared payload helpers (`decode_config`, `apply_config`,
+  `serialize_status`, `serialize_drain`) that emfi_proto (CDC0) and
+  crowbar_proto (CDC1) call to handle CAMPAIGN_* opcodes 0x20..0x24.
+  Engine implied by which CDC received the command — wire format
+  identical. CONFIG payload 40 B (10×u32 LE), STATUS reply 20 B,
+  DRAIN reply 1 B n + n × 28 B records (n capped at 18 to fit
+  inside the 512 B EMFI_PROTO_MAX_PAYLOAD). F9-4 polish bumped
+  CROWBAR_PROTO_MAX_PAYLOAD from 64 → 512 to match (its
+  write_frame guard was silently rejecting drain replies > 64 B
+  before the bump) and made pump_emfi/crowbar_cdc reply[768]
+  static (defensive — F9-3's deep executor-wait-loop call stack
+  could otherwise overflow the default 2 KB main-thread stack).
+- **F9 reference client**: `tools/campaign_client.py` mirrors the
+  emfi/crowbar_client.py pyserial pattern. Subcommands
+  ping/configure/start/stop/status/drain/watch over the F9-4 wire
+  protocol. Watch loop intentionally inserts a 30 ms gap between
+  STATUS and DRAIN requests to dodge an executor-wait-loop dispatch
+  ordering quirk that F-future async refactor will eliminate.
 - **F8-6 polish** (2026-04-28) — closed F8 with two empirical fixes
   and the JTAG_INTERNALS.md reference doc:
   - `services/pinout_scanner/` gains a 3-read consistency check on
@@ -159,22 +205,25 @@ Current tree health:
   `SCAN: progress N/total` every 100 iterations — long scans don't
   starve TinyUSB or stall an active glitch campaign. Reference
   client `tools/scanner_diag.py` streams the progress + verdict.
-- **347 unit tests** across 26 binaries, all green under
-  `cmake --preset host-tests && ctest --preset host-tests`. F8-1
-  added `test_jtag_core` (24 cases) plus a generic `hal_fake_gpio`
-  edge sampler + per-pin input-script API; F8-2 adds
-  `test_pinout_scanner` (13 cases — permutation iterator total /
-  uniqueness / lex-order / edge cases); F8-4 adds
-  `test_buspirate_compat` (22 cases — BBIO entry, OOCD subcmds,
-  CMD_TAP_SHIFT bit packing for empty / 4 / 8 / 12 bits, max-length
-  clamp, OpenOCD-like full session); F8-5 adds
-  `test_flashrom_serprog` (25 cases — query commands, S_BUSTYPE
-  accept/reject, S_SPI_FREQ ack-with-actual, SPIOP read-only /
-  write-only / write+read JEDEC ID / zero-zero / yield throttling
-  during long read+write, unknown-cmd NAK, full handshake-then-RDID
-  session). End-to-end `pinout_scan_jtag` / `_swd` runs are
-  deferred to physical smoke (per-iteration teardown + re-init
-  makes scripted-input testing more bookkeeping than value).
+- **404 unit tests** across 29 binaries, all green under
+  `cmake --preset host-tests && ctest --preset host-tests`.
+  F8-1 added `test_jtag_core` (24 cases) plus a generic
+  `hal_fake_gpio` edge sampler + per-pin input-script API;
+  F8-2 added `test_pinout_scanner` (13);
+  F8-4 added `test_buspirate_compat` (22 — BBIO + OOCD subcmds +
+  TAP_SHIFT bit packing + max-len clamp + OpenOCD-like session);
+  F8-5 added `test_flashrom_serprog` (25 — query cmds + S_BUSTYPE
+  accept/reject + SPIOP read-only/write-only/write+read JEDEC RDID
+  + yield throttling + handshake session).
+  F9-1 added `test_swd_bus_lock` (13 — owner tags / contention /
+  no re-entrance / wrong-owner safety / all consumers acquire);
+  F9-2 added `test_campaign_manager` (27 — axis math, total +
+  step_to_params, state machine, ringbuffer, custom executor,
+  reconfigure-mid-sweep rejection, 28 B record size);
+  F9-4 added `test_campaign_proto` (17 — config decode + apply,
+  status/drain serialize with multiple cap rules, constants
+  self-check). End-to-end `pinout_scan_jtag/_swd` and the F9-3
+  engine adapter pumps are deferred to physical smoke.
 - **CI**: parallel `host-tests` + `fw-release` jobs on every push.
 - **7 HV-SIGNED commits** in history: `f450d43` (hv_charger),
   `69792ac` (emfi_pulse), F4-3 (`emfi_pio` + driver PIO attach),

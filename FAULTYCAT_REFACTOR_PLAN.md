@@ -451,7 +451,7 @@ Cada driver expone comando `diag <driver>` por UART serial (temporal, antes de U
 
 ---
 
-### F9 — Integración: campaign manager + mutex SWD
+### F9 — Integración: campaign manager + mutex SWD ✓ closed `v3.0-f9` (2026-04-28)
 
 **Entregables:**
 - Mutex de bus SWD entre `daplink_usb`, `glitch_engine/*` y `pinout_scanner` (pico-sdk `mutex_t`).
@@ -460,6 +460,23 @@ Cada driver expone comando `diag <driver>` por UART serial (temporal, antes de U
 - State machine del mutex documentado en `docs/ARCHITECTURE.md`.
 
 **Criterio:** campaña real detecta glitches exitosos. Killer feature validado.
+
+**Cierre F9 (2026-04-28):**
+
+- Sub-fases F9-1..F9-5 cerradas con commits incrementales en `rewrite/v3`. F9-6 polish lands antes del tag `v3.0-f9`:
+  - F9-1: `services/swd_bus_lock/` — wrapper sobre flag volátil + owner tag (no `mutex_t` directo: cooperative single-core, no IRQ-side acquires; mantiene host-tests linkeables sin pico-sdk). 4 owner tags `IDLE/CAMPAIGN/SCANNER/DAPLINK`. 13 host tests.
+  - F9-2: `services/campaign_manager/` — 6-state machine + cartesian sweep generator + 256-entry × 28 B ringbuffer + pluggable step executor (default no-op). 27 host tests. **Plan §F9 D1 dijo 24 B per record; las cuentas reales dan 28 B con `reserved[2]` para futuras flags — record size frozen at 28.**
+  - F9-3: engine adapters en `apps/faultycat_fw/main.c` — blocking-with-cooperative-yield, levantan `swd_bus_try_acquire(CAMPAIGN)` alrededor del verify hook. Hook ships como **no-op stub** hasta que F6 desbloquee SWD físicamente; cuando lo haga, una sola línea conecta `swd_dp_read32` real al hook (no re-tag F9). Shell `campaign <subcmd>` agregado para smoke en CDC2.
+  - F9-4: `services/host_proto/campaign_proto/` — opcodes `CAMPAIGN_CONFIG/START/STOP/STATUS/DRAIN` (0x20..0x24) extending emfi_proto y crowbar_proto. CRC16-CCITT framing, engine implícito por CDC. 17 host tests. **Polish requerido**: `CROWBAR_PROTO_MAX_PAYLOAD` era 64 B (pre-F9), bumped a 512 — DRAIN replies de hasta 505 B caían silenciosamente al guard `if (len > MAX) return 0`. También `pump_emfi/crowbar_cdc` reply[768] ahora `static` (defensivo vs stack overflow en deep executor wait loops).
+  - F9-5: `tools/campaign_client.py` pyserial CLI mirror de emfi/crowbar_client.py. Subcommands `ping/configure/start/stop/status/drain/watch`. 30 ms gap intencional entre STATUS y DRAIN en watch loop para esquivar una race en el orden de dispatch durante el executor wait — F-future async refactor lo elimina.
+  - F9-6 (este commit): `docs/MUTEX_INTERNALS.md` documenta el wire stack F9 completo (mutex semantics + state machine + sweep + protocol opcodes + smoke results).
+
+- Smoke físico 2026-04-28 (v2.2): `campaign demo crowbar` shell + `campaign_client.py configure → start → watch` ambos completan sweeps end-to-end (6 steps en ~360 ms, results streaming exacto, mutex acquire/release sin deadlock). F4/F5 ping regression + F8 jtag/scan/buspirate handshakes + F3 BOOTSEL todos verde.
+
+- **No verificado físicamente**: SWD verify hook real (gated by F6 HW unblock — TXS0108E) y la "killer feature" de detectar glitches exitosos contra un target real (gated by F6 + an actual target wired through the scanner header). El criterio de "campaña real detecta glitches exitosos" queda **partially validated**: el sweep + result streaming infrastructure está físicamente verde, lo que falta es la SWD verify del target post-fire.
+
+- Tests host-side: 29 binarios / 404 cases / 100% verde.
+- Próxima fase activa: F10 — faultycmd en Rust (workspace multi-crate).
 
 ---
 
