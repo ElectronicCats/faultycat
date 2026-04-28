@@ -233,3 +233,19 @@ function(faultycat_add_service_swd_bus_lock_test name)
 endfunction()
 
 faultycat_add_service_swd_bus_lock_test(test_swd_bus_lock)
+
+# F9-2 — campaign_manager (sweep state machine + ringbuffer)
+function(faultycat_add_service_campaign_test name)
+    add_executable(${name}
+        ${name}.c
+        ${CMAKE_SOURCE_DIR}/services/campaign_manager/campaign_manager.c
+    )
+    target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_include_directories(${name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/drivers/include
+        ${CMAKE_SOURCE_DIR}/services/campaign_manager
+    )
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+faultycat_add_service_campaign_test(test_campaign_manager)
