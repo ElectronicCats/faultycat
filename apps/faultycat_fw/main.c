@@ -23,6 +23,8 @@
 #include "emfi_pulse.h"
 #include "buspirate_compat.h"
 #include "ext_trigger.h"
+#include "flashrom_serprog.h"
+#include "hal/gpio.h"
 #include "hal/time.h"
 #include "hv_charger.h"
 #include "jtag_core.h"
@@ -175,7 +177,8 @@ static void shell_help(void) {
     shell_print("SHELL: --- Mode switches (binary protocols) ---\n");
     shell_print("SHELL:   buspirate enter [<tdi> <tdo> <tms> <tck>]    OpenOCD via BPv1 binary (F8-4)\n");
     shell_print("SHELL:                                                defaults: 0 1 2 3, exit with 0x0F\n");
-    shell_print("SHELL:   serprog enter                                flashrom serprog (F8-5 stub)\n");
+    shell_print("SHELL:   serprog enter [<cs> <mosi> <miso> <sck>]     flashrom serprog (F8-5)\n");
+    shell_print("SHELL:                                                defaults: 0 1 2 3, exit on host disconnect\n");
     shell_print("SHELL: NOTE: SWD and JTAG share scanner pins (GP0..GP7) — only one\n");
     shell_print("SHELL:       may be inited at a time. F9 lifts this to a real mutex.\n");
 }
@@ -601,12 +604,127 @@ static void process_buspirate_subcmd(int argc, char **argv) {
     s_shell_mode = SHELL_MODE_BUSPIRATE;
 }
 
+// -----------------------------------------------------------------------------
+// F8-5 flashrom_serprog — bridge callbacks + SPI bit-bang + entry command
+// -----------------------------------------------------------------------------
+
+// Serprog SPI pinout — set at session start in `serprog enter`. The
+// scanner header is GP0..GP7; defaults assign CS/MOSI/MISO/SCK to
+// CH0..CH3 so the operator can leave the rest free for trigger
+// monitoring during a flash dump.
+static uint8_t s_sp_pin_cs   = BOARD_GP_SCANNER_CH0;
+static uint8_t s_sp_pin_mosi = BOARD_GP_SCANNER_CH1;
+static uint8_t s_sp_pin_miso = BOARD_GP_SCANNER_CH2;
+static uint8_t s_sp_pin_sck  = BOARD_GP_SCANNER_CH3;
+static bool    s_sp_pins_owned = false;
+
+static void sp_write_byte_cb(uint8_t b, void *u) {
+    (void)u;
+    usb_composite_cdc_write(USB_CDC_SCANNER, &b, 1);
+}
+
+// SPI mode 0 (CPOL=0, CPHA=0), MSB-first per 25-series flash
+// convention. Drive MOSI then pulse SCK low→high (target latches
+// MOSI, presents next MISO bit) → sample MISO → high→low.
+static uint8_t sp_xfer_byte_cb(uint8_t out, void *u) {
+    (void)u;
+    uint8_t in = 0u;
+    for (int bit = 7; bit >= 0; bit--) {
+        hal_gpio_put(s_sp_pin_mosi, (bool)((out >> bit) & 1u));
+        hal_gpio_put(s_sp_pin_sck,  true);
+        if (hal_gpio_get(s_sp_pin_miso)) in |= (uint8_t)(1u << bit);
+        hal_gpio_put(s_sp_pin_sck,  false);
+    }
+    return in;
+}
+
+static void sp_cs_set_cb(bool low, void *u) {
+    (void)u;
+    // CS is active-low. `low=true` means "assert" → drive low.
+    hal_gpio_put(s_sp_pin_cs, !low);
+}
+
+static void sp_yield_cb(void *u) {
+    (void)u;
+    // Same cooperative-tasking shape as the F8-2 scan_yield_progress.
+    usb_composite_task();
+    pump_emfi_cdc();
+    pump_crowbar_cdc();
+    emfi_campaign_tick();
+    crowbar_campaign_tick();
+}
+
+static void sp_release_pins(void) {
+    if (!s_sp_pins_owned) return;
+    hal_gpio_init(s_sp_pin_cs,   HAL_GPIO_DIR_IN);
+    hal_gpio_init(s_sp_pin_mosi, HAL_GPIO_DIR_IN);
+    hal_gpio_init(s_sp_pin_miso, HAL_GPIO_DIR_IN);
+    hal_gpio_init(s_sp_pin_sck,  HAL_GPIO_DIR_IN);
+    hal_gpio_set_pulls(s_sp_pin_cs,   false, false);
+    hal_gpio_set_pulls(s_sp_pin_mosi, false, false);
+    hal_gpio_set_pulls(s_sp_pin_miso, false, false);
+    hal_gpio_set_pulls(s_sp_pin_sck,  false, false);
+    s_sp_pins_owned = false;
+}
+
+static void sp_on_exit_cb(void *u) {
+    (void)u;
+    sp_release_pins();
+    s_shell_mode = SHELL_MODE_TEXT;
+    shell_print("\nSERPROG: OK exited (back to text shell)\n");
+}
+
+static const flashrom_serprog_callbacks_t SP_CALLBACKS = {
+    .write_byte    = sp_write_byte_cb,
+    .spi_cs_set    = sp_cs_set_cb,
+    .spi_xfer_byte = sp_xfer_byte_cb,
+    .yield         = sp_yield_cb,
+    .on_exit       = sp_on_exit_cb,
+    .user          = NULL,
+};
+
 static void process_serprog_subcmd(int argc, char **argv) {
     if (argc < 2 || strcmp(argv[1], "enter") != 0) {
-        shell_print("SERPROG: ERR usage: serprog enter\n");
+        shell_print("SERPROG: ERR usage: serprog enter [<cs> <mosi> <miso> <sck>]\n");
         return;
     }
-    shell_print("SERPROG: ERR not_yet_implemented (F8-5)\n");
+    if (jtag_is_inited()) {
+        shell_print("SERPROG: ERR jtag_in_use (run `jtag deinit` first)\n");
+        return;
+    }
+    if (swd_shell_inited) {
+        shell_print("SERPROG: ERR swd_in_use (run `swd deinit` first)\n");
+        return;
+    }
+    bool explicit_pins = (argc >= 6);
+    s_sp_pin_cs   = explicit_pins ? (uint8_t)strtoul(argv[2], NULL, 0)
+                                  : BOARD_GP_SCANNER_CH0;
+    s_sp_pin_mosi = explicit_pins ? (uint8_t)strtoul(argv[3], NULL, 0)
+                                  : BOARD_GP_SCANNER_CH1;
+    s_sp_pin_miso = explicit_pins ? (uint8_t)strtoul(argv[4], NULL, 0)
+                                  : BOARD_GP_SCANNER_CH2;
+    s_sp_pin_sck  = explicit_pins ? (uint8_t)strtoul(argv[5], NULL, 0)
+                                  : BOARD_GP_SCANNER_CH3;
+
+    // Drive idle states. CS high (deasserted), MOSI low, SCK low,
+    // MISO input + pull-up (so a floating bus reads as 0xFF, the
+    // 25-series no-chip-attached signature).
+    hal_gpio_init(s_sp_pin_cs,   HAL_GPIO_DIR_OUT);
+    hal_gpio_init(s_sp_pin_mosi, HAL_GPIO_DIR_OUT);
+    hal_gpio_init(s_sp_pin_sck,  HAL_GPIO_DIR_OUT);
+    hal_gpio_init(s_sp_pin_miso, HAL_GPIO_DIR_IN);
+    hal_gpio_set_pulls(s_sp_pin_miso, true, false);
+    hal_gpio_put(s_sp_pin_cs,   true);
+    hal_gpio_put(s_sp_pin_mosi, false);
+    hal_gpio_put(s_sp_pin_sck,  false);
+    s_sp_pins_owned = true;
+
+    flashrom_serprog_init(&SP_CALLBACKS);
+    shell_printf("SERPROG: OK entering serprog mode cs=GP%u mosi=GP%u miso=GP%u sck=GP%u\n",
+                 s_sp_pin_cs, s_sp_pin_mosi, s_sp_pin_miso, s_sp_pin_sck);
+    shell_print("SERPROG: ready for `flashrom -p serprog:dev=/dev/ttyACM<N>`\n");
+    shell_print("SERPROG: exit by closing the host port (DTR drop is detected)\n");
+    s_shell_mode = SHELL_MODE_SERPROG;
 }
 
 static void process_jtag_subcmd(int argc, char **argv) {
@@ -697,7 +815,10 @@ static void pump_shell_cdc(void) {
             buspirate_compat_feed_byte(b);
             continue;
         }
-        // SHELL_MODE_SERPROG path lands in F8-5.
+        if (s_shell_mode == SHELL_MODE_SERPROG) {
+            flashrom_serprog_feed_byte(b);
+            continue;
+        }
 
         if (b == '\r' || b == '\n') {
             if (shell_pos > 0u) {
@@ -872,6 +993,18 @@ int main(void) {
         bool conn = usb_composite_cdc_connected(USB_CDC_SCANNER);
         if (conn && !last_scanner_conn) {
             diag_banner();
+        }
+        // F8-4 / F8-5: host-side disconnect (DTR drop) while we're
+        // mid-binary-mode → tear down whichever foreign protocol owns
+        // the shell so the next session starts clean. BusPirate has
+        // its own 0x0F escape but a crashed OpenOCD won't send it;
+        // serprog has no protocol exit at all and depends on this.
+        if (last_scanner_conn && !conn) {
+            if (s_shell_mode == SHELL_MODE_BUSPIRATE) {
+                bp_on_exit_cb(NULL);
+            } else if (s_shell_mode == SHELL_MODE_SERPROG) {
+                sp_on_exit_cb(NULL);
+            }
         }
         last_scanner_conn = conn;
 

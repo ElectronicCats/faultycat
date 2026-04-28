@@ -19,6 +19,7 @@ target_link_libraries(faultycat PRIVATE
     service_jtag
     service_pinout_scanner
     service_buspirate_compat
+    service_flashrom_serprog
     host_proto_emfi
     host_proto_crowbar
     usb_composite

@@ -201,3 +201,19 @@ function(faultycat_add_service_buspirate_test name)
 endfunction()
 
 faultycat_add_service_buspirate_test(test_buspirate_compat)
+
+# F8-5 — flashrom_serprog (Serial Flasher Protocol v1)
+function(faultycat_add_service_serprog_test name)
+    add_executable(${name}
+        ${name}.c
+        ${CMAKE_SOURCE_DIR}/services/flashrom_serprog/flashrom_serprog.c
+    )
+    target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_include_directories(${name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/drivers/include
+        ${CMAKE_SOURCE_DIR}/services/flashrom_serprog
+    )
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
+
+faultycat_add_service_serprog_test(test_flashrom_serprog)
