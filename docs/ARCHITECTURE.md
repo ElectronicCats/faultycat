@@ -13,9 +13,13 @@ See [`FAULTYCAT_REFACTOR_PLAN.md`](../FAULTYCAT_REFACTOR_PLAN.md) for
 the full phased roadmap (F0 → F11) and the 16 frozen design decisions.
 This document describes the **layering and data flow**, not the plan.
 
-## Status snapshot (as of v3.0-f6)
+## Status snapshot (as of F8-1, no tag yet)
 
-Branch `rewrite/v3`, last tag `v3.0-f6` (2026-04-24).
+Branch `rewrite/v3`, last tag `v3.0-f5` (2026-04-24). F6 is
+code-complete + spec-compliant but **not tagged** — physical gate
+blocked by the TXS0108EPW level shifter on the scanner header (see
+`HARDWARE_V2.md §2`). F7 deferred until that gate clears. F8 is the
+active phase: F8-1 (this commit) lands `services/jtag_core/`.
 
 | Phase | Tag | Status |
 |-------|-----|--------|
@@ -28,7 +32,7 @@ Branch `rewrite/v3`, last tag `v3.0-f6` (2026-04-24).
 | F5 — glitch engine crowbar (service, PIO-driven triggered fire on pio0/SM1, IRQ 1) | `v3.0-f5` | ✓ closed |
 | F6 — SWD core (debugprobe MIT port to swd_phy + scratch swd_dp / swd_mem; CDC2 shell) | — | code-complete + spec-compliant; **physical gate blocked** by TXS0108EPW HW path (see `HARDWARE_V2.md §2`). Open-drain PIO emulation in place; canonical raspberrypi/debugprobe also fails through the same HW path, confirming the bug is HW. Not tagged. |
 | F7 — CMSIS-DAP v2 + v1 daplink_usb | — | deferred until F6 physical gate passes (HW bypass on the TXS0108E) |
-| F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | — | **next** — JTAG is mostly host-driven push-pull (TXS0108E handles unidirectional fine), so F8 can validate physically without unblocking F6 first |
+| F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | — | **active** — F8-1: `services/jtag_core/` (CPU bit-bang TAP + IDCODE chain detect, blueTag-derived MIT) + CDC2 shell `jtag <subcmd>` + `tools/jtag_diag.py` reference client. JTAG is mostly host-driven push-pull (TXS0108E handles unidirectional fine), so the sub-phases can validate physically without unblocking F6 first. F8-2..F8-5 pending: pinout_scanner, top-level shell, buspirate_compat, flashrom_serprog. |
 | F9 — Campaign manager + SWD mutex | — | pending |
 | F10 — faultycmd-rs Rust workspace | — | pending |
 | F11 — Hardening, docs, release | — | pending |
@@ -63,8 +67,24 @@ Current tree health:
   connect/read32/write32/reset`) and lazy-init defaults to scanner
   header CH0/CH1/CH2. `tools/swd_diag.py` is the pyserial reference
   client.
-- **263 unit tests** across 22 binaries, all green under
-  `cmake --preset host-tests && ctest --preset host-tests`.
+- **`services/jtag_core/`** (F8-1) complete: `jtag_core.{c,h}` —
+  CPU bit-bang TAP controller with `jtag_init`, `jtag_deinit`,
+  `jtag_reset_to_run_test_idle`, `jtag_assert_trst`,
+  `jtag_detect_chain_length`, `jtag_read_idcodes`,
+  `jtag_idcode_is_valid`, `jtag_permutations_count`. Function
+  shapes adapted from `third_party/blueTag/src/blueTag.c` under MIT
+  (attribution at file head); reimplemented against `hal/gpio` so
+  the v3 layered model holds. CDC2 shell extended with `jtag init/
+  deinit/reset/trst/chain/idcode` (output prefix `JTAG:` so
+  `tools/jtag_diag.py` can demux from F6 SWD replies). Soft-lock
+  vs `swd_phy` enforced shell-side: `swd init` while JTAG is held
+  returns `SWD: ERR jtag_in_use`, and vice versa. F9 promotes the
+  soft-lock to a `mutex_t`.
+- **287 unit tests** across 23 binaries, all green under
+  `cmake --preset host-tests && ctest --preset host-tests`. F8-1
+  added `test_jtag_core` (24 cases) plus a generic `hal_fake_gpio`
+  edge sampler + per-pin input-script API that future clocked-bus
+  tests (SPI in F8-5, JTAG buspirate-compat in F8-4) will reuse.
 - **CI**: parallel `host-tests` + `fw-release` jobs on every push.
 - **7 HV-SIGNED commits** in history: `f450d43` (hv_charger),
   `69792ac` (emfi_pulse), F4-3 (`emfi_pio` + driver PIO attach),
@@ -84,9 +104,14 @@ engines coexist on the same PIO instance with disjoint state
 machines AND disjoint IRQ flags so neither can spuriously mark the
 other done. `pio1` SM 0 is now used by
 `services/swd_core/swd_phy` (debugprobe-derived, runtime
-SWCLK/SWDIO pins; the rest of pio1 stays reserved for `target-uart`
-(F8) and `jtag_core` + scanner bit-banging (F8), splitting the 3
-remaining SMs across those consumers).
+SWCLK/SWDIO pins). F8-1 deliberately keeps `services/jtag_core` on
+**CPU bit-bang via `hal/gpio`**, NOT PIO — the TXS0108EPW level
+shifter on the scanner header caps wire rate at ~25 MHz anyway and
+matching blueTag's proven pure-CPU path keeps F8-1 testable host-
+side without a PIO simulator. `pio1` SM 1..3 stay reserved for
+`target-uart` (F8) and the eventual buspirate-compat SPI bit-banger
+(F8-4 if we want hardware-rate flashrom), splitting across those
+consumers.
 
 **HAL extension (F6-2):** `hal/include/hal/pio.h` gained
 `out_pin_base/count`, `wrap_target/end` (relative to program start),
@@ -110,7 +135,8 @@ compatible — existing EMFI / crowbar configures are unaffected.
 │    swd_core/                          │    debugprobe-derived (phy)  ✓ F6    │
 │      + swd_dp + swd_mem (scratch)     │    + DPIDR/MEM-AP shell      ✓ F6    │
 │    daplink_usb/                       │    CMSIS-DAP v2 + v1 HID     … F7    │
-│    jtag_core/ pinout_scanner/         │    blueTag-derived           … F8    │
+│    jtag_core/                         │    blueTag-derived (CPU)     ✓ F8-1  │
+│    pinout_scanner/                    │    JTAGulator over scanner   … F8-2  │
 │    buspirate_compat/ flashrom_serprog/│    blueTag-derived           … F8    │
 │    host_proto/emfi_proto              │    binary framing on CDC0    ✓ F4    │
 │    host_proto/crowbar_proto           │    binary framing on CDC1    ✓ F5    │

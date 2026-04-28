@@ -79,11 +79,28 @@ future use.
   - **Future board revs** should swap the TXS0108E for either
     direct-bypass (both ends at 3.3 V already, level shifter is
     redundant) or 74LVC1T45 with explicit DIR control.
-- **Mutual exclusion contract (F6 → F9).** `drivers/scanner_io`,
-  `services/swd_core`, `services/jtag_core` (F8), and
-  `services/pinout_scanner` (F8) all share GP0..GP7 — only one
-  may own a given pin at a time. F6 documents the contract; F9
-  lands the formal `pico-sdk mutex_t`-based lock with priority
+- **JTAG over the scanner header (F8-1).** Same physical situation as
+  SWD — v2.x has no dedicated JTAG header, so `services/jtag_core`
+  routes TDI/TDO/TMS/TCK (and optional TRST) over four (or five) of
+  the eight scanner channels. The operator chooses which via
+  `jtag init <tdi> <tdo> <tms> <tck> [<trst>]` on the CDC2 shell;
+  F8-2's `pinout_scanner` will auto-discover. **The TXS0108E
+  bidirectional bug that breaks SWD does NOT apply to JTAG** — TCK,
+  TMS and TDI are host-driven push-pull unidirectional, TDO is
+  target-driven push-pull unidirectional, so the level shifter's
+  auto-direction logic handles them cleanly. F8-1 was therefore
+  validated host-side (24 unit tests via `test_jtag_core`) and is
+  expected to validate physically without the HW workaround needed
+  for SWD. (Physical smoke test pending a JTAG-equipped target —
+  RP2040 has no JTAG, so a Pi Pico is not a valid F8 target.)
+- **Mutual exclusion contract (F6 → F8-1 → F9).** `drivers/scanner_io`,
+  `services/swd_core`, `services/jtag_core` (F8-1), and
+  `services/pinout_scanner` (F8-2) all share GP0..GP7 — only one
+  may own a given pin at a time. F8-1 enforces this with a
+  shell-level soft-lock (`swd init` refuses while `jtag_is_inited`,
+  and vice versa, with explicit error messages). F9 promotes the
+  soft-lock to a formal `pico-sdk mutex_t` covering daplink_usb +
+  pinout_scanner too, with priority
   `campaign > scanner > daplink_host`.
 
 ## 3. HV domain — safety
