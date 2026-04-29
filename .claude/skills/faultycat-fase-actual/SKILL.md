@@ -10,6 +10,50 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 > tocar nada. Las 16 decisiones congeladas del plan §1 **no se
 > relitigan**.
 
+## Estado en curso de F11-0 (2026-04-29)
+
+| sub-fase | estado | commit |
+|----------|--------|--------|
+| F11-0a EMFI control modal | ✓ smoke verde | `876124f` + `24b38b4` (fix) |
+| F11-0b Crowbar control modal + SharedSerial CDC1 race fix | ✓ smoke verde | `135b32f` |
+| F11-0c Campaign control modal MVP (engine=crowbar) | ✓ code+tests; smoke pendiente | `9640656` |
+| F11-0d Scanner control modal | pending | — |
+| F11-0e Target UART panel CDC3 | pending | — |
+| F11-0f Reflash via magic baud 1200 | pending | — |
+| F11-0g Help modal `?` | pending | — |
+| F11-0h CDC ownership + diag-mute indicator | pending | — |
+| F11-0i Lockfile concurrencia TUI ↔ CLI | pending | — |
+| F11-0j Hardening (USB disconnect / multi-term / resize) | pending | — |
+| F11-0k tests + docs(F11-0) + tag `v3.0-f11-0` | pending | — |
+
+Decisiones MVP que afectan scope:
+- **F11-0c engine multiplex deferido a F-future.** El modal Campaign
+  soporta engine=crowbar only; `emfi` aparece deshabilitado en el
+  Select con label "(emfi multiplex: F-future — needs Connections
+  refactor)". Razón: necesitaría wrappear CDC0 con SharedSerial,
+  retrofit EmfiClient para `serial_factory`, agregar
+  `campaign_emfi`, y patchear el race CDC0 latente en F11-0a
+  callbacks. ~30-40 min adicionales por <20% del valor; el operador
+  típicamente itera sobre crowbar (donde está el ext-trigger
+  jumper).
+- **`s` rebound de `toggle_demo` (locked 6-step) a
+  `stop_sweep_express`** — express-stop sin abrir modal. El concepto
+  de demo locked desaparece; `p` abre el modal Campaign con sweep
+  custom.
+
+Push pendiente: 7 commits + tag `v3.0-f10`. El maintainer pushea
+manualmente cuando puede (HTTPS creds no disponibles desde shell
+del agente).
+
+Memorias relevantes para esta fase:
+- `project_f11_f12_scope_expansion.md` — scope expansion F11/F12.
+- `feedback_shared_serial_race.md` — patrón SharedSerial+lock,
+  surgió en F11-0b smoke.
+- `feedback_smoke_before_tag.md` — smoke obligatorio antes del
+  `v3.0-f11-0` tag.
+
+---
+
 ## Fase actual: F11 — TUI complete control + Hardening + Release v3.0.0
 
 **Decisión 2026-04-29 (post-tag `v3.0-f10` + smoke interactivo TUI):**
