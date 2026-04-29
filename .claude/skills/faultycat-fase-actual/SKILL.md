@@ -10,45 +10,90 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 > tocar nada. Las 16 decisiones congeladas del plan §1 **no se
 > relitigan**.
 
-## Fase actual: F11 — Hardening, docs, release
+## Fase actual: F11 — TUI complete control + Hardening + Release v3.0.0
 
-**Decisión 2026-04-29 (post-tag `v3.0-f10`):** F10 cerrado con smoke
-físico verde (CLI `info`/`emfi ping`/`crowbar ping`/`campaign status`/
-`scanner jtag-init|jtag-deinit` todo OK contra v2.2 board). F11 es
-la última fase del plan: pulir documentación, benchmarks, safety
-review final, CHANGELOG + migration guide, release `v3.0.0` con
-UF2 + binarios.
+**Decisión 2026-04-29 (post-tag `v3.0-f10` + smoke interactivo TUI):**
+F10 cerrado con scope honesto = monitor + 6-step crowbar LP demo
+locked. NO es UI de control completa (arm/fire/disarm directos,
+sweep custom, SWD/JTAG operations, target serial, reflash desde
+TUI — todo eso vive en CLI). El §F10 entregables prometía "100%
+del faultycmd viejo"; lo entregado es subset. **F11 abre con
+F11-0 (TUI complete control surface, 11 sub-fases)** antes del
+docs/benchmarks/release polish original.
+
+**Decisión 2026-04-29 (paralela):** post `v3.0.0` se abre fase
+nueva **F12 — GUI Web local v3.1.0**. Audiencia: operadores
+técnicos + trainees + conferencias + classroom (broader que
+CLI/TUI hackers). Stack frozen: FastAPI + Tailwind + Alpine.js +
+Chart.js dentro de `host/faultycmd-py/` como `faultycmd.gui`
+submódulo (single install). NO entra a v3.0.0 — es su propio
+release.
 
 ### F11 — entregables (ver `FAULTYCAT_REFACTOR_PLAN.md §F11`)
 
-- `docs/` completa: revisar y rellenar gaps en ARCHITECTURE,
-  HARDWARE_V2, USB_COMPOSITE, PROTOCOLS, SWD_INTERNALS,
-  JTAG_INTERNALS, MUTEX_INTERNALS, SAFETY, PORTING.
-- Benchmarks: latencia trigger-a-pulso (EMFI + crowbar), throughput
-  SWD (MB/s en flash, gated by F6 unblock), overhead del mutex
-  swd_bus_lock.
-- Safety review firmada del path HV (`docs/SAFETY.md`) — segunda
-  pasada con la lección de F4/F5 ya integrada.
-- CHANGELOG completo + migration guide desde firmware v2.x C
-  legacy.
-- Release `v3.0.0` con UF2 + tarball del faultycmd Python +
-  pyinstaller standalone (Linux/Mac/Win) attached.
-- Archivar `tools/{emfi,crowbar,campaign}_client.py` + `tools/{swd,
-  jtag,scanner}_diag.py` (movidos a `tools/legacy/` o eliminados —
-  faultycmd los reemplaza).
+**F11-0 — TUI complete control surface (11 sub-fases):**
+
+- F11-0a EMFI control modal (configure/arm/fire/disarm + capture
+  Rich table + last-config + HV confirm).
+- F11-0b Crowbar control modal (configure LP+HP/arm/fire/disarm
+  + last-config).
+- F11-0c Campaign control modal (full sweep params, no demo
+  locked).
+- F11-0d Scanner control modal (SWD r32/w32/freq/reset + JTAG
+  reset/trst + scan progress + pin assignment).
+- F11-0e Target UART panel CDC3 (passthrough mini-terminal).
+- F11-0f Reflash action (magic baud 1200 BOOTSEL + UF2 picker +
+  reabrir CDCs).
+- F11-0g Help modal (`?`) — hotkeys + ownership + safety.
+- F11-0h CDC ownership + diag-mute indicator en footer.
+- F11-0i Lockfile concurrencia TUI ↔ CLI (~/.cache/faultycmd/
+  cdc-N.lock con owner tag + `--force` escape hatch).
+- F11-0j Hardening: USB disconnect, multi-terminal smoke
+  (alacritty/kitty/gnome-terminal/tmux), terminal resize.
+- F11-0k tests + docs(F11-0) + tag `v3.0-f11-0`.
+
+**F11-1..F11-7 — Release polish (original):**
+
+- F11-1: docs/ sweep + gap fill (ARCHITECTURE, HARDWARE_V2,
+  USB_COMPOSITE, PROTOCOLS, SWD_INTERNALS, JTAG_INTERNALS,
+  MUTEX_INTERNALS, SAFETY, PORTING). README top-level apunta a
+  `host/faultycmd-py/`.
+- F11-2: benchmarks reproducibles — trigger→pulso latency
+  (EMFI + crowbar), SWD throughput (gated by F6 unblock),
+  swd_bus_lock acquire/release overhead. `tools/bench_*.py` +
+  `docs/PERFORMANCE.md`.
+- F11-3: HV safety review v2 — segunda pasada de SAFETY.md con
+  lecciones F2b/F4/F5/F9 acumuladas, firma final maintainer.
+- F11-4: CHANGELOG + `docs/MIGRATION_FROM_V2.md` (5 wire-protocol
+  cambios desde v2.x).
+- F11-5: archive `tools/{emfi,crowbar,campaign}_client.py` +
+  `tools/{swd,jtag,scanner}_diag.py` → `tools/legacy/`.
+- F11-6: GitHub release `v3.0.0` (UF2 + tarball + pyinstaller
+  Linux). Tag `v3.0.0`.
+- F11-7: docs(F11) + tag `v3.0-f11` (intermedio antes de
+  `v3.0.0`).
 
 ### F11 — criterios
 
+- TUI cubre 100% del faultycmd legacy + campañas custom + switch
+  entre engines (no solo monitor; eso era el gap de F10).
 - README top-level apunta a `host/faultycmd-py/` como host tool
-  oficial; faultycat C legacy queda marcado deprecated en su
-  README.
-- Migration guide cubre los 5 wire protocol cambios respecto al
-  firmware v2.x (VID/PID 1209:FA17 nuevo, magic baud 1200, frame
-  format CRC16-CCITT, opcodes EMFI/CROWBAR/CAMPAIGN, shell scanner
-  CDC2).
-- Benchmarks reproducibles: script `tools/bench_*.py` + tabla en
+  oficial.
+- Migration guide cubre los 5 wire-protocol cambios respecto al
+  firmware v2.x (VID/PID 1209:FA17, magic baud 1200, frame format
+  CRC16-CCITT, opcodes EMFI/CROWBAR/CAMPAIGN, shell scanner CDC2).
+- Benchmarks reproducibles: script + tabla en
   `docs/PERFORMANCE.md`.
-- `v3.0.0` tag firmado con summary completo de F0..F11.
+- `v3.0.0` tag con summary completo de F0..F11.
+
+### F12 — GUI Web local (v3.1.0, post `v3.0.0`)
+
+Track abierto post-3.0. Stack: FastAPI ASGI + WebSocket + Tailwind
++ Alpine.js + Chart.js + xterm.js (target serial). Reusa 100% de
+`faultycmd.protocols.*` / `framing` / `usb`. `faultycmd gui` arranca
+server local + abre browser localhost:8080. Sub-fases F12-1..F12-9.
+Defer a v3.1.x: capture trace plot, A/B compare campaigns, saved
+sweeps history, i18n, replay step, step-debug. Ver §F12.
 
 ### F10 status — ✓ closed `v3.0-f10` (2026-04-29)
 

@@ -527,20 +527,82 @@ Cada driver expone comando `diag <driver>` por UART serial (temporal, antes de U
 
 - Tests host-side: 86 cases / 100% verde bajo `pytest` (85 F10-1..F10-6 + 1 F10-polish regression guard). ruff `check src tests` clean. CI workflow corre `lint + test (3.10/3.11/3.12) + build-binary` paralelo a `firmware.yml`.
 
-- Reference clients legacy (`tools/{emfi,crowbar,campaign}_client.py` + `tools/{swd,jtag,scanner}_diag.py`) permanecen en el tree como debug fallback. F11 archive los retira.
+- Reference clients legacy (`tools/{emfi,crowbar,campaign}_client.py` + `tools/{swd,jtag,scanner}_diag.py`) permanecen en el tree como debug fallback. F11-5 archive los retira.
 
-- Próxima fase activa: F11 — Hardening, docs, release.
+- **Scope honesto de lo que entregó `v3.0-f10`**: TUI = monitor + 6-step crowbar LP demo locked vía hotkey `s`. NO es UI de control completa: arm/fire/disarm directos, configure de sweep custom, SWD/JTAG operations, target serial passthrough, reflash desde TUI, etc., todo eso vive solo en CLI. El §F10 entregables prometía "100% del faultycmd viejo" — lo entregado es un subset. F11-0 lifts esto a "100%" antes del docs/benchmarks/release polish.
+
+- Próxima fase activa: F11 — arranca con F11-0 (TUI complete control surface, 11 sub-fases) seguido de F11-1..F11-7 (docs sweep + benchmarks + safety review v2 + CHANGELOG + migration + archive + release `v3.0.0`).
+
+- Post `v3.0.0`: F12 — GUI Web local (v3.1.0) para audiencia más amplia. Stack frozen: FastAPI + Tailwind + Alpine.js + Chart.js, instalado como submódulo `faultycmd.gui` dentro del mismo package. Ver §F12.
 
 ---
 
-### F11 — Hardening, docs, release
+### F11 — Hardening, docs, release v3.0.0
 
-**Entregables:**
-- `docs/` completa: ARCHITECTURE, HARDWARE_V2, USB_COMPOSITE, PROTOCOLS, SWD_INTERNALS, JTAG_INTERNALS, SAFETY, PORTING.
-- Benchmarks: latencia trigger-a-pulso (EMFI y crowbar), throughput SWD (MB/s en flash), overhead del mutex.
-- Safety review firmada del path HV (`docs/SAFETY.md`).
-- CHANGELOG completo + migration guide desde firmware v2.x.
-- Release v3.0.0 con UF2 + binarios Rust adjuntos.
+> **Scope corregido 2026-04-29** después del smoke interactivo de la TUI (post `v3.0-f10`). El §F10 entregables prometía "TUI cubre 100% del faultycmd viejo + campañas + switch entre EMFI/crowbar/scanner". La TUI shipped en `v3.0-f10` cubre **monitor + 6-step demo locked**, no es UI de control completa. F11 abre con F11-0 — TUI complete control surface — antes del docs/benchmarks/release polish original.
+
+**Entregables F11-0** — TUI control surface (lifts F10 a "100% del faultycmd viejo"):
+
+- F11-0a: EMFI control modal — configure/arm/fire/disarm + capture viewer Rich table + last-config persistence + HV confirm modal.
+- F11-0b: Crowbar control modal — configure LP+HP/arm/fire/disarm + last-config persistence.
+- F11-0c: Campaign control modal — full sweep params (delay/width/power triplets START:END:STEP + settle_ms + engine selector). Reemplaza el `s` toggle demo locked.
+- F11-0d: Scanner control modal — SWD (init/freq/connect/r32/w32/reset/deinit) + JTAG (init/reset/trst/chain/idcode/deinit) + scan-jtag/swd con progress en modal + pin assignment form.
+- F11-0e: Target UART panel CDC3 — passthrough mini-terminal (lectura live + input box). Re-layout dashboard a 2×3 o tab para acomodar.
+- F11-0f: Reflash action — magic baud 1200 BOOTSEL trigger desde TUI con file picker UF2 + wait reenum + reabrir CDCs (reemplaza `tools/flash.sh` desde dentro).
+- F11-0g: Help modal (`?` hotkey) — hotkey reference + ownership map + safety reminders + version/git hash.
+- F11-0h: CDC ownership + diag-mute indicator en footer/header.
+- F11-0i: Lockfile concurrencia TUI ↔ CLI — `~/.cache/faultycmd/cdc-{0,2,4}.lock` con owner tag. CLI respeta + falla con mensaje claro; TUI también respeta lock CLI con `--force` escape hatch.
+- F11-0j: Hardening — USB disconnect handling, smoke multi-terminal (alacritty/kitty/gnome-terminal/tmux), terminal resize sin crash.
+- F11-0k: tests + docs(F11-0) + tag `v3.0-f11-0`.
+
+**Entregables F11-1..F11-7** (release polish, original):
+
+- F11-1: docs sweep — `docs/` completa: ARCHITECTURE, HARDWARE_V2, USB_COMPOSITE, PROTOCOLS, SWD_INTERNALS, JTAG_INTERNALS, MUTEX_INTERNALS, SAFETY, PORTING. README top-level apunta a `host/faultycmd-py/`.
+- F11-2: benchmarks reproducibles — latencia trigger-a-pulso (EMFI + crowbar), throughput SWD (gated by F6 unblock), overhead `swd_bus_lock` mutex acquire/release. Scripts `tools/bench_*.py` + tabla en `docs/PERFORMANCE.md`.
+- F11-3: HV safety review v2 — segunda pasada de `docs/SAFETY.md` con lecciones acumuladas F2b/F4/F5/F9 integradas. Firma final maintainer.
+- F11-4: CHANGELOG completo + `docs/MIGRATION_FROM_V2.md` (VID/PID 1209:FA17 nuevo, magic baud 1200, frame format CRC16-CCITT, opcodes EMFI/CROWBAR/CAMPAIGN, shell scanner CDC2).
+- F11-5: archive `tools/{emfi,crowbar,campaign}_client.py` + `tools/{swd,jtag,scanner}_diag.py` → `tools/legacy/` con README explicando que faultycmd los reemplaza.
+- F11-6: GitHub release `v3.0.0` con UF2 firmware + tarball faultycmd-py + pyinstaller binary Linux. Notas de release derivadas del CHANGELOG. Tag `v3.0.0` sobre el commit del release.
+- F11-7: docs(F11) + tag `v3.0-f11` (intermedio antes de `v3.0.0`).
+
+**Criterio:** `v3.0.0` shippeable con TUI/CLI control completo + docs + benchmarks reproducibles + safety review firmada + migration path desde v2.x C legacy.
+
+---
+
+### F12 — GUI Web local (v3.1.0)
+
+> **Decisión 2026-04-29:** después de cerrar `v3.0.0`, abrir track GUI para que la herramienta sea utilizable por audiencia más amplia (operadores técnicos + trainees + demos en conferencias + classroom), no solo CLI/TUI hackers. Decisión confirmada por Sabas.
+
+**Stack frozen para F12:**
+
+- **Backend**: FastAPI (Python ASGI) reusando 100% `faultycmd.protocols.*`, `faultycmd.framing`, `faultycmd.usb`. WebSocket para live updates (HV gauge, diag stream, campaign results streaming).
+- **Frontend**: HTML + Tailwind CSS + Alpine.js (liviano, no build pipeline). Charts vía Chart.js / uPlot.
+- **Empaquetado**: en el mismo `host/faultycmd-py/` package — submódulo `faultycmd.gui` con assets estáticos en `host/faultycmd-py/src/faultycmd/gui/static/`. Comando `faultycmd gui` arranca el server local + abre browser en `http://localhost:8080`. Single install, single release.
+- **Audiencia**: mixed (operadores técnicos + trainees + conferencias + classroom).
+- **NO entra a v3.0.0** — F12 = v3.1.0 release. v3.0.0 sale primero con TUI/CLI completo.
+
+**Entregables F12 (v3.1.0):**
+
+- F12-1: skeleton FastAPI server + Alpine.js frontend + WebSocket framing reuse + `faultycmd gui` console script.
+- F12-2: Dashboard live — HV gauge bar (0-250V), trigger oscilloscope live, CDC ownership indicator, diag stream tail.
+- F12-3: EMFI control panel — formulario configure + arm/fire/disarm con HV confirm + capture trace plot (Chart.js, NO Rich table como F11-0a; aquí va el plot real).
+- F12-4: Crowbar control panel — formulario configure LP+HP + arm/fire/disarm.
+- F12-5: Campaign sweep + heat-map — start/stop con live results streaming + heat-map fire/verify por delay×width usando uPlot/Chart.js.
+- F12-6: Scanner / SWD/JTAG diagnose — pin assignment visual + connect + memory peek/poke + scan progress.
+- F12-7: Target serial passthrough — terminal embebido vía xterm.js conectado al CDC3.
+- F12-8: Reflash UI — file picker UF2 + drop into BOOTSEL + flash + reconnect.
+- F12-9: tests (pytest backend + Playwright/Cypress smoke frontend) + docs + tag `v3.1.0`.
+
+**Defer a F12+ patch releases (v3.1.x / v3.2):**
+
+- Capture trace ADC ring plot real-time (post-F12-3 polish).
+- A/B compare entre dos campaigns.
+- Saved campaigns / sweep history (CSV/JSON export + import).
+- Multi-language (i18n ES/EN).
+- Replay step (re-run campaign step que produjo resultado interesante).
+- Step-by-step single-shot debug mode.
+
+**Criterio F12:** GUI web local cubre el 100% de los flujos del CLI/TUI v3.0.0 (sin BusPirate/serprog mode entries que se quedan CLI-only) + plots reales (no ASCII) + workflow accesible para no-CLI users + cross-platform sin packaging pain.
 
 ---
 
