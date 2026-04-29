@@ -47,6 +47,7 @@ from textual.containers import Grid
 from textual.reactive import reactive
 from textual.widgets import Footer, Header, Static
 
+from .persistence import LastConfig
 from .protocols import (
     CampaignClient,
     CampaignError,
@@ -56,6 +57,11 @@ from .protocols import (
     ProtocolError,
 )
 from .protocols.campaign import CampaignState
+from .tui_modals import (
+    EmfiControlModal,
+    EmfiFormState,
+    HvConfirmModal,
+)
 from .usb import PortDiscoveryError, cdc_for
 
 # -----------------------------------------------------------------------------
@@ -307,6 +313,7 @@ class FaultycmdTUI(App[None]):
         Binding("r", "reconnect", "reconnect"),
         Binding("c", "clear_log", "clear log"),
         Binding("s", "toggle_demo", "start/stop demo"),
+        Binding("e", "open_emfi_modal", "EMFI control"),
     ]
 
     title = "faultycmd — FaultyCat v3 dashboard"
@@ -323,6 +330,7 @@ class FaultycmdTUI(App[None]):
         self._stop_workers = threading.Event()
         self._poll_threads: list[threading.Thread] = []
         self._demo_running = False
+        self._last_config = LastConfig()
 
     # -- compose ------------------------------------------------------
 
@@ -531,6 +539,59 @@ class FaultycmdTUI(App[None]):
                 self.notify("demo started — 6-step crowbar LP sweep", severity="information")
         except (CampaignError, EngineError, ProtocolError, OSError) as e:
             self.notify(f"demo: {e}", severity="error")
+
+    def action_open_emfi_modal(self) -> None:
+        if not self.conn.emfi:
+            self.notify("no EMFI client (CDC0)", severity="error")
+            return
+        initial = EmfiFormState.from_dict(self._last_config.load("emfi"))
+
+        def _on_apply(state: EmfiFormState) -> None:
+            self.conn.emfi.configure(
+                trigger=state.trigger,
+                delay_us=state.delay_us,
+                width_us=state.width_us,
+                charge_timeout_ms=state.charge_timeout_ms,
+            )
+            self._last_config.save("emfi", state.to_dict())
+
+        def _on_arm(state: EmfiFormState) -> None:
+            self.conn.emfi.arm()
+
+        def _on_fire() -> None:
+            self.conn.emfi.fire()
+
+        def _on_disarm() -> None:
+            self.conn.emfi.disarm()
+
+        def _on_capture() -> None:
+            # F11-0a ships a Rich-table summary in the modal status
+            # line (no plot — that's v3.1 GUI / F12). We pull a small
+            # slice and render counts; the dashboard EMFI panel keeps
+            # its existing capture_fill field for at-a-glance.
+            slice_ = self.conn.emfi.capture(offset=0, n=64)
+            self.notify(
+                f"capture: {len(slice_)} samples (peak={max(slice_) if slice_ else 0})",
+                severity="information",
+            )
+
+        def _confirm_arm(after) -> None:
+            """Push HvConfirmModal; on dismiss invoke `after(bool)`."""
+            self.push_screen(
+                HvConfirmModal(action_label="Arm EMFI"),
+                callback=after,
+            )
+
+        modal = EmfiControlModal(
+            initial=initial,
+            apply_cb=_on_apply,
+            arm_cb=_on_arm,
+            fire_cb=_on_fire,
+            disarm_cb=_on_disarm,
+            capture_cb=_on_capture,
+            confirm_arm_cb=_confirm_arm,
+        )
+        self.push_screen(modal)
 
 
 # -----------------------------------------------------------------------------
