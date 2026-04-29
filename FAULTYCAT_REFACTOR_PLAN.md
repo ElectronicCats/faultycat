@@ -512,7 +512,8 @@ Cada driver expone comando `diag <driver>` por UART serial (temporal, antes de U
   - F10-4: `faultycmd.cli` — top-level click-based CLI con Rich-rendered output (tablas, Live updates, progress). Command tree: `info`, `emfi {ping/status/configure/arm/fire/disarm/capture}`, `crowbar {ping/status/configure/arm/fire/disarm}`, `campaign {status/configure/start/stop/drain/watch}` con `--engine`, `scanner {swd-/jtag-/scan-}`. Console script `faultycmd` instalado al `pip install -e .`.
   - F10-5: `faultycmd.tui` — Textual app, 2×2 grid + footer hotkeys (`q/r/c/s`). Paneles: EMFI (CDC0 status), Crowbar (CDC1 status), Campaign (live table + last-10 results), Diag (CDC2 snapshot tail con regex parser). 3 daemon polling threads + `call_from_thread` para UI updates. `SharedSerial` permite que Crowbar + Campaign clients compartan una sola CDC1 serial.Serial. 13 nuevos tests = 85 total.
   - F10-6: ruff lint config + 3-version pytest matrix CI workflow (`.github/workflows/host-py.yml`) + `python -m faultycmd` entry point (`__main__.py`) + Linux PyInstaller smoke build artifact.
-  - F10-7: este commit — docs(F10) live-update + tag.
+  - F10-7: docs(F10) live-update + tag.
+  - **F10-polish** (descubierto en smoke interactivo de la TUI 2026-04-29): `FaultycmdTUI.__init__` asignaba `self._workers: list[threading.Thread] = []`, clobbering Textual's `App._workers` (el `WorkerManager` backing field detrás de `App.workers`). Cada Static panel hacía `self.workers.cancel_node(self)` en unmount → `'list' has no cancel_node'` → cascade rompía la teardown asyncio → daemon threads `call_from_thread` después del loop closed → `RuntimeError: Event loop is closed`. Crash en launch + en `q`. Fix: rename `self._workers` → `self._poll_threads` (5 sites) + helper `_post()` que envuelve `call_from_thread` en `try/except RuntimeError` (defensa contra el shutdown race; 8 daemon-side call sites ruteados) + regression test `test_app_does_not_shadow_textual_workers` (asserts `app.workers` es `WorkerManager` y expone `cancel_node`). Los tests panel-state existentes no atrapaban esto porque inspeccionaban `panel.fields`/`panel.tail` sin manejar el lifecycle mount→unmount.
 
 - **Override formal de §1 #6** (Rust → Python) commit `0a34a22` el 2026-04-28. Memoria `project_faultycmd_python_override.md` mantiene la auditoría legible para futuro yo / contributors.
 
@@ -522,9 +523,9 @@ Cada driver expone comando `diag <driver>` por UART serial (temporal, antes de U
   - `faultycmd crowbar ping` → `PONG b'F5\x00\x00'`. `faultycmd crowbar status` → tabla Rich con state=FIRED + output=LP de campaign anterior.
   - `faultycmd campaign --engine crowbar configure --delay 1000:3000:1000 --width 200:300:100 --power 1 --settle-ms 50 → start → watch` → Live Rich table streams 6/6 results, ending con `state=DONE step=6/6 pushed=6 dropped=0`.
   - `faultycmd scanner swd-init/swd-connect/swd-deinit` y `jtag-init/jtag-chain/jtag-deinit` retornan correctamente (no-target → ERR no_target o devices=0).
-  - `faultycmd tui` lanza, paneles populan dentro de un poll cycle.
+  - `faultycmd tui` lanza limpio, los 4 paneles populan, los 12 items del checklist pasan: launch + diag CDC2 stream + EMFI/Crowbar/Campaign panels + multiplex SharedSerial CDC1 + hotkeys `s`/`c`/`r`/`q` (toggle demo, clear log, reconnect, quit limpio sin traceback). Stop mid-sweep validado con sweep largo de 50 steps disparado por CLI en otra terminal + `s` mid-flight desde la TUI.
 
-- Tests host-side: 85 cases / 100% verde bajo `pytest`. ruff `check src tests` clean. CI workflow corre `lint + test (3.10/3.11/3.12) + build-binary` paralelo a `firmware.yml`.
+- Tests host-side: 86 cases / 100% verde bajo `pytest` (85 F10-1..F10-6 + 1 F10-polish regression guard). ruff `check src tests` clean. CI workflow corre `lint + test (3.10/3.11/3.12) + build-binary` paralelo a `firmware.yml`.
 
 - Reference clients legacy (`tools/{emfi,crowbar,campaign}_client.py` + `tools/{swd,jtag,scanner}_diag.py`) permanecen en el tree como debug fallback. F11 archive los retira.
 

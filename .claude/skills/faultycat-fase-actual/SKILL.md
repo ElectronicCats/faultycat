@@ -80,6 +80,14 @@ UF2 + binarios.
   (73 → 0 issues; 64 autofix + 9 manual incl. B007/E702/N802/
   N818).
 - F10-7: docs(F10) + smoke + tag.
+- **F10-polish** (smoke interactivo TUI 2026-04-29): `FaultycmdTUI`
+  asignaba `self._workers` clobbering Textual's `App._workers`
+  (WorkerManager). Static panels crash en unmount con
+  `'list' has no cancel_node'`, daemon threads cascade-fail con
+  `RuntimeError: Event loop is closed`. Fix: rename a
+  `_poll_threads` + helper `_post()` (`try/except RuntimeError`
+  defensivo en 8 daemon call_from_thread sites) + regression test
+  guard. 86 total tests.
 
 **Override formal de §1 #6** (commit `0a34a22`, 2026-04-28): plan
 original especificaba Rust workspace + ratatui. Sabas confirmó
@@ -88,13 +96,20 @@ los 4 reference clients Python + onboarding más bajo. Wire
 protocols **no cambian**. Memoria
 `project_faultycmd_python_override.md` documenta la decisión.
 
-Smoke físico 2026-04-29 sobre v2.2: `faultycmd info` enumera 4
-CDCs (IF 0x00 emfi → /dev/ttyACM0, 0x02 crowbar → ACM2, 0x04
-scanner → ACM3, 0x06 target-uart → ACM4). `emfi ping` → `F4`,
-`crowbar ping` → `F5`, `campaign --engine crowbar status` →
-DONE 6/6 results pushed (post un sweep previo). `scanner
-jtag-init` / `jtag-deinit` ambos OK. CI YAML well-formed.
-85/85 host-py tests verde + 404/404 firmware Unity verde.
+Smoke físico 2026-04-29 sobre v2.2: CLI 18 checks (info / emfi
+ping/status/configure / crowbar ping/status/configure LP+HP /
+campaign status both engines / 3-step + 50-step sweep + stop
+mid-sweep + drain stopped / scanner SWD init+connect+deinit /
+JTAG init+chain+idcode+deinit / scan-jtag 1680 perms NO_MATCH /
+scan-swd 56 perms NO_MATCH) — todos verde, expected gates en
+SWD connect (TXS0108E) y JTAG chain (no target). TUI 12 checks
+(launch + 4 paneles populate + diag CDC2 stream con ADC
+fluctuando + EMFI/Crowbar/Campaign tail correcto + hotkeys `s`
+toggle demo + `c` clear log + `s` mid-sweep stop con sweep
+largo disparado por CLI paralelo + `r` reconnect sin freeze +
+`q` quit sin traceback) — todos verde post F10-polish.
+86/86 host-py tests verde + 404/404 firmware Unity verde.
+CI YAML well-formed.
 
 **No verificado físicamente** (reusa F6 gates): SWD verify hook
 real (F6 HW-blocked) y CMSIS-DAP path (F7 deferido).
@@ -256,10 +271,17 @@ Override formal de §1 #6 (commit `0a34a22`): Rust+ratatui →
 Python+Textual+Rich. `host/faultycmd-py/` package monorepo
 (`pyproject.toml` hatchling). 7 sub-fases F10-1..F10-7:
 framing/usb/protocols.{emfi,crowbar,campaign,scanner}/cli/tui +
-CI matrix Py 3.10/3.11/3.12 + pyinstaller binary job. 85 host-py
-tests (pytest) + ruff clean. Smoke físico v2.2: `info` enumera 4
-CDCs, `emfi/crowbar ping` → F4/F5, `campaign status` → DONE 6/6,
-`scanner jtag-init/deinit` OK. Wire protocols **no cambian** —
+CI matrix Py 3.10/3.11/3.12 + pyinstaller binary job. 86 host-py
+tests (pytest, incluye F10-polish regression guard) + ruff clean.
+Smoke físico v2.2: CLI 18 checks (info / ping/status emfi+crowbar
+/ configure cycles / 3-step + 50-step + stop-mid sweep / scanner
+SWD+JTAG init+deinit + scan-jtag NO_MATCH 1680 perms + scan-swd
+NO_MATCH 56 perms) verde. TUI 12 checks (launch + paneles +
+multiplex CDC1 + hotkeys s/c/r/q + stop mid-sweep) verde post
+F10-polish (rename `_workers` → `_poll_threads` que clobbeaba
+Textual `App._workers` WorkerManager + `_post()` defensivo
+contra el daemon-thread / asyncio-loop shutdown race). Wire
+protocols **no cambian** —
 solo el host language. Memory `project_faultycmd_python_override.md`
 documenta la decisión.
 
@@ -324,11 +346,13 @@ preset + CI (`firmware.yml`). Plus `hal_fake_gpio` edge sampler +
 per-pin input scripts (F8-1 infra, reusable para SPI/serial/JTAG-
 style clocked-bus tests).
 
-Host: 85 pytest cases en `host/faultycmd-py/` (framing/usb/
-protocols/cli/tui state) / 100% verde. CI matrix Py 3.10/3.11/3.12
-en `host-py.yml` + ruff lint + pyinstaller binary build job.
+Host: 86 pytest cases en `host/faultycmd-py/` (framing/usb/
+protocols/cli/tui state + F10-polish regression guard contra
+shadowing del Textual `App._workers`) / 100% verde. CI matrix Py
+3.10/3.11/3.12 en `host-py.yml` + ruff lint + pyinstaller binary
+build job.
 
-Total: **489 tests verde** end-to-end.
+Total: **490 tests verde** end-to-end.
 
 ## Qué NO tocar
 
@@ -381,7 +405,7 @@ Total: **489 tests verde** end-to-end.
   campaign sweep throughput, mutex acquire/release overhead.
   Reproducible vía `tools/bench_*.py`.
 - **No romper F0..F10**: 29 firmware Unity binarios / 404 cases +
-  85 host-py tests = 489 tests verde. Smoke físico verde sobre
+  86 host-py tests = 490 tests verde. Smoke físico verde sobre
   v2.2. Cualquier regresión observada durante el bench apunta al
   cambio que se acaba de meter.
 
