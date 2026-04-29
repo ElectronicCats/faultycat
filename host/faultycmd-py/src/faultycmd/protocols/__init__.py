@@ -24,6 +24,7 @@ from ._base import BinaryProtoClient, EngineError, ProtocolError
 from .campaign import CampaignClient, CampaignResult, CampaignStatus
 from .crowbar import CrowbarClient, CrowbarStatus
 from .emfi import EmfiClient, EmfiStatus
+from .scanner import ScannerClient, ScannerError
 
 __all__ = [
     "BinaryProtoClient",
@@ -36,4 +37,6 @@ __all__ = [
     "CrowbarStatus",
     "EmfiClient",
     "EmfiStatus",
+    "ScannerClient",
+    "ScannerError",
 ]
