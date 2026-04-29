@@ -11,6 +11,8 @@ from __future__ import annotations
 import pytest
 
 from faultycmd.tui_modals import (
+    CrowbarControlModal,
+    CrowbarFormState,
     EmfiControlModal,
     EmfiFormState,
     HvConfirmModal,
@@ -153,6 +155,128 @@ def test_emfi_form_trigger_strings_all_map_to_emfi_trigger_enum():
         enum_val = EmfiTrigger[trig_str.upper()]
         # And int() of the enum is what configure() puts on the wire.
         assert isinstance(int(enum_val), int)
+
+
+# -- CrowbarFormState ---------------------------------------------
+
+def test_crowbar_form_state_defaults():
+    s = CrowbarFormState()
+    assert s.trigger == "immediate"
+    assert s.output == "lp"
+    assert s.delay_us == 0
+    assert s.width_ns == 200
+
+
+def test_crowbar_form_state_from_dict_partial():
+    s = CrowbarFormState.from_dict({"output": "hp", "width_ns": 1000})
+    assert s.output == "hp"
+    assert s.width_ns == 1000
+    assert s.trigger == "immediate"  # default
+    assert s.delay_us == 0
+
+
+def test_crowbar_form_state_from_dict_ignores_unknown():
+    s = CrowbarFormState.from_dict({"width_ns": 100, "garbage": "x"})
+    assert s.width_ns == 100
+
+
+def test_crowbar_form_state_to_dict_roundtrip():
+    s = CrowbarFormState(trigger="ext_rising", output="hp",
+                         delay_us=2500, width_ns=500)
+    s2 = CrowbarFormState.from_dict(s.to_dict())
+    assert s == s2
+
+
+def test_crowbar_form_state_validates_width_bounds():
+    """Driver bound: 8..50000 ns."""
+    with pytest.raises(ValueError):
+        CrowbarFormState(width_ns=7).validate()
+    with pytest.raises(ValueError):
+        CrowbarFormState(width_ns=50001).validate()
+    CrowbarFormState(width_ns=8).validate()
+    CrowbarFormState(width_ns=50000).validate()
+
+
+def test_crowbar_form_state_validates_trigger_enum():
+    for t in ("immediate", "ext_rising", "ext_falling", "ext_pulse_pos"):
+        CrowbarFormState(trigger=t).validate()
+    with pytest.raises(ValueError):
+        CrowbarFormState(trigger="bogus").validate()
+
+
+def test_crowbar_form_state_validates_output_enum():
+    CrowbarFormState(output="lp").validate()
+    CrowbarFormState(output="hp").validate()
+    with pytest.raises(ValueError):
+        # NONE is a wire-level enum but the form must never select it.
+        CrowbarFormState(output="none").validate()
+    with pytest.raises(ValueError):
+        CrowbarFormState(output="zzz").validate()
+
+
+# -- CrowbarControlModal ------------------------------------------
+
+def test_crowbar_modal_construction_defaults():
+    m = CrowbarControlModal(initial=CrowbarFormState())
+    assert m.state.trigger == "immediate"
+    assert m.state.output == "lp"
+
+
+def test_crowbar_modal_construction_prefills():
+    m = CrowbarControlModal(
+        initial=CrowbarFormState.from_dict({"output": "hp", "width_ns": 1500}),
+    )
+    assert m.state.output == "hp"
+    assert m.state.width_ns == 1500
+
+
+def test_crowbar_modal_no_action_requires_hv_confirm():
+    """Crowbar does NOT involve the HV cap (it gates either GP16
+    LP path or GP17 N-MOSFET on already-present rails). Unlike
+    EMFI, no action requires the HV confirm modal."""
+    m = CrowbarControlModal(initial=CrowbarFormState())
+    for action in ("apply", "arm", "fire", "disarm", "capture"):
+        assert m.requires_hv_confirm(action) is False
+
+
+# -- form ↔ wire-protocol drift guards (mirror EMFI guards) -------
+
+def test_crowbar_form_strings_all_map_to_wire_enums():
+    """Mirror of `test_emfi_form_trigger_strings_all_map...`. Every
+    UI string for trigger AND output must round-trip through the
+    `CrowbarTrigger[s.upper()]` / `CrowbarOutput[s.upper()]` map
+    that the wire-level configure() expects."""
+    from faultycmd.protocols.crowbar import CrowbarOutput, CrowbarTrigger
+    from faultycmd.tui_modals import _CROWBAR_OUTPUTS, _CROWBAR_TRIGGERS
+
+    for trig_str in _CROWBAR_TRIGGERS:
+        assert isinstance(int(CrowbarTrigger[trig_str.upper()]), int)
+    for out_str in _CROWBAR_OUTPUTS:
+        assert isinstance(int(CrowbarOutput[out_str.upper()]), int)
+
+
+def test_crowbar_client_method_signatures_unchanged():
+    """Mirror of `test_emfi_client_method_signatures_unchanged`.
+    Pins the kwarg surface that the modal closures call."""
+    import inspect
+
+    from faultycmd.protocols.crowbar import CrowbarClient
+
+    sigs = {
+        "configure": {"trigger", "output", "delay_us", "width_ns"},
+        "arm":       set(),
+        "fire":      {"trigger_timeout_ms"},
+        "disarm":    set(),
+        "status":    set(),
+        "ping":      set(),
+    }
+    for method, expected in sigs.items():
+        sig = inspect.signature(getattr(CrowbarClient, method))
+        params = {p for p in sig.parameters if p != "self"}
+        assert expected.issubset(params), (
+            f"CrowbarClient.{method} lost kwargs: "
+            f"expected {expected}, got {params}"
+        )
 
 
 def test_emfi_client_method_signatures_unchanged():

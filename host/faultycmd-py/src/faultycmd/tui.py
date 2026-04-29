@@ -58,8 +58,11 @@ from .protocols import (
     ProtocolError,
 )
 from .protocols.campaign import CampaignState
+from .protocols.crowbar import CrowbarOutput, CrowbarTrigger
 from .protocols.emfi import EmfiTrigger
 from .tui_modals import (
+    CrowbarControlModal,
+    CrowbarFormState,
     EmfiControlModal,
     EmfiFormState,
     HvConfirmModal,
@@ -122,31 +125,51 @@ class SharedSerial:
     """Wrap a single :class:`serial.Serial` so both the crowbar and
     campaign clients can hand the same instance to their base class.
 
-    The protocol clients call read / write / reset_input_buffer /
-    close serially (Textual workers don't preempt each other on the
-    same thread), so we don't need a mutex around the underlying
-    Serial — but we DO need to lie about close: the first client to
-    leave its context manager would otherwise tear the port down.
+    F11-0b-fix: an earlier revision of this docstring claimed
+    "Textual workers don't preempt each other on the same thread,
+    so we don't need a mutex" — that was wrong. Our `_poll_cdc1`
+    daemon polls Crowbar + Campaign every 500 ms on a *separate*
+    Python thread; when an operator-triggered modal action also
+    goes through the same shared Serial on the UI thread, the two
+    `BinaryProtoClient._send()` round-trips race over
+    reset_input_buffer / write / read and pyserial raises
+    ``device reports readiness to read but returned no data``.
+
+    The fix is a re-entrant lock callers acquire around the *whole*
+    multi-call sequence (a single `_send` is reset+write+read; we
+    must hold across all three). Per-op locking on the methods
+    below is defensive — useful if a future caller forgets to wrap
+    in the outer ``with shared.lock:`` block — but the contract is
+    that multi-op sequences MUST hold ``self.lock`` throughout.
+
+    Close still needs to be a no-op for the per-client context
+    manager (FaultycmdTUI owns the lifetime); ``really_close()``
+    on shutdown.
     """
 
     def __init__(self, ser: object) -> None:
         self._ser = ser
+        self.lock = threading.RLock()
 
     def write(self, data: bytes) -> int:
-        return self._ser.write(data)   # type: ignore[attr-defined]
+        with self.lock:
+            return self._ser.write(data)   # type: ignore[attr-defined]
 
     def read(self, size: int = 1) -> bytes:
-        return self._ser.read(size)   # type: ignore[attr-defined]
+        with self.lock:
+            return self._ser.read(size)   # type: ignore[attr-defined]
 
     def reset_input_buffer(self) -> None:
-        self._ser.reset_input_buffer()   # type: ignore[attr-defined]
+        with self.lock:
+            self._ser.reset_input_buffer()   # type: ignore[attr-defined]
 
     def close(self) -> None:
         # Owned by FaultycmdTUI, not the per-client context manager.
         pass
 
     def really_close(self) -> None:
-        self._ser.close()   # type: ignore[attr-defined]
+        with self.lock:
+            self._ser.close()   # type: ignore[attr-defined]
 
 
 # -----------------------------------------------------------------------------
@@ -316,6 +339,7 @@ class FaultycmdTUI(App[None]):
         Binding("c", "clear_log", "clear log"),
         Binding("s", "toggle_demo", "start/stop demo"),
         Binding("e", "open_emfi_modal", "EMFI control"),
+        Binding("b", "open_crowbar_modal", "crowBar control"),
     ]
 
     title = "faultycmd — FaultyCat v3 dashboard"
@@ -401,24 +425,29 @@ class FaultycmdTUI(App[None]):
 
     def _poll_cdc1(self) -> None:
         while not self._stop_workers.is_set():
-            if not (self.conn.crowbar and self.conn.campaign):
+            if not (self.conn.crowbar and self.conn.campaign and self.conn.cdc1_shared):
                 time.sleep(0.5)
                 continue
             try:
-                cst = self.conn.crowbar.status()
-                self._post(self._update_crowbar, cst)
-                camp_st = self.conn.campaign.status()
-                self._post(self._update_campaign_summary, camp_st)
-                if camp_st.state in (CampaignState.SWEEPING, CampaignState.DONE):
-                    results = self.conn.campaign.drain(18)
-                    if results:
-                        rendered = [
-                            f"step={r.step_n} d={r.delay} w={r.width} "
-                            f"p={r.power} fire=0x{r.fire_status:02X} "
-                            f"verify=0x{r.verify_status:02X}"
-                            for r in results
-                        ]
-                        self._post(self._push_campaign_results, rendered)
+                # F11-0b-fix: hold the shared CDC1 lock across the
+                # whole poll cycle so a concurrent modal action on
+                # the UI thread can't interleave with our 2-3
+                # round-trips here.
+                with self.conn.cdc1_shared.lock:
+                    cst = self.conn.crowbar.status()
+                    self._post(self._update_crowbar, cst)
+                    camp_st = self.conn.campaign.status()
+                    self._post(self._update_campaign_summary, camp_st)
+                    if camp_st.state in (CampaignState.SWEEPING, CampaignState.DONE):
+                        results = self.conn.campaign.drain(18)
+                        if results:
+                            rendered = [
+                                f"step={r.step_n} d={r.delay} w={r.width} "
+                                f"p={r.power} fire=0x{r.fire_status:02X} "
+                                f"verify=0x{r.verify_status:02X}"
+                                for r in results
+                            ]
+                            self._post(self._push_campaign_results, rendered)
             except (ProtocolError, EngineError, CampaignError, OSError) as e:
                 self._post(self._note_error, f"cdc1: {e}")
             self._stop_workers.wait(0.5)
@@ -521,24 +550,28 @@ class FaultycmdTUI(App[None]):
             self.campaign_panel.clear_tail()
 
     def action_toggle_demo(self) -> None:
-        if not self.conn.campaign:
+        if not (self.conn.campaign and self.conn.cdc1_shared):
             self.notify("no campaign client", severity="error")
             return
         try:
-            if self._demo_running:
-                self.conn.campaign.stop()
-                self._demo_running = False
-                self.notify("demo stopped", severity="information")
-            else:
-                self.conn.campaign.configure(
-                    delay=(1000, 3000, 1000),
-                    width=(200, 300, 100),
-                    power=(1, 1, 0),
-                    settle_ms=50,
-                )
-                self.conn.campaign.start()
-                self._demo_running = True
-                self.notify("demo started — 6-step crowbar LP sweep", severity="information")
+            # F11-0b-fix: hold the shared CDC1 lock across the
+            # configure+start (or stop) sequence so the daemon
+            # poll thread doesn't interleave between calls.
+            with self.conn.cdc1_shared.lock:
+                if self._demo_running:
+                    self.conn.campaign.stop()
+                    self._demo_running = False
+                    self.notify("demo stopped", severity="information")
+                else:
+                    self.conn.campaign.configure(
+                        delay=(1000, 3000, 1000),
+                        width=(200, 300, 100),
+                        power=(1, 1, 0),
+                        settle_ms=50,
+                    )
+                    self.conn.campaign.start()
+                    self._demo_running = True
+                    self.notify("demo started — 6-step crowbar LP sweep", severity="information")
         except (CampaignError, EngineError, ProtocolError, OSError) as e:
             self.notify(f"demo: {e}", severity="error")
 
@@ -626,6 +659,58 @@ class FaultycmdTUI(App[None]):
             disarm_cb=_on_disarm,
             capture_cb=_on_capture,
             confirm_arm_cb=_confirm_arm,
+        )
+        self.push_screen(modal)
+
+    def action_open_crowbar_modal(self) -> None:
+        if not self.conn.crowbar:
+            self.notify("no crowbar client (CDC1)", severity="error")
+            return
+        initial = CrowbarFormState.from_dict(self._last_config.load("crowbar"))
+
+        # F11-0b-fix: every callback that touches CDC1 must hold
+        # `cdc1_shared.lock` across the whole transaction so the
+        # daemon `_poll_cdc1` doesn't race over reset/write/read.
+        def _on_apply(state: CrowbarFormState) -> None:
+            # Same string→enum map as the CLI:
+            # `CrowbarTrigger[s.upper()]` / `CrowbarOutput[s.upper()]`.
+            with self.conn.cdc1_shared.lock:
+                self.conn.crowbar.configure(
+                    trigger=CrowbarTrigger[state.trigger.upper()],
+                    output=CrowbarOutput[state.output.upper()],
+                    delay_us=state.delay_us,
+                    width_ns=state.width_ns,
+                )
+            self._last_config.save("crowbar", state.to_dict())
+
+        def _on_arm(state: CrowbarFormState) -> None:
+            # Crowbar has no HV cap to charge — no confirm modal.
+            # We still re-push the form's configure so an arm after
+            # disarm picks up current form values (same WYSIWYG as
+            # EMFI's _on_arm).
+            with self.conn.cdc1_shared.lock:
+                self.conn.crowbar.configure(
+                    trigger=CrowbarTrigger[state.trigger.upper()],
+                    output=CrowbarOutput[state.output.upper()],
+                    delay_us=state.delay_us,
+                    width_ns=state.width_ns,
+                )
+                self.conn.crowbar.arm()
+
+        def _on_fire() -> None:
+            with self.conn.cdc1_shared.lock:
+                self.conn.crowbar.fire()
+
+        def _on_disarm() -> None:
+            with self.conn.cdc1_shared.lock:
+                self.conn.crowbar.disarm()
+
+        modal = CrowbarControlModal(
+            initial=initial,
+            apply_cb=_on_apply,
+            arm_cb=_on_arm,
+            fire_cb=_on_fire,
+            disarm_cb=_on_disarm,
         )
         self.push_screen(modal)
 

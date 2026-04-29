@@ -284,3 +284,182 @@ class EmfiControlModal(ModalScreen[None]):
 
     def action_close(self) -> None:
         self.dismiss(None)
+
+
+# -----------------------------------------------------------------
+# Crowbar form state + control modal (F11-0b)
+# -----------------------------------------------------------------
+
+
+_CROWBAR_TRIGGERS = ("immediate", "ext_rising", "ext_falling", "ext_pulse_pos")
+_CROWBAR_OUTPUTS = ("lp", "hp")     # NONE excluded — form must pick a real path
+
+
+@dataclass
+class CrowbarFormState:
+    trigger: str = "immediate"
+    output:  str = "lp"
+    delay_us: int = 0
+    width_ns: int = 200
+
+    @classmethod
+    def from_dict(cls, d: dict) -> CrowbarFormState:
+        known = {f.name for f in fields(cls)}
+        kwargs = {k: v for k, v in d.items() if k in known}
+        return cls(**kwargs)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    def validate(self) -> None:
+        if self.trigger not in _CROWBAR_TRIGGERS:
+            raise ValueError(
+                f"trigger must be one of {_CROWBAR_TRIGGERS}, got {self.trigger!r}"
+            )
+        if self.output not in _CROWBAR_OUTPUTS:
+            raise ValueError(
+                f"output must be one of {_CROWBAR_OUTPUTS}, got {self.output!r}"
+            )
+        if not 8 <= self.width_ns <= 50000:
+            raise ValueError(
+                f"width_ns out of range 8..50000 ns (driver-bounded): {self.width_ns}"
+            )
+        if self.delay_us < 0:
+            raise ValueError(f"delay_us must be >= 0, got {self.delay_us}")
+
+
+class CrowbarControlModal(ModalScreen[None]):
+    """Crowbar configure / arm / fire / disarm.
+
+    Unlike EMFI, no action involves the HV cap — the crowbar gates
+    pre-existing rails through GP16 (LP, logic-level) or GP17 (HP,
+    N-MOSFET). No HV confirm modal is interposed; `requires_hv_confirm`
+    is False for every action."""
+
+    DEFAULT_CSS = """
+    CrowbarControlModal > Vertical {
+        background: $panel;
+        border: thick $accent;
+        padding: 1 2;
+        width: 80;
+        height: auto;
+    }
+    CrowbarControlModal Input { width: 100%; }
+    CrowbarControlModal Select { width: 100%; }
+    """
+
+    BINDINGS = [
+        Binding("escape", "close", "close"),
+    ]
+
+    def __init__(
+        self,
+        *,
+        initial: CrowbarFormState | None = None,
+        apply_cb=None,
+        arm_cb=None,
+        fire_cb=None,
+        disarm_cb=None,
+    ) -> None:
+        super().__init__()
+        self.state = initial or CrowbarFormState()
+        self.apply_cb = apply_cb
+        self.arm_cb = arm_cb
+        self.fire_cb = fire_cb
+        self.disarm_cb = disarm_cb
+
+    @staticmethod
+    def requires_hv_confirm(action: str) -> bool:
+        return False
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("Crowbar control")
+            yield Label("[dim]CDC1 · F5 crowbar_proto[/dim]")
+            yield Label("trigger:")
+            yield Select(
+                [(t, t) for t in _CROWBAR_TRIGGERS],
+                value=self.state.trigger,
+                id="trigger",
+            )
+            yield Label("output:")
+            yield Select(
+                [(o.upper(), o) for o in _CROWBAR_OUTPUTS],
+                value=self.state.output,
+                id="output",
+            )
+            yield Label("delay-us:")
+            yield Input(value=str(self.state.delay_us), id="delay_us")
+            yield Label("width-ns (8..50000):")
+            yield Input(value=str(self.state.width_ns), id="width_ns")
+            yield Static("", id="status_line")
+            with Horizontal():
+                yield Button("Apply", id="apply", variant="primary")
+                yield Button("Arm", id="arm", variant="warning")
+                yield Button("Fire", id="fire", variant="success")
+                yield Button("Disarm", id="disarm")
+                yield Button("Close", id="close")
+
+    def _sync_state_from_inputs(self) -> bool:
+        try:
+            trig = self.query_one("#trigger", Select).value
+            out  = self.query_one("#output", Select).value
+            d = int(self.query_one("#delay_us", Input).value or "0")
+            w = int(self.query_one("#width_ns", Input).value or "0")
+        except (ValueError, KeyError):
+            self._set_status("error: invalid integer in form")
+            return False
+        candidate = CrowbarFormState(
+            trigger=trig if isinstance(trig, str) else "immediate",
+            output=out if isinstance(out, str) else "lp",
+            delay_us=d, width_ns=w,
+        )
+        try:
+            candidate.validate()
+        except ValueError as e:
+            self._set_status(f"error: {e}")
+            return False
+        self.state = candidate
+        return True
+
+    def _set_status(self, msg: str) -> None:
+        try:
+            self.query_one("#status_line", Static).update(msg)
+        except Exception:
+            pass
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        action = event.button.id or ""
+        if action == "close":
+            self.action_close()
+            return
+        if action in ("apply", "arm"):
+            if not self._sync_state_from_inputs():
+                return
+        if action == "apply" and self.apply_cb:
+            try:
+                self.apply_cb(self.state)
+                self._set_status("OK applied")
+            except Exception as e:
+                self._set_status(f"apply: {e}")
+        elif action == "arm" and self.arm_cb:
+            try:
+                self.arm_cb(self.state)
+                self._set_status("OK arm")
+            except Exception as e:
+                self._set_status(f"arm: {e}")
+        elif action == "fire" and self.fire_cb:
+            try:
+                self.fire_cb()
+                self._set_status("OK fire")
+            except Exception as e:
+                self._set_status(f"fire: {e}")
+        elif action == "disarm" and self.disarm_cb:
+            try:
+                self.disarm_cb()
+                self._set_status("OK disarm")
+            except Exception as e:
+                self._set_status(f"disarm: {e}")
+
+    def action_close(self) -> None:
+        self.dismiss(None)
