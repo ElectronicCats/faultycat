@@ -146,3 +146,21 @@ def test_app_construction_does_not_open_serial():
 def test_app_title_set():
     app = FaultycmdTUI()
     assert "faultycmd" in app.title.lower()
+
+
+def test_app_does_not_shadow_textual_workers():
+    """Regression: a previous revision named the polling-thread list
+    ``self._workers`` which clobbered Textual's ``App._workers`` (the
+    backing field of ``App.workers`` → ``WorkerManager``). On unmount
+    every Static panel does ``self.workers.cancel_node(self)``; with
+    the field shadowed by a list of threads that raised
+    ``AttributeError: 'list' object has no attribute 'cancel_node'``
+    and propagated as ``RuntimeError: Event loop is closed`` from the
+    daemon threads. Crash on launch / on `q`."""
+    from textual.worker_manager import WorkerManager
+
+    app = FaultycmdTUI()
+    assert isinstance(app.workers, WorkerManager)
+    assert hasattr(app.workers, "cancel_node")
+    # Our own thread bookkeeping must not collide with the framework's.
+    assert isinstance(app._poll_threads, list)

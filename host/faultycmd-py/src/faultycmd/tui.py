@@ -321,7 +321,7 @@ class FaultycmdTUI(App[None]):
         self.campaign_panel: CampaignPanel | None = None
         self.diag_panel: StatusPanel | None = None
         self._stop_workers = threading.Event()
-        self._workers: list[threading.Thread] = []
+        self._poll_threads: list[threading.Thread] = []
         self._demo_running = False
 
     # -- compose ------------------------------------------------------
@@ -350,20 +350,31 @@ class FaultycmdTUI(App[None]):
 
     def on_unmount(self) -> None:
         self._stop_workers.set()
-        for t in self._workers:
+        for t in self._poll_threads:
             t.join(timeout=1.0)
         self.conn.close()
 
     # -- workers ------------------------------------------------------
 
+    def _post(self, fn, *args) -> None:
+        """Bridge daemon-thread → Textual UI thread. Swallows the
+        RuntimeError that Textual raises when ``call_from_thread`` is
+        invoked after the asyncio loop has started shutting down — the
+        polling threads can race past ``_stop_workers.set()`` and try
+        one more call before joining."""
+        try:
+            self.call_from_thread(fn, *args)
+        except RuntimeError:
+            pass
+
     def _spawn_workers(self) -> None:
         self._stop_workers.clear()
-        self._workers = [
+        self._poll_threads = [
             threading.Thread(target=self._poll_emfi, daemon=True),
             threading.Thread(target=self._poll_cdc1, daemon=True),
             threading.Thread(target=self._tail_diag, daemon=True),
         ]
-        for t in self._workers:
+        for t in self._poll_threads:
             t.start()
 
     def _poll_emfi(self) -> None:
@@ -373,9 +384,9 @@ class FaultycmdTUI(App[None]):
                 continue
             try:
                 st = self.conn.emfi.status()
-                self.call_from_thread(self._update_emfi, st)
+                self._post(self._update_emfi, st)
             except (ProtocolError, EngineError, OSError) as e:
-                self.call_from_thread(self._note_error, f"emfi: {e}")
+                self._post(self._note_error, f"emfi: {e}")
             self._stop_workers.wait(0.5)
 
     def _poll_cdc1(self) -> None:
@@ -385,9 +396,9 @@ class FaultycmdTUI(App[None]):
                 continue
             try:
                 cst = self.conn.crowbar.status()
-                self.call_from_thread(self._update_crowbar, cst)
+                self._post(self._update_crowbar, cst)
                 camp_st = self.conn.campaign.status()
-                self.call_from_thread(self._update_campaign_summary, camp_st)
+                self._post(self._update_campaign_summary, camp_st)
                 if camp_st.state in (CampaignState.SWEEPING, CampaignState.DONE):
                     results = self.conn.campaign.drain(18)
                     if results:
@@ -397,9 +408,9 @@ class FaultycmdTUI(App[None]):
                             f"verify=0x{r.verify_status:02X}"
                             for r in results
                         ]
-                        self.call_from_thread(self._push_campaign_results, rendered)
+                        self._post(self._push_campaign_results, rendered)
             except (ProtocolError, EngineError, CampaignError, OSError) as e:
-                self.call_from_thread(self._note_error, f"cdc1: {e}")
+                self._post(self._note_error, f"cdc1: {e}")
             self._stop_workers.wait(0.5)
 
     def _tail_diag(self) -> None:
@@ -418,9 +429,9 @@ class FaultycmdTUI(App[None]):
                     line, _, buf = buf.partition("\n")
                     snap = DiagSnapshot.parse(line)
                     if snap is not None:
-                        self.call_from_thread(self._update_diag, snap)
+                        self._post(self._update_diag, snap)
             except OSError as e:
-                self.call_from_thread(self._note_error, f"diag: {e}")
+                self._post(self._note_error, f"diag: {e}")
                 self._stop_workers.wait(1.0)
 
     # -- panel updates (run on Textual thread) ------------------------
@@ -485,7 +496,7 @@ class FaultycmdTUI(App[None]):
 
     def action_reconnect(self) -> None:
         self._stop_workers.set()
-        for t in self._workers:
+        for t in self._poll_threads:
             t.join(timeout=1.0)
         self.conn.close()
         self.conn.open()
