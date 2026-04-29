@@ -3,8 +3,7 @@ scripts that match what the firmware would emit.
 """
 from __future__ import annotations
 
-from collections import deque
-from typing import Iterable
+from collections.abc import Iterable
 
 from faultycmd.framing import build_frame
 

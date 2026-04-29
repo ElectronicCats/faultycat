@@ -76,7 +76,7 @@ class EmfiClient(BinaryProtoClient):
     """F4 emfi_proto over CDC0."""
 
     @classmethod
-    def discover(cls, **kw: object) -> "EmfiClient":
+    def discover(cls, **kw: object) -> EmfiClient:
         """Construct with the default CDC0 port via :func:`usb.cdc_for`."""
         return cls(cdc_for("emfi"), **kw)   # type: ignore[arg-type]
 

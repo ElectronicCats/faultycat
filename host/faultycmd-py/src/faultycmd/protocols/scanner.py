@@ -25,7 +25,8 @@ have native external clients (OpenOCD, flashrom).
 from __future__ import annotations
 
 import time
-from typing import Callable, Iterable, Optional, Protocol
+from collections.abc import Callable, Iterable
+from typing import Protocol
 
 from ..usb import cdc_for
 
@@ -41,7 +42,7 @@ SerialFactory = Callable[[str, int, float], _SerialLike]
 
 
 def _default_serial_factory(port: str, baud: int, per_byte_timeout: float) -> _SerialLike:
-    import serial   # noqa: PLC0415
+    import serial  # noqa: PLC0415
 
     return serial.Serial(port, baud, timeout=per_byte_timeout)
 
@@ -87,7 +88,7 @@ class ScannerClient:
         *,
         baud: int = DEFAULT_BAUD,
         timeout: float = DEFAULT_TIMEOUT,
-        serial_factory: Optional[SerialFactory] = None,
+        serial_factory: SerialFactory | None = None,
     ) -> None:
         self.port = port
         self.baud = baud
@@ -106,7 +107,7 @@ class ScannerClient:
             self._ser.close()
             self._ser = None
 
-    def __enter__(self) -> "ScannerClient":
+    def __enter__(self) -> ScannerClient:
         self.open()
         return self
 
@@ -114,7 +115,7 @@ class ScannerClient:
         self.close()
 
     @classmethod
-    def discover(cls, **kw: object) -> "ScannerClient":
+    def discover(cls, **kw: object) -> ScannerClient:
         return cls(cdc_for("scanner"), **kw)   # type: ignore[arg-type]
 
     def _require_serial(self) -> _SerialLike:
@@ -131,7 +132,7 @@ class ScannerClient:
         line: str,
         *,
         accept_prefixes: Iterable[str] = ACCEPTED_PREFIXES,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> str:
         """Send ``line\\r\\n``, return the first reply line whose
         prefix matches ``accept_prefixes``.
@@ -164,8 +165,8 @@ class ScannerClient:
         accept_prefixes: Iterable[str] = ACCEPTED_PREFIXES,
         terminal_substrings: Iterable[str] = (),
         quiet_ms: int = 200,
-        timeout: Optional[float] = None,
-        on_line: Optional[Callable[[str], None]] = None,
+        timeout: float | None = None,
+        on_line: Callable[[str], None] | None = None,
     ) -> list[str]:
         """Send ``line``, collect every prefix-matching reply line.
 
@@ -182,7 +183,7 @@ class ScannerClient:
         deadline = time.time() + (timeout if timeout is not None else self.timeout)
         out: list[str] = []
         buf = ""
-        last_match_at: Optional[float] = None
+        last_match_at: float | None = None
         while time.time() < deadline:
             chunk = ser.read(64)
             if chunk:
@@ -210,7 +211,7 @@ class ScannerClient:
     # -- SWD (F6) ----------------------------------------------------
 
     def swd_init(self, swclk_gp: int = 0, swdio_gp: int = 1,
-                 nrst_gp: Optional[int] = 2) -> str:
+                 nrst_gp: int | None = 2) -> str:
         if nrst_gp is None:
             cmd = f"swd init {swclk_gp} {swdio_gp}"
         else:
@@ -223,12 +224,12 @@ class ScannerClient:
     def swd_freq(self, khz: int) -> str:
         return self._expect_ok("SWD:", f"swd freq {khz}")
 
-    def swd_connect(self) -> tuple[str, Optional[int]]:
+    def swd_connect(self) -> tuple[str, int | None]:
         """Returns (raw_line, dpidr_or_None)."""
         line = self.send_line("swd connect", accept_prefixes=("SWD:",))
         return line, _parse_hex_after(line, "dpidr=")
 
-    def swd_read32(self, addr: int) -> tuple[str, Optional[int]]:
+    def swd_read32(self, addr: int) -> tuple[str, int | None]:
         line = self.send_line(f"swd read32 0x{addr:08X}", accept_prefixes=("SWD:",))
         return line, _parse_hex_after(line, "]=")
 
@@ -244,7 +245,7 @@ class ScannerClient:
 
     def jtag_init(
         self, tdi: int, tdo: int, tms: int, tck: int,
-        trst: Optional[int] = None,
+        trst: int | None = None,
     ) -> str:
         parts = ["jtag", "init", str(tdi), str(tdo), str(tms), str(tck)]
         if trst is not None:
@@ -260,7 +261,7 @@ class ScannerClient:
     def jtag_trst(self) -> str:
         return self._expect_ok("JTAG:", "jtag trst")
 
-    def jtag_chain(self) -> tuple[str, Optional[int]]:
+    def jtag_chain(self) -> tuple[str, int | None]:
         line = self.send_line("jtag chain", accept_prefixes=("JTAG:",))
         return line, _parse_int_after(line, "devices=")
 
@@ -282,7 +283,7 @@ class ScannerClient:
     def scan_jtag(
         self,
         timeout_s: float = 30.0,
-        on_progress: Optional[Callable[[str], None]] = None,
+        on_progress: Callable[[str], None] | None = None,
     ) -> list[str]:
         return self.send_line_collect(
             "scan jtag",
@@ -294,9 +295,9 @@ class ScannerClient:
 
     def scan_swd(
         self,
-        targetsel_hex: Optional[str] = None,
+        targetsel_hex: str | None = None,
         timeout_s: float = 30.0,
-        on_progress: Optional[Callable[[str], None]] = None,
+        on_progress: Callable[[str], None] | None = None,
     ) -> list[str]:
         cmd = "scan swd" if targetsel_hex is None else f"scan swd {targetsel_hex}"
         return self.send_line_collect(
@@ -343,7 +344,7 @@ class ScannerClient:
         return line
 
 
-def _parse_hex_after(line: str, marker: str) -> Optional[int]:
+def _parse_hex_after(line: str, marker: str) -> int | None:
     """Find ``marker`` in ``line`` and parse the hex token that follows."""
     idx = line.find(marker)
     if idx < 0:
@@ -358,7 +359,7 @@ def _parse_hex_after(line: str, marker: str) -> Optional[int]:
         return None
 
 
-def _parse_int_after(line: str, marker: str) -> Optional[int]:
+def _parse_int_after(line: str, marker: str) -> int | None:
     """Find ``marker`` and parse the decimal token that follows."""
     idx = line.find(marker)
     if idx < 0:

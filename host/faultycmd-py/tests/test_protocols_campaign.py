@@ -15,8 +15,8 @@ from faultycmd.protocols.campaign import (
     DRAIN_MAX_COUNT,
     RECORD_LEN,
     STATUS_REPLY_LEN,
-    CampaignError,
     CampaignErr,
+    CampaignError,
     CampaignState,
     ProtoStatus,
 )

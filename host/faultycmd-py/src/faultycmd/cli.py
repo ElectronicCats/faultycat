@@ -20,8 +20,6 @@ the legacy tools without losing operator-facing functionality.
 """
 from __future__ import annotations
 
-from typing import Optional
-
 import click
 from rich.console import Console
 from rich.live import Live
@@ -37,7 +35,6 @@ from .protocols import (
     ScannerClient,
     ScannerError,
 )
-from .protocols.campaign import CampaignState
 from .protocols.crowbar import CrowbarOutput, CrowbarTrigger
 from .protocols.emfi import EmfiTrigger
 from .usb import discover
@@ -61,7 +58,7 @@ def _parse_axis(spec: str) -> tuple[int, int, int]:
     return int(parts[0], 0), int(parts[1], 0), int(parts[2], 0)
 
 
-def _engine_to_client(engine: str, port: Optional[str]) -> CampaignClient:
+def _engine_to_client(engine: str, port: str | None) -> CampaignClient:
     if port is not None:
         return CampaignClient(port, engine=engine)   # type: ignore[arg-type]
     return CampaignClient.discover(engine)   # type: ignore[arg-type]
@@ -129,7 +126,7 @@ def info() -> None:
 @main.group()
 @click.option("--port", default=None, help="Override the default emfi CDC node.")
 @click.pass_context
-def emfi(ctx: click.Context, port: Optional[str]) -> None:
+def emfi(ctx: click.Context, port: str | None) -> None:
     """F4 EMFI control over CDC0."""
     ctx.obj = port
 
@@ -224,7 +221,7 @@ def disarm(ctx: click.Context) -> None:
 @click.pass_context
 def capture(
     ctx: click.Context,
-    offset: int, length: int, out_file: Optional[str],
+    offset: int, length: int, out_file: str | None,
 ) -> None:
     """Read a slice of the F4 ADC capture ring."""
     with _emfi_client(ctx) as cli:
@@ -245,7 +242,7 @@ def capture(
 @main.group()
 @click.option("--port", default=None, help="Override the default crowbar CDC node.")
 @click.pass_context
-def crowbar(ctx: click.Context, port: Optional[str]) -> None:
+def crowbar(ctx: click.Context, port: str | None) -> None:
     """F5 crowbar control over CDC1."""
     ctx.obj = port
 
@@ -343,7 +340,7 @@ def crowbar_disarm(ctx: click.Context) -> None:
               show_default=True)
 @click.option("--port", default=None, help="Override the auto-discovered CDC node.")
 @click.pass_context
-def campaign(ctx: click.Context, engine: str, port: Optional[str]) -> None:
+def campaign(ctx: click.Context, engine: str, port: str | None) -> None:
     """F9-4 campaign manager (sweep) over CDC0 (emfi) or CDC1 (crowbar)."""
     ctx.obj = (engine, port)
 
@@ -459,10 +456,14 @@ def campaign_watch(ctx: click.Context, every_ms: int) -> None:
             )
         return t
 
+    last_status = None
     with _campaign_client(ctx) as cli, Live(_render(), refresh_per_second=8, console=console) as live:
         for st, batch in cli.watch(every_ms=every_ms):
+            last_status = st
             seen_results.extend(batch)
             live.update(_render())
+    if last_status is not None:
+        st = last_status
         console.print(
             f"[bold]done[/bold] state={st.state.name if hasattr(st.state, 'name') else st.state} "
             f"step={st.step_n}/{st.total_steps} pushed={st.results_pushed} dropped={st.results_dropped}"
@@ -477,7 +478,7 @@ def campaign_watch(ctx: click.Context, every_ms: int) -> None:
 @main.group()
 @click.option("--port", default=None, help="Override the default scanner CDC node.")
 @click.pass_context
-def scanner(ctx: click.Context, port: Optional[str]) -> None:
+def scanner(ctx: click.Context, port: str | None) -> None:
     """F6 SWD + F8-1..F8-2 JTAG/scanner over CDC2 text shell."""
     ctx.obj = port
 
@@ -544,7 +545,7 @@ def scanner_swd_write32(ctx: click.Context, addr: str, value: str) -> None:
 @click.option("--trst", type=int, default=None)
 @click.pass_context
 def scanner_jtag_init(
-    ctx: click.Context, tdi: int, tdo: int, tms: int, tck: int, trst: Optional[int],
+    ctx: click.Context, tdi: int, tdo: int, tms: int, tck: int, trst: int | None,
 ) -> None:
     with _scanner_client(ctx) as cli:
         console.print(cli.jtag_init(tdi, tdo, tms, tck, trst))
@@ -580,19 +581,19 @@ def scanner_jtag_idcode(ctx: click.Context) -> None:
 @click.pass_context
 def scanner_scan_jtag(ctx: click.Context, timeout_s: float) -> None:
     with _scanner_client(ctx) as cli:
-        for line in cli.scan_jtag(timeout_s=timeout_s, on_progress=console.print):
-            pass
+        # on_progress prints each line as it arrives; the returned
+        # list is redundant.
+        cli.scan_jtag(timeout_s=timeout_s, on_progress=console.print)
 
 
 @scanner.command("scan-swd")
 @click.option("--targetsel", default=None, help="Hex string, e.g. 01002927")
 @click.option("--timeout-s", type=float, default=30.0, show_default=True)
 @click.pass_context
-def scanner_scan_swd(ctx: click.Context, targetsel: Optional[str], timeout_s: float) -> None:
+def scanner_scan_swd(ctx: click.Context, targetsel: str | None, timeout_s: float) -> None:
     with _scanner_client(ctx) as cli:
-        for line in cli.scan_swd(targetsel_hex=targetsel, timeout_s=timeout_s,
-                                 on_progress=console.print):
-            pass
+        cli.scan_swd(targetsel_hex=targetsel, timeout_s=timeout_s,
+                     on_progress=console.print)
 
 
 # -----------------------------------------------------------------------------

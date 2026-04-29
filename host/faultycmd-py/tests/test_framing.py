@@ -13,7 +13,6 @@ from faultycmd.framing import (
     read_frame,
 )
 
-
 # -----------------------------------------------------------------------------
 # crc16_ccitt — known-vector tests cross-checked against the firmware
 # (services/host_proto/emfi_proto/emfi_proto.c::emfi_proto_crc16).

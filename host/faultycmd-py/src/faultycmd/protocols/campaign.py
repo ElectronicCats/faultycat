@@ -29,9 +29,10 @@ from __future__ import annotations
 
 import struct
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Iterator, Literal
+from typing import Literal
 
 from ..usb import cdc_for
 from ._base import BinaryProtoClient
@@ -118,7 +119,7 @@ class CampaignClient(BinaryProtoClient):
         self.engine = engine
 
     @classmethod
-    def discover(cls, engine: Engine, **kw: object) -> "CampaignClient":
+    def discover(cls, engine: Engine, **kw: object) -> CampaignClient:
         return cls(cdc_for(engine), engine=engine, **kw)
 
     # -- ops ----------------------------------------------------------

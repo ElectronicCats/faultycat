@@ -39,8 +39,7 @@ from __future__ import annotations
 import re
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -49,12 +48,15 @@ from textual.reactive import reactive
 from textual.widgets import Footer, Header, Static
 
 from .protocols import (
-    CampaignClient, CampaignError, CrowbarClient, EmfiClient,
-    EngineError, ProtocolError,
+    CampaignClient,
+    CampaignError,
+    CrowbarClient,
+    EmfiClient,
+    EngineError,
+    ProtocolError,
 )
 from .protocols.campaign import CampaignState
 from .usb import PortDiscoveryError, cdc_for
-
 
 # -----------------------------------------------------------------------------
 # Diag snapshot parser — matches the line emitted every 500 ms by
@@ -86,7 +88,7 @@ class DiagSnapshot:
     last_seen_at: float = 0.0
 
     @classmethod
-    def parse(cls, line: str) -> "Optional[DiagSnapshot]":
+    def parse(cls, line: str) -> DiagSnapshot | None:
         m = DIAG_RE.search(line)
         if not m:
             return None
@@ -146,16 +148,16 @@ class SharedSerial:
 
 @dataclass
 class Connections:
-    emfi: Optional[EmfiClient] = None
-    crowbar: Optional[CrowbarClient] = None
-    campaign: Optional[CampaignClient] = None
-    cdc1_shared: Optional[SharedSerial] = None
-    cdc2_serial: Optional[object] = None       # serial.Serial in diag tail
+    emfi: EmfiClient | None = None
+    crowbar: CrowbarClient | None = None
+    campaign: CampaignClient | None = None
+    cdc1_shared: SharedSerial | None = None
+    cdc2_serial: object | None = None       # serial.Serial in diag tail
     last_error: str = ""
 
     def open(self) -> None:
         # Lazy import — keep `serial` out of the test's import surface.
-        import serial   # noqa: PLC0415
+        import serial  # noqa: PLC0415
 
         self.last_error = ""
         try:
@@ -314,10 +316,10 @@ class FaultycmdTUI(App[None]):
     def __init__(self) -> None:
         super().__init__()
         self.conn = Connections()
-        self.emfi_panel: Optional[StatusPanel] = None
-        self.crowbar_panel: Optional[StatusPanel] = None
-        self.campaign_panel: Optional[CampaignPanel] = None
-        self.diag_panel: Optional[StatusPanel] = None
+        self.emfi_panel: StatusPanel | None = None
+        self.crowbar_panel: StatusPanel | None = None
+        self.campaign_panel: CampaignPanel | None = None
+        self.diag_panel: StatusPanel | None = None
         self._stop_workers = threading.Event()
         self._workers: list[threading.Thread] = []
         self._demo_running = False
@@ -367,7 +369,8 @@ class FaultycmdTUI(App[None]):
     def _poll_emfi(self) -> None:
         while not self._stop_workers.is_set():
             if not self.conn.emfi:
-                time.sleep(0.5); continue
+                time.sleep(0.5)
+                continue
             try:
                 st = self.conn.emfi.status()
                 self.call_from_thread(self._update_emfi, st)
@@ -378,7 +381,8 @@ class FaultycmdTUI(App[None]):
     def _poll_cdc1(self) -> None:
         while not self._stop_workers.is_set():
             if not (self.conn.crowbar and self.conn.campaign):
-                time.sleep(0.5); continue
+                time.sleep(0.5)
+                continue
             try:
                 cst = self.conn.crowbar.status()
                 self.call_from_thread(self._update_crowbar, cst)
@@ -402,11 +406,13 @@ class FaultycmdTUI(App[None]):
         buf = ""
         while not self._stop_workers.is_set():
             if not self.conn.cdc2_serial:
-                time.sleep(0.5); continue
+                time.sleep(0.5)
+                continue
             try:
                 chunk = self.conn.cdc2_serial.read(256)   # type: ignore[attr-defined]
                 if not chunk:
-                    time.sleep(0.05); continue
+                    time.sleep(0.05)
+                    continue
                 buf += chunk.decode(errors="replace")
                 while "\n" in buf:
                     line, _, buf = buf.partition("\n")

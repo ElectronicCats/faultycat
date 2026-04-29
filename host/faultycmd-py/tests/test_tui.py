@@ -17,7 +17,6 @@ from faultycmd.tui import (
     StatusPanel,
 )
 
-
 # -- DiagSnapshot parser ------------------------------------------
 
 def test_diag_snapshot_parses_real_line():
@@ -34,7 +33,7 @@ def test_diag_snapshot_parses_real_line():
     assert snap.last_seen_at > 0.0
 
 
-def test_diag_snapshot_parses_armed_charged_HP():
+def test_diag_snapshot_parses_armed_charged_hp():
     # Mid-sweep / post-fire snapshot.
     line = "ADC= 745 SCAN=11111101 TRIG=1 GATE=HP   HV[ARM CHG] EMFI=CHARGED CROW=FIRED"
     snap = DiagSnapshot.parse(line)

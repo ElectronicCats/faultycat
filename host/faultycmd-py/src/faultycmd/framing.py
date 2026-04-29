@@ -43,7 +43,7 @@ class FrameError(Exception):
     """Base class for frame-parsing errors."""
 
 
-class FrameTimeout(FrameError):
+class FrameTimeout(FrameError):  # noqa: N818 — public API; kept short for ergonomics
     """No complete frame arrived within the read timeout."""
 
 

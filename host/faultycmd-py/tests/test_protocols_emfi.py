@@ -5,7 +5,7 @@ import struct
 
 import pytest
 
-from faultycmd.protocols import EngineError, EmfiClient
+from faultycmd.protocols import EmfiClient, EngineError
 from faultycmd.protocols.emfi import (
     CMD_CAPTURE,
     CMD_CONFIGURE,

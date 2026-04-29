@@ -14,7 +14,8 @@ handles:
 """
 from __future__ import annotations
 
-from typing import Callable, Optional, Protocol
+from collections.abc import Callable
+from typing import Protocol
 
 from ..framing import build_frame, read_frame
 
@@ -52,7 +53,7 @@ SerialFactory = Callable[[str, int, float], _SerialLike]
 def _default_serial_factory(port: str, baud: int, per_byte_timeout: float) -> _SerialLike:
     """Real :func:`serial.Serial` factory. Imports pyserial lazily so
     tests that inject a fake factory don't need pyserial installed."""
-    import serial   # noqa: PLC0415 — lazy to keep the test surface tiny
+    import serial  # noqa: PLC0415 — lazy to keep the test surface tiny
 
     return serial.Serial(port, baud, timeout=per_byte_timeout)
 
@@ -75,7 +76,7 @@ class BinaryProtoClient:
         *,
         baud: int = DEFAULT_BAUD,
         timeout: float = DEFAULT_TIMEOUT,
-        serial_factory: Optional[SerialFactory] = None,
+        serial_factory: SerialFactory | None = None,
     ) -> None:
         self.port = port
         self.baud = baud
@@ -96,7 +97,7 @@ class BinaryProtoClient:
         self._ser.close()
         self._ser = None
 
-    def __enter__(self) -> "BinaryProtoClient":
+    def __enter__(self) -> BinaryProtoClient:
         self.open()
         return self
 

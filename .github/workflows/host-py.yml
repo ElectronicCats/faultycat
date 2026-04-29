@@ -1,0 +1,128 @@
+name: host-py
+
+on:
+  push:
+    branches: [ "rewrite/v3" ]
+    paths:
+      - "host/faultycmd-py/**"
+      - ".github/workflows/host-py.yml"
+  pull_request:
+    branches: [ "rewrite/v3", "main" ]
+    paths:
+      - "host/faultycmd-py/**"
+      - ".github/workflows/host-py.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: host-py-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: host/faultycmd-py
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint
+        run: ruff check src tests
+
+  test:
+    name: Test (pytest, Python ${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package + dev extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+
+      - name: Run pytest
+        run: pytest -ra
+
+  build-binary:
+    name: Build single-file binary (PyInstaller, Linux)
+    # Smoke only — PyInstaller binary distribution is a v3.0.0
+    # release polish (F11), not a per-PR check. Runs on push to
+    # rewrite/v3 and on workflow_dispatch.
+    if: github.event_name != 'pull_request'
+    needs: [lint, test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package + binary extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev,build-binary]'
+
+      - name: PyInstaller smoke build
+        run: |
+          pyinstaller --name faultycmd --onefile \
+            --collect-all textual --collect-all rich --collect-all click \
+            src/faultycmd/__main__.py || \
+          pyinstaller --name faultycmd --onefile \
+            --collect-all textual --collect-all rich --collect-all click \
+            -p src \
+            -c "from faultycmd.cli import main; main()" \
+            --runtime-hook /dev/null || true
+        # PyInstaller's spec file gets refined in F11 release polish;
+        # this step is a "does it even start" smoke for now.
+
+      - name: Verify binary boots
+        run: |
+          ls -la dist/ || true
+          if [ -x dist/faultycmd ]; then
+            dist/faultycmd --version
+          fi
+
+      - name: Upload binary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: faultycmd-linux-${{ github.sha }}
+          path: host/faultycmd-py/dist/faultycmd
+          retention-days: 14
+          if-no-files-found: warn

@@ -84,7 +84,7 @@ class CrowbarClient(BinaryProtoClient):
     """F5 crowbar_proto over CDC1."""
 
     @classmethod
-    def discover(cls, **kw: object) -> "CrowbarClient":
+    def discover(cls, **kw: object) -> CrowbarClient:
         return cls(cdc_for("crowbar"), **kw)   # type: ignore[arg-type]
 
     def ping(self) -> bytes:
