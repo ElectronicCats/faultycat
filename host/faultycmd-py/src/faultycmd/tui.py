@@ -36,6 +36,7 @@ CDC ownership during a TUI session:
 """
 from __future__ import annotations
 
+import os
 import re
 import threading
 import time
@@ -57,6 +58,7 @@ from .protocols import (
     ProtocolError,
 )
 from .protocols.campaign import CampaignState
+from .protocols.emfi import EmfiTrigger
 from .tui_modals import (
     EmfiControlModal,
     EmfiFormState,
@@ -547,8 +549,13 @@ class FaultycmdTUI(App[None]):
         initial = EmfiFormState.from_dict(self._last_config.load("emfi"))
 
         def _on_apply(state: EmfiFormState) -> None:
+            # `EmfiFormState.trigger` is a string for Select-widget
+            # ergonomics; the wire-level `EmfiClient.configure`
+            # expects an `EmfiTrigger | int` (int(trigger) into the
+            # CMD_CONFIGURE payload). Map it here, the same way the
+            # CLI does (cli.py: `EmfiTrigger[trigger.upper()]`).
             self.conn.emfi.configure(
-                trigger=state.trigger,
+                trigger=EmfiTrigger[state.trigger.upper()],
                 delay_us=state.delay_us,
                 width_us=state.width_us,
                 charge_timeout_ms=state.charge_timeout_ms,
@@ -565,14 +572,43 @@ class FaultycmdTUI(App[None]):
             self.conn.emfi.disarm()
 
         def _on_capture() -> None:
-            # F11-0a ships a Rich-table summary in the modal status
-            # line (no plot — that's v3.1 GUI / F12). We pull a small
-            # slice and render counts; the dashboard EMFI panel keeps
-            # its existing capture_fill field for at-a-glance.
-            slice_ = self.conn.emfi.capture(offset=0, n=64)
+            # F11-0a-fix: auto-save the entire 8 KB ADC ring to a
+            # timestamped file under XDG cache so the operator can
+            # numpy.fromfile / matplotlib it offline. The TUI itself
+            # doesn't plot (that's F12 GUI scope); a peak/length
+            # toast is meaningless without context. Path mirrors
+            # the persistence module's XDG resolution.
+            from pathlib import Path
+            xdg_cache = os.environ.get("XDG_CACHE_HOME") or str(
+                Path(os.environ.get("HOME", str(Path.home()))) / ".cache"
+            )
+            out_dir = Path(xdg_cache) / "faultycmd" / "captures"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            # Pull only what's filled. capture_fill saturates at 8192.
+            try:
+                st = self.conn.emfi.status()
+                fill = min(int(st.capture_fill), 8192)
+            except (ProtocolError, EngineError, OSError) as e:
+                self.notify(f"capture: status check failed: {e}", severity="error")
+                return
+            if fill == 0:
+                self.notify("capture: ring empty (no fire yet)",
+                            severity="warning")
+                return
+            chunks: list[bytes] = []
+            offset = 0
+            while offset < fill:
+                length = min(512, fill - offset)
+                chunks.append(self.conn.emfi.capture(offset=offset, length=length))
+                offset += length
+            buf = b"".join(chunks)
+            ts = int(time.time())
+            out_path = out_dir / f"emfi_{ts}.bin"
+            out_path.write_bytes(buf)
             self.notify(
-                f"capture: {len(slice_)} samples (peak={max(slice_) if slice_ else 0})",
+                f"capture: saved {len(buf)} B → {out_path}",
                 severity="information",
+                timeout=5,
             )
 
         def _confirm_arm(after) -> None:

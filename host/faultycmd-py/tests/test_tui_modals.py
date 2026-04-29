@@ -133,3 +133,53 @@ def test_hv_confirm_modal_default_decision_is_no():
     moving focus is a No."""
     m = HvConfirmModal(action_label="Arm EMFI")
     assert m.default_decision is False
+
+
+# -- form ↔ wire-protocol mapping ---------------------------------
+
+def test_emfi_form_trigger_strings_all_map_to_emfi_trigger_enum():
+    """Regression: every trigger string the form exposes must
+    round-trip into the wire-level `EmfiTrigger` IntEnum the same
+    way the CLI maps it (`EmfiTrigger[trigger.upper()]`). When this
+    mapping breaks, `EmfiClient.configure` does `int(trigger)` over
+    a raw string and crashes with `ValueError: invalid literal for
+    int() with base 10: 'immediate'` — exactly the smoke regression
+    that triggered the F11-0a-fix commit."""
+    from faultycmd.protocols.emfi import EmfiTrigger
+    from faultycmd.tui_modals import _EMFI_TRIGGERS
+
+    for trig_str in _EMFI_TRIGGERS:
+        # Must not raise — every UI string is a valid enum name.
+        enum_val = EmfiTrigger[trig_str.upper()]
+        # And int() of the enum is what configure() puts on the wire.
+        assert isinstance(int(enum_val), int)
+
+
+def test_emfi_client_method_signatures_unchanged():
+    """Regression: the modal's action closures call `EmfiClient`
+    with specific keyword names (configure / arm / fire / disarm /
+    capture). When the protocol-side signature drifts (a kwarg
+    rename, a new required arg) the modal silently breaks at smoke
+    time. This test pins the surface so any drift fails CI before
+    smoke."""
+    import inspect
+
+    from faultycmd.protocols.emfi import EmfiClient
+
+    sigs = {
+        "configure": {"trigger", "delay_us", "width_us", "charge_timeout_ms"},
+        "arm":       set(),
+        "fire":      {"trigger_timeout_ms"},
+        "disarm":    set(),
+        "capture":   {"offset", "length"},
+        "status":    set(),
+        "ping":      set(),
+    }
+    for method, expected_kwargs in sigs.items():
+        sig = inspect.signature(getattr(EmfiClient, method))
+        # Drop `self`.
+        params = {p for p in sig.parameters if p != "self"}
+        assert expected_kwargs.issubset(params), (
+            f"EmfiClient.{method} lost kwargs: "
+            f"expected {expected_kwargs}, got {params}"
+        )
