@@ -7,7 +7,7 @@ Four-panel 2×2 grid + hotkeys footer:
     ├─────────────────────────┼─────────────────────────┤
     │ Campaign live (CDC1)    │ Diag snapshot (CDC2)    │
     └─────────────────────────┴─────────────────────────┘
-                  q quit · r reconnect · c clear · s start/stop demo
+       q quit · r reconnect · c clear · s stop sweep · e/b/p control modals
 
 Each panel polls independently:
 
@@ -22,8 +22,10 @@ Hotkeys:
     q   — quit
     r   — close all CDCs and re-open (handy after re-flashing)
     c   — clear the campaign live log
-    s   — start a 6-step demo crowbar campaign on the configured
-          engine, or stop the running one.
+    s   — stop the running sweep (express; no modal)
+    e   — open EMFI control modal (configure/arm/fire/disarm + capture)
+    b   — open crowBar control modal (configure/arm/fire/disarm)
+    p   — open camPaign control modal (full sweep params + start/stop/drain)
 
 CDC ownership during a TUI session:
     CDC0 is held by EMFI panel.
@@ -61,6 +63,8 @@ from .protocols.campaign import CampaignState
 from .protocols.crowbar import CrowbarOutput, CrowbarTrigger
 from .protocols.emfi import EmfiTrigger
 from .tui_modals import (
+    CampaignControlModal,
+    CampaignFormState,
     CrowbarControlModal,
     CrowbarFormState,
     EmfiControlModal,
@@ -337,9 +341,10 @@ class FaultycmdTUI(App[None]):
         Binding("q", "quit", "quit"),
         Binding("r", "reconnect", "reconnect"),
         Binding("c", "clear_log", "clear log"),
-        Binding("s", "toggle_demo", "start/stop demo"),
+        Binding("s", "stop_sweep", "Stop sweep"),
         Binding("e", "open_emfi_modal", "EMFI control"),
         Binding("b", "open_crowbar_modal", "crowBar control"),
+        Binding("p", "open_campaign_modal", "camPaign control"),
     ]
 
     title = "faultycmd — FaultyCat v3 dashboard"
@@ -355,7 +360,6 @@ class FaultycmdTUI(App[None]):
         self.diag_panel: StatusPanel | None = None
         self._stop_workers = threading.Event()
         self._poll_threads: list[threading.Thread] = []
-        self._demo_running = False
         self._last_config = LastConfig()
 
     # -- compose ------------------------------------------------------
@@ -549,31 +553,20 @@ class FaultycmdTUI(App[None]):
         if self.campaign_panel is not None:
             self.campaign_panel.clear_tail()
 
-    def action_toggle_demo(self) -> None:
+    def action_stop_sweep(self) -> None:
+        """F11-0c: replaces F10's `s = toggle demo` (locked 6-step
+        crowbar LP). The demo concept is gone — `p` opens the real
+        Campaign control modal. `s` here is an express-stop hotkey
+        for aborting an in-flight sweep without opening the modal."""
         if not (self.conn.campaign and self.conn.cdc1_shared):
             self.notify("no campaign client", severity="error")
             return
         try:
-            # F11-0b-fix: hold the shared CDC1 lock across the
-            # configure+start (or stop) sequence so the daemon
-            # poll thread doesn't interleave between calls.
             with self.conn.cdc1_shared.lock:
-                if self._demo_running:
-                    self.conn.campaign.stop()
-                    self._demo_running = False
-                    self.notify("demo stopped", severity="information")
-                else:
-                    self.conn.campaign.configure(
-                        delay=(1000, 3000, 1000),
-                        width=(200, 300, 100),
-                        power=(1, 1, 0),
-                        settle_ms=50,
-                    )
-                    self.conn.campaign.start()
-                    self._demo_running = True
-                    self.notify("demo started — 6-step crowbar LP sweep", severity="information")
+                self.conn.campaign.stop()
+            self.notify("sweep stop sent", severity="information")
         except (CampaignError, EngineError, ProtocolError, OSError) as e:
-            self.notify(f"demo: {e}", severity="error")
+            self.notify(f"stop: {e}", severity="error")
 
     def action_open_emfi_modal(self) -> None:
         if not self.conn.emfi:
@@ -711,6 +704,64 @@ class FaultycmdTUI(App[None]):
             arm_cb=_on_arm,
             fire_cb=_on_fire,
             disarm_cb=_on_disarm,
+        )
+        self.push_screen(modal)
+
+    def action_open_campaign_modal(self) -> None:
+        """F11-0c: replaces F10's locked-6-step demo. Opens the
+        Campaign control modal with a sweep-params form. MVP only
+        supports engine=crowbar (CDC1); engine=emfi multiplex is
+        F-future (needs `Connections` refactor for CDC0 SharedSerial
+        + EmfiClient retrofit)."""
+        if not (self.conn.campaign and self.conn.cdc1_shared):
+            self.notify("no campaign client", severity="error")
+            return
+        initial = CampaignFormState.from_dict(self._last_config.load("campaign"))
+
+        # All callbacks hold cdc1_shared.lock — campaign opcodes
+        # multiplex on the engine's CDC, which for engine=crowbar
+        # is CDC1 (shared with CrowbarClient).
+        def _on_configure(state: CampaignFormState) -> None:
+            delay, width, power, settle = state.parse()
+            with self.conn.cdc1_shared.lock:
+                self.conn.campaign.configure(
+                    delay=delay, width=width, power=power, settle_ms=settle,
+                )
+            self._last_config.save("campaign", state.to_dict())
+
+        def _on_start() -> None:
+            with self.conn.cdc1_shared.lock:
+                self.conn.campaign.start()
+
+        def _on_stop() -> None:
+            with self.conn.cdc1_shared.lock:
+                self.conn.campaign.stop()
+
+        def _on_drain() -> int:
+            """Drain remaining results manually. The daemon's
+            `_poll_cdc1` already auto-drains while state is
+            SWEEPING/DONE; this handles STOPPED/ERROR/IDLE states
+            where the daemon skips. Pushes the rendered lines into
+            the dashboard's CampaignPanel tail and returns the
+            count for the modal status_line."""
+            with self.conn.cdc1_shared.lock:
+                results = self.conn.campaign.drain(18)
+            if results and self.campaign_panel is not None:
+                rendered = [
+                    f"step={r.step_n} d={r.delay} w={r.width} "
+                    f"p={r.power} fire=0x{r.fire_status:02X} "
+                    f"verify=0x{r.verify_status:02X}"
+                    for r in results
+                ]
+                self.campaign_panel.push_results(rendered)
+            return len(results)
+
+        modal = CampaignControlModal(
+            initial=initial,
+            configure_cb=_on_configure,
+            start_cb=_on_start,
+            stop_cb=_on_stop,
+            drain_cb=_on_drain,
         )
         self.push_screen(modal)
 

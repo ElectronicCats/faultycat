@@ -287,6 +287,221 @@ class EmfiControlModal(ModalScreen[None]):
 
 
 # -----------------------------------------------------------------
+# Campaign form state + control modal (F11-0c MVP, engine=crowbar)
+# -----------------------------------------------------------------
+
+
+_CAMPAIGN_ENGINES = ("crowbar",)   # F11-0c MVP — emfi multiplex deferred
+
+
+def parse_triplet(s: str) -> tuple[int, int, int]:
+    """Accept ``"START:END:STEP"`` or a single ``"N"`` (collapses
+    axis). Returns ``(start, end, step)``; raises ValueError on a
+    malformed input or a non-monotonic / negative span."""
+    parts = s.strip().split(":")
+    if len(parts) == 1:
+        n = int(parts[0])
+        return (n, n, 0)
+    if len(parts) != 3:
+        raise ValueError(
+            f"triplet must be 'START:END:STEP' or single 'N', got {s!r}"
+        )
+    start, end, step = (int(p) for p in parts)
+    if start > end:
+        raise ValueError(f"triplet start ({start}) must be <= end ({end})")
+    if start != end and step <= 0:
+        raise ValueError(
+            f"triplet step must be > 0 when start ({start}) != end ({end})"
+        )
+    return (start, end, step)
+
+
+@dataclass
+class CampaignFormState:
+    engine:    str = "crowbar"
+    delay:     str = "1000:3000:1000"   # µs (text triplet, parsed on validate)
+    width:     str = "200:300:100"      # ns for crowbar, µs for emfi
+    power:     str = "1:1:0"            # crowbar 1=LP / 2=HP
+    settle_ms: int = 50
+
+    @classmethod
+    def from_dict(cls, d: dict) -> CampaignFormState:
+        known = {f.name for f in fields(cls)}
+        kwargs = {k: v for k, v in d.items() if k in known}
+        return cls(**kwargs)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    def parse(self) -> tuple[
+        tuple[int, int, int], tuple[int, int, int], tuple[int, int, int], int
+    ]:
+        """Resolve the text triplets to wire-level tuples. Raises
+        ValueError on any axis-parse failure."""
+        return (
+            parse_triplet(self.delay),
+            parse_triplet(self.width),
+            parse_triplet(self.power),
+            self.settle_ms,
+        )
+
+    def validate(self) -> None:
+        if self.engine not in _CAMPAIGN_ENGINES:
+            raise ValueError(
+                f"engine must be one of {_CAMPAIGN_ENGINES}, got {self.engine!r}"
+            )
+        if not 0 <= self.settle_ms <= 60000:
+            raise ValueError(
+                f"settle_ms out of range 0..60000, got {self.settle_ms}"
+            )
+        # Trip every axis through parse to surface a malformed
+        # triplet at validate time (not deep inside configure).
+        self.parse()
+
+
+class CampaignControlModal(ModalScreen[None]):
+    """Campaign full-sweep configure / start / stop / drain.
+
+    Replaces the F10 dashboard's `s` toggle-demo (locked to a
+    6-step crowbar LP sweep). F11-0c MVP keeps the engine fixed
+    to crowbar — emfi multiplex needs a `Connections` refactor
+    (CDC0 SharedSerial wrapper + retrofit `EmfiClient` to use
+    `serial_factory`) that's deferred to F-future."""
+
+    DEFAULT_CSS = """
+    CampaignControlModal > Vertical {
+        background: $panel;
+        border: thick $accent;
+        padding: 1 2;
+        width: 90;
+        height: auto;
+    }
+    CampaignControlModal Input { width: 100%; }
+    CampaignControlModal Select { width: 100%; }
+    """
+
+    BINDINGS = [
+        Binding("escape", "close", "close"),
+    ]
+
+    def __init__(
+        self,
+        *,
+        initial: CampaignFormState | None = None,
+        configure_cb=None,
+        start_cb=None,
+        stop_cb=None,
+        drain_cb=None,
+    ) -> None:
+        super().__init__()
+        self.state = initial or CampaignFormState()
+        self.configure_cb = configure_cb
+        self.start_cb = start_cb
+        self.stop_cb = stop_cb
+        self.drain_cb = drain_cb
+
+    @staticmethod
+    def requires_hv_confirm(action: str) -> bool:
+        # Campaign drives the engine which may charge HV (when
+        # engine=emfi); F11-0c MVP only supports crowbar so no
+        # confirm is needed yet. When emfi multiplex lands, this
+        # should return True for `start` if engine == "emfi".
+        return False
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("Campaign control")
+            yield Label("[dim]F9 campaign_proto · multiplex CDC0/CDC1[/dim]")
+            yield Label("engine:")
+            yield Select(
+                [(e.upper(), e) for e in _CAMPAIGN_ENGINES],
+                value=self.state.engine,
+                id="engine",
+            )
+            yield Label("[dim](emfi multiplex: F-future — needs Connections refactor)[/dim]")
+            yield Label("delay (µs)  START:END:STEP or single int:")
+            yield Input(value=self.state.delay, id="delay")
+            yield Label("width (ns crowbar / µs emfi)  START:END:STEP:")
+            yield Input(value=self.state.width, id="width")
+            yield Label("power  (crowbar 1=LP / 2=HP, EMFI ignored)  START:END:STEP:")
+            yield Input(value=self.state.power, id="power")
+            yield Label("settle-ms (0..60000):")
+            yield Input(value=str(self.state.settle_ms), id="settle_ms")
+            yield Static("", id="status_line")
+            with Horizontal():
+                yield Button("Configure", id="configure", variant="primary")
+                yield Button("Start", id="start", variant="success")
+                yield Button("Stop", id="stop", variant="error")
+                yield Button("Drain", id="drain")
+                yield Button("Close", id="close")
+
+    def _sync_state_from_inputs(self) -> bool:
+        try:
+            engine = self.query_one("#engine", Select).value
+            delay  = self.query_one("#delay", Input).value or ""
+            width  = self.query_one("#width", Input).value or ""
+            power  = self.query_one("#power", Input).value or ""
+            settle = int(self.query_one("#settle_ms", Input).value or "0")
+        except (ValueError, KeyError):
+            self._set_status("error: invalid integer in form")
+            return False
+        candidate = CampaignFormState(
+            engine=engine if isinstance(engine, str) else "crowbar",
+            delay=delay, width=width, power=power, settle_ms=settle,
+        )
+        try:
+            candidate.validate()
+        except ValueError as e:
+            self._set_status(f"error: {e}")
+            return False
+        self.state = candidate
+        return True
+
+    def _set_status(self, msg: str) -> None:
+        try:
+            self.query_one("#status_line", Static).update(msg)
+        except Exception:
+            pass
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        action = event.button.id or ""
+        if action == "close":
+            self.action_close()
+            return
+        if action == "configure":
+            if not self._sync_state_from_inputs():
+                return
+            if self.configure_cb is None:
+                return
+            try:
+                self.configure_cb(self.state)
+                self._set_status("OK configured")
+            except Exception as e:
+                self._set_status(f"configure: {e}")
+        elif action == "start" and self.start_cb:
+            try:
+                self.start_cb()
+                self._set_status("OK started")
+            except Exception as e:
+                self._set_status(f"start: {e}")
+        elif action == "stop" and self.stop_cb:
+            try:
+                self.stop_cb()
+                self._set_status("OK stopped")
+            except Exception as e:
+                self._set_status(f"stop: {e}")
+        elif action == "drain" and self.drain_cb:
+            try:
+                count = self.drain_cb()
+                self._set_status(f"OK drain ({count} results pushed to dashboard)")
+            except Exception as e:
+                self._set_status(f"drain: {e}")
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+
+# -----------------------------------------------------------------
 # Crowbar form state + control modal (F11-0b)
 # -----------------------------------------------------------------
 

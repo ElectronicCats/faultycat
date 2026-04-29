@@ -11,11 +11,14 @@ from __future__ import annotations
 import pytest
 
 from faultycmd.tui_modals import (
+    CampaignControlModal,
+    CampaignFormState,
     CrowbarControlModal,
     CrowbarFormState,
     EmfiControlModal,
     EmfiFormState,
     HvConfirmModal,
+    parse_triplet,
 )
 
 # -- EmfiFormState (the dataclass that drives the form) -----------
@@ -275,6 +278,141 @@ def test_crowbar_client_method_signatures_unchanged():
         params = {p for p in sig.parameters if p != "self"}
         assert expected.issubset(params), (
             f"CrowbarClient.{method} lost kwargs: "
+            f"expected {expected}, got {params}"
+        )
+
+
+# -- parse_triplet ------------------------------------------------
+
+def test_parse_triplet_three_part():
+    assert parse_triplet("1000:3000:1000") == (1000, 3000, 1000)
+
+
+def test_parse_triplet_single_int_collapses_axis():
+    """A single 'N' resolves to (N, N, 0) — step 0 collapses."""
+    assert parse_triplet("250") == (250, 250, 0)
+
+
+def test_parse_triplet_rejects_non_monotonic():
+    with pytest.raises(ValueError):
+        parse_triplet("3000:1000:100")   # start > end
+
+
+def test_parse_triplet_rejects_zero_step_with_span():
+    with pytest.raises(ValueError):
+        parse_triplet("100:200:0")   # step must be > 0 if start != end
+
+
+def test_parse_triplet_allows_zero_step_when_start_eq_end():
+    assert parse_triplet("100:100:0") == (100, 100, 0)
+
+
+def test_parse_triplet_rejects_garbage():
+    for bad in ("", "abc", "1:2", "1:2:3:4", "1::2"):
+        with pytest.raises(ValueError):
+            parse_triplet(bad)
+
+
+# -- CampaignFormState --------------------------------------------
+
+def test_campaign_form_state_defaults():
+    s = CampaignFormState()
+    assert s.engine == "crowbar"
+    assert s.delay == "1000:3000:1000"
+    assert s.settle_ms == 50
+
+
+def test_campaign_form_state_from_dict_partial():
+    s = CampaignFormState.from_dict({"width": "100:500:100", "settle_ms": 25})
+    assert s.width == "100:500:100"
+    assert s.settle_ms == 25
+    assert s.engine == "crowbar"   # default
+
+
+def test_campaign_form_state_to_dict_roundtrip():
+    s = CampaignFormState(delay="500:5000:500", width="100:200:50",
+                          power="1:2:1", settle_ms=20)
+    s2 = CampaignFormState.from_dict(s.to_dict())
+    assert s == s2
+
+
+def test_campaign_form_state_parse_emits_triplets():
+    s = CampaignFormState(delay="1000:3000:1000",
+                          width="200:300:100", power="1:1:0", settle_ms=50)
+    delay, width, power, settle = s.parse()
+    assert delay == (1000, 3000, 1000)
+    assert width == (200, 300, 100)
+    assert power == (1, 1, 0)
+    assert settle == 50
+
+
+def test_campaign_form_state_validates_engine():
+    with pytest.raises(ValueError):
+        CampaignFormState(engine="emfi").validate()   # F-future MVP gate
+    with pytest.raises(ValueError):
+        CampaignFormState(engine="bogus").validate()
+
+
+def test_campaign_form_state_validates_settle_ms():
+    with pytest.raises(ValueError):
+        CampaignFormState(settle_ms=-1).validate()
+    with pytest.raises(ValueError):
+        CampaignFormState(settle_ms=60001).validate()
+    CampaignFormState(settle_ms=0).validate()
+    CampaignFormState(settle_ms=60000).validate()
+
+
+def test_campaign_form_state_validate_surfaces_triplet_error():
+    with pytest.raises(ValueError):
+        CampaignFormState(delay="3000:1000:100").validate()  # non-monotonic
+
+
+# -- CampaignControlModal -----------------------------------------
+
+def test_campaign_modal_construction_defaults():
+    m = CampaignControlModal(initial=CampaignFormState())
+    assert m.state.engine == "crowbar"
+    assert m.state.delay == "1000:3000:1000"
+
+
+def test_campaign_modal_construction_prefills():
+    m = CampaignControlModal(
+        initial=CampaignFormState.from_dict(
+            {"delay": "100:5000:100", "settle_ms": 25}
+        ),
+    )
+    assert m.state.delay == "100:5000:100"
+    assert m.state.settle_ms == 25
+
+
+def test_campaign_modal_no_action_requires_hv_confirm_in_mvp():
+    """F11-0c MVP only supports engine=crowbar (no HV cap). When
+    emfi multiplex lands, `start` should require HV confirm."""
+    m = CampaignControlModal(initial=CampaignFormState())
+    for action in ("configure", "start", "stop", "drain"):
+        assert m.requires_hv_confirm(action) is False
+
+
+def test_campaign_client_method_signatures_unchanged():
+    """Mirror of EMFI/Crowbar guards. Pins the kwarg surface that
+    the modal closures call so a protocol-side rename / required-arg
+    addition fails CI before smoke."""
+    import inspect
+
+    from faultycmd.protocols.campaign import CampaignClient
+
+    sigs = {
+        "configure": {"delay", "width", "power", "settle_ms"},
+        "start":     set(),
+        "stop":      set(),
+        "drain":     {"max_count"},
+        "status":    set(),
+    }
+    for method, expected in sigs.items():
+        sig = inspect.signature(getattr(CampaignClient, method))
+        params = {p for p in sig.parameters if p != "self"}
+        assert expected.issubset(params), (
+            f"CampaignClient.{method} lost kwargs: "
             f"expected {expected}, got {params}"
         )
 
