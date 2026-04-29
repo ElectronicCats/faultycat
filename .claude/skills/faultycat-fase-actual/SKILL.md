@@ -10,43 +10,94 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 > tocar nada. Las 16 decisiones congeladas del plan §1 **no se
 > relitigan**.
 
-## Fase actual: F10 — faultycmd Python (Textual TUI + Rich CLI)
+## Fase actual: F11 — Hardening, docs, release
 
-**Decisión 2026-04-28 (post-tag `v3.0-f9`):** F9 cerrado con smoke
-físico verde. F10 entrega el host tool definitivo.
+**Decisión 2026-04-29 (post-tag `v3.0-f10`):** F10 cerrado con smoke
+físico verde (CLI `info`/`emfi ping`/`crowbar ping`/`campaign status`/
+`scanner jtag-init|jtag-deinit` todo OK contra v2.2 board). F11 es
+la última fase del plan: pulir documentación, benchmarks, safety
+review final, CHANGELOG + migration guide, release `v3.0.0` con
+UF2 + binarios.
 
-**Override formal de §1 #6 (2026-04-28):** plan original especificaba
-Rust workspace + ratatui. Sabas confirmó usar Python + Textual +
-Rich basado en team familiarity (equipo ya tiene reps con la combo)
-+ reuso directo de los 4 reference clients Python (no port mecánico
-desde cero) + onboarding contributors más bajo. Wire protocols
-(host_proto/* opcodes, frame format, mutex contract) **no cambian**
-— solo cambia el host language. Memoria
-`project_faultycmd_python_override.md` documenta el override.
+### F11 — entregables (ver `FAULTYCAT_REFACTOR_PLAN.md §F11`)
 
-### F10 — entregables (ver `FAULTYCAT_REFACTOR_PLAN.md §F10`)
+- `docs/` completa: revisar y rellenar gaps en ARCHITECTURE,
+  HARDWARE_V2, USB_COMPOSITE, PROTOCOLS, SWD_INTERNALS,
+  JTAG_INTERNALS, MUTEX_INTERNALS, SAFETY, PORTING.
+- Benchmarks: latencia trigger-a-pulso (EMFI + crowbar), throughput
+  SWD (MB/s en flash, gated by F6 unblock), overhead del mutex
+  swd_bus_lock.
+- Safety review firmada del path HV (`docs/SAFETY.md`) — segunda
+  pasada con la lección de F4/F5 ya integrada.
+- CHANGELOG completo + migration guide desde firmware v2.x C
+  legacy.
+- Release `v3.0.0` con UF2 + tarball del faultycmd Python +
+  pyinstaller standalone (Linux/Mac/Win) attached.
+- Archivar `tools/{emfi,crowbar,campaign}_client.py` + `tools/{swd,
+  jtag,scanner}_diag.py` (movidos a `tools/legacy/` o eliminados —
+  faultycmd los reemplaza).
 
-- `host/faultycmd-py/` package monorepo (single `pyproject.toml`).
-- `faultycmd.framing` — CRC16-CCITT helper + frame builder.
-- `faultycmd.usb` — port → CDC mapping (udevadm helper).
-- `faultycmd.protocols.{emfi, crowbar, campaign, scanner, dap}` —
-  consolidated clients.
-- `faultycmd.cli` — `click`-based CLI con Rich-rendered output.
-- `faultycmd.tui` — Textual app, panels HV/trigger/SWD/campaign,
-  hotkeys E/C/S/D.
-- pytest + Textual Pilot tests.
-- CI workflow `host-py.yml` paralelo a `firmware.yml`.
-- PyPI publish (TestPyPI primero) + opcional pyinstaller binary
-  para v3.0.0 release.
+### F11 — criterios
 
-### F10 — criterios
+- README top-level apunta a `host/faultycmd-py/` como host tool
+  oficial; faultycat C legacy queda marcado deprecated en su
+  README.
+- Migration guide cubre los 5 wire protocol cambios respecto al
+  firmware v2.x (VID/PID 1209:FA17 nuevo, magic baud 1200, frame
+  format CRC16-CCITT, opcodes EMFI/CROWBAR/CAMPAIGN, shell scanner
+  CDC2).
+- Benchmarks reproducibles: script `tools/bench_*.py` + tabla en
+  `docs/PERFORMANCE.md`.
+- `v3.0.0` tag firmado con summary completo de F0..F11.
 
-- TUI interactiva cubre 100% del faultycmd viejo + campañas + switch
-  entre EMFI/crowbar/scanner.
-- CLI cubre 100% de los 4 reference Python clients
-  (`tools/{emfi,crowbar,campaign}_client.py` + `tools/{swd,jtag,
-  scanner}_diag.py`). Estos se mantienen como deprecated reference
-  hasta F11 archive.
+### F10 status — ✓ closed `v3.0-f10` (2026-04-29)
+
+7 sub-fases:
+- F10-1: `host/faultycmd-py/` skeleton — `pyproject.toml`
+  (hatchling), `faultycmd.framing` (SOF=0xFA + CRC16-CCITT poly
+  0x1021 init 0xFFFF), `faultycmd.usb` (VID:PID 1209:FA17 +
+  udevadm `ID_USB_INTERFACE_NUM` mapper). 22 host tests.
+- F10-2: `faultycmd.protocols.{_base, emfi, crowbar, campaign}` —
+  binary CDC clients. `BinaryProtoClient` base con
+  `serial_factory` hook (testable con `FakeSerial` fixture sin
+  hardware). 35 nuevos tests = 57.
+- F10-3: `faultycmd.protocols.scanner` — text-shell wrapper sobre
+  CDC2 (no es BinaryProtoClient — el shell es line-based).
+  `ACCEPTED_PREFIXES` filter + send_line/send_line_collect. SWD/
+  JTAG/SCAN/BusPirate/serprog wrappers. 15 nuevos tests = 72.
+- F10-4: `faultycmd.cli` — `click` command groups (info/emfi/
+  crowbar/campaign/scanner/tui) + Rich Console tables + Live
+  view para `campaign watch`. `_wrap_main` exception handler.
+- F10-5: `faultycmd.tui` — Textual 4-panel dashboard (HV/trigger/
+  SWD/campaign). `DiagSnapshot` regex sobre el stream CDC2
+  `print_snapshot()` line del firmware. `SharedSerial` wrapper
+  para Crowbar+Campaign multiplex en CDC1. BINDINGS=q/r/c/s. 13
+  panel-state tests (Pilot evitado por incompat con threading
+  setup). 85 total tests.
+- F10-6: packaging — `.github/workflows/host-py.yml` (lint/test
+  matrix Py 3.10/3.11/3.12 + build-binary job pyinstaller),
+  `__main__.py` para `python -m faultycmd`, ruff cleanup
+  (73 → 0 issues; 64 autofix + 9 manual incl. B007/E702/N802/
+  N818).
+- F10-7: docs(F10) + smoke + tag.
+
+**Override formal de §1 #6** (commit `0a34a22`, 2026-04-28): plan
+original especificaba Rust workspace + ratatui. Sabas confirmó
+Python + Textual + Rich por team familiarity + reuso directo de
+los 4 reference clients Python + onboarding más bajo. Wire
+protocols **no cambian**. Memoria
+`project_faultycmd_python_override.md` documenta la decisión.
+
+Smoke físico 2026-04-29 sobre v2.2: `faultycmd info` enumera 4
+CDCs (IF 0x00 emfi → /dev/ttyACM0, 0x02 crowbar → ACM2, 0x04
+scanner → ACM3, 0x06 target-uart → ACM4). `emfi ping` → `F4`,
+`crowbar ping` → `F5`, `campaign --engine crowbar status` →
+DONE 6/6 results pushed (post un sweep previo). `scanner
+jtag-init` / `jtag-deinit` ambos OK. CI YAML well-formed.
+85/85 host-py tests verde + 404/404 firmware Unity verde.
+
+**No verificado físicamente** (reusa F6 gates): SWD verify hook
+real (F6 HW-blocked) y CMSIS-DAP path (F7 deferido).
 
 ### F9 status — ✓ closed `v3.0-f9` (2026-04-28)
 
@@ -200,6 +251,18 @@ watch` ambos completan sweeps end-to-end. **Killer feature
 partially validated** — sweep + result streaming físicamente
 verde; SWD verify post-fire gated by F6.
 
+### `v3.0-f10` — faultycmd Python host tool (2026-04-29)
+Override formal de §1 #6 (commit `0a34a22`): Rust+ratatui →
+Python+Textual+Rich. `host/faultycmd-py/` package monorepo
+(`pyproject.toml` hatchling). 7 sub-fases F10-1..F10-7:
+framing/usb/protocols.{emfi,crowbar,campaign,scanner}/cli/tui +
+CI matrix Py 3.10/3.11/3.12 + pyinstaller binary job. 85 host-py
+tests (pytest) + ruff clean. Smoke físico v2.2: `info` enumera 4
+CDCs, `emfi/crowbar ping` → F4/F5, `campaign status` → DONE 6/6,
+`scanner jtag-init/deinit` OK. Wire protocols **no cambian** —
+solo el host language. Memory `project_faultycmd_python_override.md`
+documenta la decisión.
+
 ## Estado del HAL
 
 | Header | Estado | Lifted / planned |
@@ -256,9 +319,16 @@ Composite activo en **1209:FA17**:
 
 ## Tests
 
-29 Unity binarios / 404 cases / 100% verde. `host-tests` preset + CI.
-Plus `hal_fake_gpio` edge sampler + per-pin input scripts (F8-1
-infra, reusable para SPI/serial/JTAG-style clocked-bus tests).
+Firmware: 29 Unity binarios / 404 cases / 100% verde. `host-tests`
+preset + CI (`firmware.yml`). Plus `hal_fake_gpio` edge sampler +
+per-pin input scripts (F8-1 infra, reusable para SPI/serial/JTAG-
+style clocked-bus tests).
+
+Host: 85 pytest cases en `host/faultycmd-py/` (framing/usb/
+protocols/cli/tui state) / 100% verde. CI matrix Py 3.10/3.11/3.12
+en `host-py.yml` + ruff lint + pyinstaller binary build job.
+
+Total: **489 tests verde** end-to-end.
 
 ## Qué NO tocar
 
@@ -267,11 +337,10 @@ infra, reusable para SPI/serial/JTAG-style clocked-bus tests).
 - `third_party/*` — pineados.
 - `third_party/faultier/` — **jamás** portar código literal
   (`LICENSES/NOTICE-faultier.md`).
-- En F10: no tocar el firmware estructural (F4..F9 ya tagged);
-  cambios al wire protocol requieren bumpear opcodes con cuidado
-  para no romper retro-compat con los Python clients de F4/F5/F9.
-  `host/faultycmd-rs/` es el directorio nuevo; firmware ya no
-  necesita cambios para F10 (es puro client-side).
+- En F11: no tocar el firmware estructural (F4..F9 tagged) ni
+  el host tool funcional (F10 tagged). F11 es docs + benchmarks +
+  release polish, no nuevas features. Si surge un bug regresivo
+  durante el bench, es F-future fix, no F11.
 
 ## Reglas de oro
 
@@ -289,27 +358,32 @@ infra, reusable para SPI/serial/JTAG-style clocked-bus tests).
    fase es aceptable; el tag va sobre el docs commit para que el
    snapshot coincida con la etiqueta.
 
-## Reglas extra activas ahora mismo (F10)
+## Reglas extra activas ahora mismo (F11)
 
-- **F10 es puro host-side** — `host/faultycmd-rs/` Rust workspace.
-  No tocar firmware. Si surgen issues funcionales mientras se prueba
-  contra firmware F9, son F-future fixes, no F10.
-- **Wire protocol frozen**: emfi_proto / crowbar_proto / scanner
-  shell (CDC2) / campaign_proto (CDC0+CDC1 opcodes 0x20..0x24) están
-  todos especificados en `docs/{ARCHITECTURE.md, JTAG_INTERNALS.md,
-  MUTEX_INTERNALS.md}` y en los headers `services/host_proto/*/*.h`.
-  El Rust workspace los re-implementa en `faultycmd-core`.
-- **Reference Python clients permanecen** hasta v3.0.0 release —
-  útiles para debugging side-by-side cuando algo se compara raro
-  entre Rust y Python. Borrar / archivar en F11 release polish.
-- **Mutex F9 + shell soft-lock F8 coexisten** — `MUTEX_INTERNALS.md
-  §6` explica la mutex layering. F10's faultycmd-dap usa probe-rs
-  (que habla CMSIS-DAP) → cuando F7 daplink_usb llegue, ese path
-  pasará por el F9 swd_bus_lock con prioridad daplink_host.
-- **No romper F4/F5/F8/F9**: 29 binarios / 404 cases verde, smoke
-  físico verde sobre v2.2. Cualquier regresión observada durante
-  F10 client testing apunta al firmware (si es) o al client (más
-  probable).
+- **F11 es polish + release**, no nuevas features. No agregar
+  servicios, comandos CLI/TUI nuevos, ni opcodes wire-protocol. Si
+  algo realmente urgente aparece, va a F-future después de v3.0.0.
+- **Wire protocol congelado para v3.0.0**: emfi_proto /
+  crowbar_proto / scanner shell (CDC2) / campaign_proto (CDC0+CDC1
+  opcodes 0x20..0x24) son la API pública. Cualquier cambio rompe
+  faultycmd ↔ firmware compatibility — y eso es post-3.0.
+- **Archive de tools/ legacy**: `tools/{emfi,crowbar,campaign}_client.py`
+  + `tools/{swd,jtag,scanner}_diag.py` se moverán a `tools/legacy/`
+  o se borran cuando faultycmd cubra el 100% de los flujos.
+  Decisión final con Sabas antes de borrar — útiles para A/B testing
+  contra el client Python si algo se desvía.
+- **Safety review HV**: el path EMFI/crowbar lleva 9 commits SIGNED
+  + smoke físico repetido sin incidente desde F2b. Segunda pasada
+  de SAFETY.md debe documentar las lecciones acumuladas (HV invariant
+  100ms, break-before-make, BUTTON_PULSE como single owner, etc.).
+- **Benchmarks obligatorios**: tabla en `docs/PERFORMANCE.md` con
+  números reales medidos (no estimados): trigger→pulso latency,
+  campaign sweep throughput, mutex acquire/release overhead.
+  Reproducible vía `tools/bench_*.py`.
+- **No romper F0..F10**: 29 firmware Unity binarios / 404 cases +
+  85 host-py tests = 489 tests verde. Smoke físico verde sobre
+  v2.2. Cualquier regresión observada durante el bench apunta al
+  cambio que se acaba de meter.
 
 ## Protocolo de retake F6 (cuando llegue HW fix)
 

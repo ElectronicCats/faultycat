@@ -13,20 +13,20 @@ See [`FAULTYCAT_REFACTOR_PLAN.md`](../FAULTYCAT_REFACTOR_PLAN.md) for
 the full phased roadmap (F0 → F11) and the 16 frozen design decisions.
 This document describes the **layering and data flow**, not the plan.
 
-## Status snapshot (as of v3.0-f9)
+## Status snapshot (as of v3.0-f10)
 
-Branch `rewrite/v3`, last tag `v3.0-f9` (2026-04-28). F6 is
+Branch `rewrite/v3`, last tag `v3.0-f10` (2026-04-29). F6 is
 code-complete + spec-compliant but **not tagged** — physical gate
 blocked by the TXS0108EPW level shifter on the scanner header (see
 `HARDWARE_V2.md §2`). F7 deferred until that gate clears. F8 closed
-2026-04-28 (JTAG / scanner / BusPirate / serprog from blueTag); see
-`JTAG_INTERNALS.md`. F9 closed same day — service-layer SWD bus
-mutex (`swd_bus_lock`), campaign manager (`campaign_manager`)
-orchestrating cartesian sweeps over the F4/F5 engines, binary
-host_proto (`campaign_proto`) multiplexed on CDC0 (EMFI) and CDC1
-(crowbar), `tools/campaign_client.py` reference client. Verify hook
-ships as no-op placeholder; F-future wires real SWD verify when F6
-unblocks. See `MUTEX_INTERNALS.md` for the F9 wire stack.
+2026-04-28 (JTAG / scanner / BusPirate / serprog from blueTag — see
+`JTAG_INTERNALS.md`). F9 closed same day (campaign manager + SWD
+bus mutex + binary host_proto — see `MUTEX_INTERNALS.md`). F10
+closed 2026-04-29 — `host/faultycmd-py/`, the host tool. **Plan §1
+#6 was overridden 2026-04-28**: original spec was a Rust workspace
++ ratatui TUI; the implementation is Python + Textual TUI + Rich
+CLI based on team familiarity + reuse of the four legacy reference
+clients. Wire protocols are unchanged.
 
 | Phase | Tag | Status |
 |-------|-----|--------|
@@ -41,7 +41,7 @@ unblocks. See `MUTEX_INTERNALS.md` for the F9 wire stack.
 | F7 — CMSIS-DAP v2 + v1 daplink_usb | — | deferred until F6 physical gate passes (HW bypass on the TXS0108E) |
 | F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | `v3.0-f8` | ✓ closed — F8-1 `services/jtag_core/` (CPU bit-bang TAP + IDCODE chain). F8-2 `services/pinout_scanner/` (P(8,4) / P(8,2) brute-force scan + first-match). F8-3 unified CDC2 shell dispatcher. F8-4 `services/buspirate_compat/` (streaming BPv1 BBIO + OOCD JTAG sub-mode). F8-5 `services/flashrom_serprog/` (streaming serprog v1 + 4-pin CPU SPI bit-bang). F8-6 polish: 3-read consistency check on `pinout_scan_jtag`/`_swd` rejects bus-noise false positives empirically observed when a non-JTAG device is wired to the scanner header; `pump_shell_cdc` breaks out on mode-switch so the trailing `\n` of `\r\n` doesn't bleed into the new binary parser; new `docs/JTAG_INTERNALS.md`. Disconnect detection in main loop fires `bp_on_exit_cb` / `sp_on_exit_cb` if the host drops DTR mid-session. Diag snapshot gagged while in binary modes. Physical smoke 2026-04-28 on v2.2 board: 13/13 checks green (golden + regression). |
 | F9 — Campaign manager + SWD mutex | `v3.0-f9` | ✓ closed — F9-1 `services/swd_bus_lock/` (volatile-flag cooperative mutex over the scanner-header SWD bus, 4 owner tags IDLE/CAMPAIGN/SCANNER/DAPLINK, single-owner no-reentrance; 13 host tests). F9-2 `services/campaign_manager/` (6-state machine over cartesian sweep + 256-entry × 28 B result ringbuffer + pluggable step executor with no-op default; 27 host tests). F9-3 engine adapters in `apps/faultycat_fw/main.c` — `campaign_executor_emfi/_crowbar` blocking-with-cooperative-yield; verify hook acquires/releases swd_bus_lock around a no-op call (F-future plugs real SWD post-fire verify). Shell `campaign <subcmd>` for status/stop/drain/`demo crowbar` smoke. F9-4 `services/host_proto/campaign_proto/` — CRC16-CCITT framing extending emfi_proto / crowbar_proto with CAMPAIGN_CONFIG/START/STOP/STATUS/DRAIN opcodes; engine implied by CDC; 17 host tests. F9-5 `tools/campaign_client.py` reference pyserial CLI mirroring emfi/crowbar_client.py. F9-6 polish: bumped CROWBAR_PROTO_MAX_PAYLOAD from 64 → 512 (DRAIN replies were silently dropped); made pump_emfi/crowbar_cdc reply[768] static (defensive vs stack overflow in deep executor wait loops). Smoke 2026-04-28: `campaign demo crowbar` shell + `campaign_client.py configure → start → watch` both stream complete sweeps end-to-end on v2.2. |
-| F10 — faultycmd Python (Textual TUI + Rich CLI) | — | pending — plan §1 #6 revisited 2026-04-28; see §F10 override block |
+| F10 — faultycmd Python (Textual TUI + Rich CLI) | `v3.0-f10` | ✓ closed 2026-04-29 — `host/faultycmd-py/` package: F10-1 framing + USB enum, F10-2 protocols.{emfi,crowbar,campaign}, F10-3 protocols.scanner text-shell wrapper, F10-4 click+Rich CLI (`faultycmd info/emfi/crowbar/campaign/scanner` command groups), F10-5 Textual 4-panel dashboard (EMFI / Crowbar / Campaign / Diag CDC2 tail), F10-6 ruff lint + 3-version pytest matrix CI workflow (.github/workflows/host-py.yml) + `python -m faultycmd` entry point + PyInstaller smoke. 85 host-tests pass on Python 3.10/3.11/3.12. Real-device smoke verified end-to-end: `faultycmd info` enumerates the 4 CDCs, `faultycmd campaign --engine crowbar configure → start → watch` streams a 6-step LP sweep into a Rich Live table, the `faultycmd tui` dashboard launches with all 4 panels populated. Plan §1 #6 override (Rust → Python) documented in §F10 cierre + project memory. Legacy reference clients (`tools/{emfi,crowbar,campaign}_client.py` + `tools/{swd,jtag,scanner}_diag.py`) stay in tree as deprecated debug fallback until F11 archive. |
 | F11 — Hardening, docs, release | — | pending |
 
 Current tree health:
@@ -358,11 +358,12 @@ pico-sdk `mutex_t` + explicit timeout. If `daplink_usb` requests the bus
 while held, it responds `DAP_ERROR (busy)` so the host retries. Full
 state machine in this doc, updated in F9.
 
-## Host tool (F10)
+## Host tool (F10) — closed `v3.0-f10` (2026-04-29)
 
-`host/faultycmd-py/` is a Python package. Plan §1 decision #6
+`host/faultycmd-py/` is the Python host tool. Plan §1 decision #6
 originally specified a Rust workspace + ratatui TUI; the 2026-04-28
-override (see plan §F10 override block) switched to Python +
+override (see plan §F10 cierre block + memory
+`project_faultycmd_python_override.md`) switched to Python +
 Textual + Rich based on team familiarity, faster iteration, direct
 reuse of the F4/F5/F9 reference clients, and a lower contributor
 onboarding cost. The wire protocols (host_proto/* opcodes, frame

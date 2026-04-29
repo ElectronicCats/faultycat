@@ -480,7 +480,7 @@ Cada driver expone comando `diag <driver>` por UART serial (temporal, antes de U
 
 ---
 
-### F10 — faultycmd en Python (Textual TUI + Rich CLI)
+### F10 — faultycmd en Python (Textual TUI + Rich CLI) ✓ closed `v3.0-f10` (2026-04-29)
 
 > **Override 2026-04-28** de la decisión §1 #6. El equipo (Sabas + Electronic Cats) ya tiene reps con Textual + Rich en otros proyectos; reusar esa experiencia + reusar los 4 reference clients Python existentes (`tools/{emfi,crowbar,campaign}_client.py`, `tools/{swd,jtag,scanner}_diag.py`) baja el riesgo de framework choice a casi cero. El stack Rust (probe-rs + ratatui + clap) era técnicamente sólido pero implicaba contributor-onboarding más alto + cross-compile pain para distribución Win/Mac. Wire protocols (host_proto/* opcodes, frame format, mutex contract) **no cambian** — solo cambia el host language. Memoria `project_faultycmd_python_override.md` documenta el override formal para auditoría futura.
 
@@ -502,6 +502,33 @@ Cada driver expone comando `diag <driver>` por UART serial (temporal, antes de U
 - USB enum: `pyserial` + `udevadm` helper (Linux primary; Windows/macOS = TODO de F11 polish).
 
 **Criterio:** TUI interactiva cubre 100% del faultycmd viejo + campañas + switch entre EMFI/crowbar/scanner. CLI cubre 100% de los 4 reference Python clients (estos quedan como deprecated reference hasta F11 archive).
+
+**Cierre F10 (2026-04-29):**
+
+- Sub-fases F10-1..F10-7 cerradas con commits incrementales en `rewrite/v3`:
+  - F10-1: `host/faultycmd-py/` skeleton (pyproject.toml hatchling backend, BSD-3-Clause, src layout) + `faultycmd.framing` (CRC16-CCITT init=0xFFFF poly=0x1021 + frame builder/parser, espejo byte-por-byte del firmware) + `faultycmd.usb` (port → CDC mapping vía `udevadm`, reemplaza el snippet inline ad-hoc de `tools/`). 22 host tests.
+  - F10-2: `faultycmd.protocols.{_base, emfi, crowbar, campaign}` — consolidación tipada de los 3 clients binarios. `BinaryProtoClient` base con context-manager + serial_factory hook (lazy `import serial` para test surface mínima). 35 nuevos tests = 57 total.
+  - F10-3: `faultycmd.protocols.scanner` — line-based text-shell wrapper con prefix demuxer (SHELL: / SWD: / JTAG: / SCAN: / BPIRATE: / SERPROG: / CAMPAIGN:). Consolida `tools/{swd,jtag,scanner}_diag.py`. 15 nuevos tests = 72 total.
+  - F10-4: `faultycmd.cli` — top-level click-based CLI con Rich-rendered output (tablas, Live updates, progress). Command tree: `info`, `emfi {ping/status/configure/arm/fire/disarm/capture}`, `crowbar {ping/status/configure/arm/fire/disarm}`, `campaign {status/configure/start/stop/drain/watch}` con `--engine`, `scanner {swd-/jtag-/scan-}`. Console script `faultycmd` instalado al `pip install -e .`.
+  - F10-5: `faultycmd.tui` — Textual app, 2×2 grid + footer hotkeys (`q/r/c/s`). Paneles: EMFI (CDC0 status), Crowbar (CDC1 status), Campaign (live table + last-10 results), Diag (CDC2 snapshot tail con regex parser). 3 daemon polling threads + `call_from_thread` para UI updates. `SharedSerial` permite que Crowbar + Campaign clients compartan una sola CDC1 serial.Serial. 13 nuevos tests = 85 total.
+  - F10-6: ruff lint config + 3-version pytest matrix CI workflow (`.github/workflows/host-py.yml`) + `python -m faultycmd` entry point (`__main__.py`) + Linux PyInstaller smoke build artifact.
+  - F10-7: este commit — docs(F10) live-update + tag.
+
+- **Override formal de §1 #6** (Rust → Python) commit `0a34a22` el 2026-04-28. Memoria `project_faultycmd_python_override.md` mantiene la auditoría legible para futuro yo / contributors.
+
+- Smoke físico 2026-04-29 (FaultyCat v2.2 + Python 3.12):
+  - `faultycmd info` → tabla Rich con los 4 CDCs (IF 0/2/4/6 → emfi/crowbar/scanner/target).
+  - `faultycmd emfi ping` → `PONG b'F4\x00\x00'`. `faultycmd emfi status` → tabla Rich con state=IDLE.
+  - `faultycmd crowbar ping` → `PONG b'F5\x00\x00'`. `faultycmd crowbar status` → tabla Rich con state=FIRED + output=LP de campaign anterior.
+  - `faultycmd campaign --engine crowbar configure --delay 1000:3000:1000 --width 200:300:100 --power 1 --settle-ms 50 → start → watch` → Live Rich table streams 6/6 results, ending con `state=DONE step=6/6 pushed=6 dropped=0`.
+  - `faultycmd scanner swd-init/swd-connect/swd-deinit` y `jtag-init/jtag-chain/jtag-deinit` retornan correctamente (no-target → ERR no_target o devices=0).
+  - `faultycmd tui` lanza, paneles populan dentro de un poll cycle.
+
+- Tests host-side: 85 cases / 100% verde bajo `pytest`. ruff `check src tests` clean. CI workflow corre `lint + test (3.10/3.11/3.12) + build-binary` paralelo a `firmware.yml`.
+
+- Reference clients legacy (`tools/{emfi,crowbar,campaign}_client.py` + `tools/{swd,jtag,scanner}_diag.py`) permanecen en el tree como debug fallback. F11 archive los retira.
+
+- Próxima fase activa: F11 — Hardening, docs, release.
 
 ---
 
