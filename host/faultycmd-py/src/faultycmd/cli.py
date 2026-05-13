@@ -537,6 +537,14 @@ def scanner_swd_write32(ctx: click.Context, addr: str, value: str) -> None:
         console.print(cli.swd_write32(int(addr, 0), int(value, 0)))
 
 
+@scanner.command("freq")
+@click.argument("khz", type=int)
+@click.pass_context
+def scanner_swd_freq(ctx: click.Context, khz: int) -> None:
+    with _scanner_client(ctx) as cli:
+        console.print(cli.swd_freq(khz))
+
+
 @scanner.command("jtag-init")
 @click.argument("tdi", type=int, default=0)
 @click.argument("tdo", type=int, default=1)
