@@ -7,6 +7,7 @@ Vendor IF for OpenOCD / probe-rs / pyOCD.
 
 Usage:
   tools/swd_diag.py --port /dev/ttyACM4 connect
+  tools/swd_diag.py --port /dev/ttyACM4 idcode
   tools/swd_diag.py --port /dev/ttyACM4 read32 0xE000ED00
   tools/swd_diag.py --port /dev/ttyACM4 write32 0x20000000 0xCAFEBABE
   tools/swd_diag.py --port /dev/ttyACM4 freq 4000
@@ -69,6 +70,7 @@ def main() -> None:
 
     sub.add_parser("help")
     sub.add_parser("connect")
+    sub.add_parser("idcode", help="wake SWD, switch JTAG-to-SWD, request IDCODE")
     sub.add_parser("probe", help="alias of connect")
     sub.add_parser("deinit")
 
@@ -104,7 +106,7 @@ def main() -> None:
         cmd = "swd deinit"
     elif args.cmd == "freq":
         cmd = f"swd freq {args.khz}"
-    elif args.cmd in ("connect", "probe"):
+    elif args.cmd in ("connect", "probe", "idcode"):
         cmd = f"swd {args.cmd}"
     elif args.cmd == "read32":
         cmd = f"swd read32 {args.addr}"

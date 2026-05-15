@@ -20,7 +20,8 @@
 //            jtag_init + jtag_read_idcodes; first valid IDCODE wins.
 //   - SWD  : iterate every 2-tuple (SWCLK, SWDIO) of distinct scanner
 //            channels (P(8, 2) = 56 permutations); for each, swd_phy
-//            + swd_dp_connect; first OK ACK with non-zero DPIDR wins.
+//            + swd_dp_bus_detect; first OK ACK with a coherent, stable
+//            DPIDR wins. The DPIDR is not matched to one MCU family.
 //
 // Mutual-exclusion contract (F8-1 → F9). The scan acquires the
 // scanner pins by calling jtag_init / swd_phy_init in sequence.
@@ -51,7 +52,7 @@ typedef struct {
     uint8_t  swclk;
     uint8_t  swdio;
     uint32_t dpidr;
-    uint32_t targetsel;       // TARGETSEL the match was found under
+    uint32_t targetsel;       // compatibility echo; scan does not issue TARGETSEL
 } pinout_scan_swd_result_t;
 
 // Progress / yield callback signature. Called once per iteration
@@ -69,12 +70,12 @@ typedef void (*pinout_scanner_progress_cb)(uint32_t cur, uint32_t total);
 bool pinout_scan_jtag(pinout_scan_jtag_result_t *out,
                       pinout_scanner_progress_cb cb);
 
-// Run an SWD pinout scan against the supplied TARGETSEL. Returns
-// true on first OK DPIDR read. The shell exposes one entry point
-// that walks the RP2040 TARGETSEL (CORE0); other multidrop IDs can
-// be tried by passing them explicitly.
-bool pinout_scan_swd(uint32_t targetsel,
-                     pinout_scan_swd_result_t *out,
+// Run an SWD pinout scan. Returns true on the first OK DPIDR read
+// that passes swd_dp_dpidr_is_valid() and repeats consistently. The
+// targetsel parameter is retained for callers that still track
+// multidrop targets; scan discovery itself uses swd_dp_bus_detect()
+// and does not issue TARGETSEL.
+bool pinout_scan_swd(pinout_scan_swd_result_t *out,
                      pinout_scanner_progress_cb cb);
 
 // -----------------------------------------------------------------------------

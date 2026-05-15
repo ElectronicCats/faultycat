@@ -81,10 +81,21 @@ def test_swd_init_ok():
 
 def test_swd_connect_parses_dpidr():
     fake = FakeShellSerial()
-    fake.queue_lines("SWD: OK connect dpidr=0x0BC12477")
+    fake.queue_lines("SWD: OK connect dpidr=0x2BA01477")
     with _client(fake) as cli:
         line, dpidr = cli.swd_connect()
+    assert dpidr == 0x2BA01477
+    assert b"swd connect\r\n" in bytes(fake.written)
+
+
+def test_swd_idcode_parses_dpidr_and_uses_new_command():
+    fake = FakeShellSerial()
+    fake.queue_lines("SWD: OK bus-detect dpidr=0x0BC12477")  # RP2040 is just one example.
+    with _client(fake) as cli:
+        line, dpidr = cli.swd_idcode()
+    assert "OK bus-detect" in line
     assert dpidr == 0x0BC12477
+    assert b"swd idcode\r\n" in bytes(fake.written)
 
 
 def test_swd_read32_parses_value():
@@ -157,7 +168,7 @@ def test_scan_jtag_streams_progress_until_terminal():
 def test_scan_swd_with_targetsel():
     fake = FakeShellSerial()
     fake.queue_lines(
-        "SCAN: starting SWD pinout scan over 8 channels (P(8,2)=56) targetsel=0x01002927",
+        "SCAN: starting SWD pinout scan over 8 channels (P(8,2)=56) targetsel_compat=0x01002927",
         "SCAN: swd NO_MATCH (no OK DPIDR found)",
     )
     with _client(fake) as cli:

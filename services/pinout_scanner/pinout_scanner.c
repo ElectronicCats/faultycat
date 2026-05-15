@@ -176,8 +176,7 @@ bool pinout_scan_jtag(pinout_scan_jtag_result_t *out,
 // SWD scan
 // -----------------------------------------------------------------------------
 
-bool pinout_scan_swd(uint32_t targetsel,
-                     pinout_scan_swd_result_t *out,
+bool pinout_scan_swd(pinout_scan_swd_result_t *out,
                      pinout_scanner_progress_cb cb) {
     if (out == NULL) return false;
 
@@ -195,9 +194,14 @@ bool pinout_scan_swd(uint32_t targetsel,
         uint8_t swdio = s_ch_to_gpio[it.indices[1]];
         if (!swd_phy_init(swclk, swdio, SWD_PHY_NRST_NONE)) continue;
 
+        swd_phy_set_clk_khz(100);
+
         uint32_t dpidr = 0u;
-        swd_dp_ack_t ack = swd_dp_connect(targetsel, &dpidr);
-        if (ack == SWD_ACK_OK && dpidr != 0u) {
+        // Scanner discovery is bus-wide: do not issue TARGETSEL here,
+        // because the goal is to find any coherent SWD DP, not only a
+        // preselected multi-drop target.
+        swd_dp_ack_t ack = swd_dp_bus_detect(&dpidr);
+        if (ack == SWD_ACK_OK && swd_dp_dpidr_is_valid(dpidr)) {
             // F8-6 stability check (same rationale as the JTAG scan):
             // confirm by re-reading DPIDR. Bus noise that briefly
             // produces an OK ACK on the first connect rarely
@@ -206,7 +210,8 @@ bool pinout_scan_swd(uint32_t targetsel,
             bool stable = true;
             for (uint8_t r = 0; r < PINOUT_SCAN_CONFIRM_READS; r++) {
                 uint32_t re_dpidr = 0u;
-                swd_dp_ack_t re_ack = swd_dp_read_dpidr(&re_dpidr);
+                swd_dp_ack_t re_ack = swd_dp_bus_detect(&re_dpidr);
+                swd_dp_dpidr_is_valid(re_dpidr); // sanity check for the read value, but we mainly care about stability of the bus response, not the content
                 if (re_ack != SWD_ACK_OK || re_dpidr != baseline) {
                     stable = false;
                     break;
@@ -216,7 +221,7 @@ bool pinout_scan_swd(uint32_t targetsel,
                 out->swclk     = swclk;
                 out->swdio     = swdio;
                 out->dpidr     = baseline;
-                out->targetsel = targetsel;
+                //out->targetsel = targetsel;
                 swd_phy_deinit();
                 return true;
             }

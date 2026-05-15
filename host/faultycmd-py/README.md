@@ -45,6 +45,8 @@ faultycmd campaign configure --engine crowbar \
     --delay 1000:3000:1000 --width 200:300:100 --power 1
 faultycmd campaign start
 faultycmd campaign watch
+faultycmd scanner swd-init 0 1 2
+faultycmd scanner swd-idcode
 
 # Run the TUI
 faultycmd tui

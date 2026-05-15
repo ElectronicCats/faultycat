@@ -134,7 +134,7 @@ strict enough to filter bus noise — see §3.
 
 The brute-force scanner iterates P(8,4) = 1680 candidate JTAG
 pinouts and P(8,2) = 56 candidate SWD pinouts. For each it calls
-`jtag_init` + `jtag_read_idcodes` (or `swd_phy_init` + `swd_dp_connect`)
+`jtag_init` + `jtag_read_idcodes` (or `swd_phy_init` + `swd_dp_bus_detect`)
 and checks the result against the validator.
 
 ### Empirical observation (F8-6 smoke, 2026-04-28)

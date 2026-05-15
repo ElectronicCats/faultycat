@@ -50,6 +50,23 @@ uint8_t swd_dp_compute_parity(uint32_t v) {
     return (uint8_t)(v & 1u);
 }
 
+bool swd_dp_dpidr_is_valid(uint32_t dpidr) {
+    // ADIv5 DPIDR / IDCODE-like values vary by silicon, so this is
+    // intentionally a coherence check rather than a target allowlist.
+    // It rejects common floating-bus/no-target sentinels and requires
+    // the architected ID bit plus non-empty designer/version fields.
+    if (dpidr == 0u || dpidr == 0xFFFFFFFFu) return false;
+    if ((dpidr & 1u) != 1u) return false;
+
+    uint32_t designer = (dpidr >> 1) & 0x7FFu;
+    uint32_t version  = (dpidr >> 12) & 0xFu;
+    uint32_t partno   = (dpidr >> 20) & 0xFFu;
+    if (designer == 0u || designer == 0x7FFu) return false;
+    if (version == 0u) return false;
+    if (partno == 0u) return false;
+    return true;
+}
+
 static swd_dp_ack_t do_transfer(bool ap_n_dp, bool rnw, uint8_t addr,
                                 uint32_t *out, uint32_t in_val) {
     uint8_t req = build_request(ap_n_dp, rnw, addr);
@@ -126,20 +143,63 @@ swd_dp_ack_t swd_dp_read_dpidr(uint32_t *out) {
     return swd_dp_read(SWD_DP_ADDR_DPIDR, out);
 }
 
-// Modern SWD wakeup byte stream (ADIv5.2 §B5.4 dormant-to-SWD).
-// Byte-for-byte aligned with OpenOCD `swd_seq_dormant_to_swd[]` in
-// jtag/swd.h (224-bit total) and pyOCD `swj.py`. Backward-compatible
-// with non-dormant targets — the alert+activation appear as extra
-// line-reset cycles to a target already in SWD state.
-//
-// Wire content (LSB-first within each byte, byte 0 first):
-//   0xff                          : 8 high (abort prior alert)
-//   0x92..0x19  (16 bytes)        : 128-bit selection alert
-//   0xa0                          : 4 low + activation low nibble
-//   0xf1                          : activation high nibble + 4 high
-//   0xff                          : 8 more high (continues line reset)
-//   0xff×7                        : 56 more high (≥50 line reset total)
-//   0x00                          : 8 low (≥2 idle)
+void swd_dp_wakeup(void) {
+    // ADIv5.2 dormant-to-SWD wake-up sequence. swd_phy_write_bits()
+    // shifts LSB-first on the wire, so these 32-bit words are the
+    // packed form of the bit strings in the spec/operator notes:
+    //   8 HIGH alert-reset bits
+    //   128-bit selection alert
+    //   4 LOW idle bits
+    //   8-bit SWD activation code 0x1A
+    swd_phy_write_bits(8u, 0xFFu);
+
+    swd_phy_write_bits(32u, 0x6209F392u);
+    swd_phy_write_bits(32u, 0x86852D95u);
+    swd_phy_write_bits(32u, 0xE3DDAFE9u);
+    swd_phy_write_bits(32u, 0x19BC0EA2u);
+
+    swd_phy_write_bits(4u, 0x0u);
+    swd_phy_write_bits(8u, 0x1Au);
+}
+
+void swd_dp_switch_jtag_to_swd(void) {
+    // ARM's SWJ JTAG-to-SWD select sequence:
+    //   line reset (at least 50 HIGH cycles; use 56)
+    //   16-bit JTAG_TO_SWD command 0xE79E
+    //   line reset (at least 50 HIGH cycles; use 56)
+    for (int i = 0; i < 10; i++) {
+        swd_phy_write_bits(8u, 0xFFu);
+    }
+
+    swd_phy_write_bits(16u, 0xE79Eu);
+
+    for (int i = 0; i < 10; i++) {
+        swd_phy_write_bits(8u, 0xFFu);
+    }
+
+    swd_phy_write_bits(4u, 0x0u);
+}
+
+swd_dp_ack_t swd_dp_request_idcode(uint32_t *out_idcode) {
+    // Reuse the normal DP-read transfer helper. For DP address 0
+    // with RnW=1 it builds request byte 0xA5, then handles the
+    // turnaround, ACK, 32 data bits, and parity check.
+    swd_dp_ack_t ack = swd_dp_read(SWD_DP_ADDR_DPIDR, out_idcode);
+    // Leave the line in idle-low before any follow-up transaction.
+    swd_phy_write_bits(8u, 0x00u);
+    return ack;
+}
+
+swd_dp_ack_t swd_dp_bus_detect(uint32_t *out_dpidr) {
+    swd_dp_wakeup();
+    swd_dp_switch_jtag_to_swd();
+    return swd_dp_request_idcode(out_dpidr);
+}
+
+// Modern SWD wakeup byte stream (ADIv5.2 dormant-to-SWD), kept for
+// the targeted TARGETSEL connect path. It includes the selection
+// alert, activation, final line reset, and idle cycles in the
+// byte-packed form used by OpenOCD/pyOCD.
 static const uint8_t s_dormant_to_swd[] = {
     0xffu,
     0x92u, 0xf3u, 0x09u, 0x62u, 0x95u, 0x2du, 0x85u, 0x86u,
@@ -149,10 +209,6 @@ static const uint8_t s_dormant_to_swd[] = {
     0x00u,
 };
 
-// Send a byte stream LSB-first on the wire, packing 4 bytes per
-// 32-bit PIO call to minimize dispatcher overhead. The PIO uses
-// out_shift_right=true, so packing little-endian (byte[i] in the
-// low byte) sends bytes in array order, each byte LSB-first.
 static void send_byte_stream(const uint8_t *bytes, uint32_t len) {
     uint32_t i = 0u;
     while (i + 4u <= len) {
@@ -169,67 +225,39 @@ static void send_byte_stream(const uint8_t *bytes, uint32_t len) {
     }
 }
 
-// SWDv2 TARGETSEL write. Multi-drop convention: ALL DPs see the
-// request and ACK cycles, then only the DP whose TARGETID matches
-// the data accepts subsequent transactions. The target does NOT
-// drive ACK during TARGETSEL; the host clocks 3 ACK cycles for
-// protocol alignment and discards whatever it reads.
-//
-// Request byte 0x99 = TARGETSEL (DP write, A[3:2]=11, parity=1).
 static void targetsel_write(uint32_t targetsel) {
+    // SWDv2 TARGETSEL write. The multi-drop convention has all DPs
+    // observe the request/data; the ACK clocks are still emitted for
+    // wire alignment, but the value read during those cycles is not
+    // meaningful.
     swd_phy_write_bits(8u, 0x99u);
-    swd_phy_hiz_clocks(1u);            // turnaround → host hi-z
-    (void)swd_phy_read_bits(3u);       // ACK clocks; result discarded
-    swd_phy_hiz_clocks(1u);            // turnaround → host driving
+    swd_phy_hiz_clocks(1u);
+    (void)swd_phy_read_bits(3u);
+    swd_phy_hiz_clocks(1u);
     swd_phy_write_bits(32u, targetsel);
     swd_phy_write_bits(1u,  swd_dp_compute_parity(targetsel));
-    // 8 idle bits LOW so the bus settles before the next request.
     swd_phy_write_bits(8u, 0u);
 }
 
 swd_dp_ack_t swd_dp_connect(uint32_t targetsel, uint32_t *out_dpidr) {
-    // Canonical "force into SWD" sequence per pyOCD
-    // SWJSequenceSender.switch_to_swd() with use_dormant=True. We
-    // don't know the initial state of the target (could be SWD,
-    // JTAG, or dormant) so we walk through every transition:
-    //
-    //   1. Line reset — puts SWD in known state OR enters JTAG TLR.
-    //   2. JTAG-to-dormant select (39 bits 0x33bbbbba LSB-first) —
-    //      takes a JTAG TAP from TLR to dormant. No-op if already
-    //      dormant. Per ADIv6 §B5.3.2.
-    //   3. selection_alert + activation — wake from dormant into
-    //      SWD. ADIv5.2 §B5.4 / ADIv6 §B5.3.3.
-    //   4. Final line reset + 2 idle cycles — SWD reset of the now-
-    //      awake DP.
-    //   5. Pre-TARGETSEL line reset — OpenOCD prefixes TARGETSEL.
-    //   6. TARGETSEL multi-drop write.
-    //   7. DPIDR read.
-
-    // Step 1: 51+ high (line reset) — we send 56 = 7 bytes 0xff.
+    // Targeted SWDv2 connect for multi-drop-capable DPs (RP2040 is
+    // the board-local reason this exists). This restores the original
+    // flow: force a known state, wake dormant SWD, issue TARGETSEL,
+    // then read DPIDR from the selected DP.
     for (int i = 0; i < 7; i++) {
-        swd_phy_write_bits(8u, 0xFFu);
+        swd_phy_write_bits(8u, 0xffu);
     }
 
-    // Step 2: JTAG-to-dormant select. 39 bits, LSB-first 0x33bbbbba.
-    // Split into one 32-bit + one 7-bit write because write_bits
-    // caps at 32. Sequence value is 31 significant bits + zero
-    // padding to 32; the trailing 7 zeros act as idle low cycles.
+    // JTAG-to-dormant select, 39 bits, LSB-first 0x33bbbbba.
     swd_phy_write_bits(32u, 0x33bbbbbau);
     swd_phy_write_bits(7u,  0x00u);
 
-    // Steps 3 + 4: dormant-to-SWD byte stream (selection alert +
-    // activation + line reset + idle).
     send_byte_stream(s_dormant_to_swd, (uint32_t)sizeof(s_dormant_to_swd));
 
-    // Step 5: pre-TARGETSEL line reset.
     for (int i = 0; i < 7; i++) {
-        swd_phy_write_bits(8u, 0xFFu);
+        swd_phy_write_bits(8u, 0xffu);
     }
 
-    // Step 6: TARGETSEL — selects which RP2040 DP responds to
-    // subsequent DPIDR. Without this, RP2040's DPs stay silent.
     targetsel_write(targetsel);
-
-    // Step 7: DPIDR read — should return 0x0BC12477 for RP2040.
     return swd_dp_read_dpidr(out_dpidr);
 }

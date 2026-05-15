@@ -224,8 +224,17 @@ class ScannerClient:
     def swd_freq(self, khz: int) -> str:
         return self._expect_ok("SWD:", f"swd freq {khz}")
 
+    def swd_idcode(self) -> tuple[str, int | None]:
+        """Run generic SWD bus detection without TARGETSEL.
+
+        The firmware prints the SWD IDCODE using the historical
+        ``dpidr=`` label because ADIv5 names DP address 0 DPIDR.
+        """
+        line = self.send_line("swd idcode", accept_prefixes=("SWD:",))
+        return line, _parse_hex_after(line, "dpidr=")
+
     def swd_connect(self) -> tuple[str, int | None]:
-        """Returns (raw_line, dpidr_or_None)."""
+        """Run firmware's targeted TARGETSEL connect path."""
         line = self.send_line("swd connect", accept_prefixes=("SWD:",))
         return line, _parse_hex_after(line, "dpidr=")
 

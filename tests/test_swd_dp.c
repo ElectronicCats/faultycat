@@ -74,6 +74,20 @@ static void push_parity(uint8_t p) {
 // FIFO TX command word decoders (mirror of test_swd_phy.c).
 static uint32_t cmd_count(uint32_t w) { return (w & 0xFFu) + 1u; }
 
+static uint32_t write_data_after_cmd(uint32_t cmd_index) {
+    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    TEST_ASSERT_LESS_THAN(sm->tx_count, cmd_index + 1u);
+    return sm->tx_fifo[cmd_index + 1u];
+}
+
+static void assert_write_at(uint32_t cmd_index, uint32_t bit_count,
+                            uint32_t expected_data) {
+    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    TEST_ASSERT_LESS_THAN(sm->tx_count, cmd_index);
+    TEST_ASSERT_EQUAL_UINT32(bit_count, cmd_count(sm->tx_fifo[cmd_index]));
+    TEST_ASSERT_EQUAL_HEX32(OD_INV32(expected_data), write_data_after_cmd(cmd_index));
+}
+
 // -----------------------------------------------------------------------------
 // parity helper
 // -----------------------------------------------------------------------------
@@ -93,6 +107,22 @@ static void test_parity_of_three_bits_is_one(void) {
 
 static void test_parity_of_alternating_bits_is_zero(void) {
     TEST_ASSERT_EQUAL_UINT8(0u, swd_dp_compute_parity(0xFFFFFFFFu));
+}
+
+// -----------------------------------------------------------------------------
+// DPIDR coherence helper
+// -----------------------------------------------------------------------------
+
+static void test_dpidr_validator_accepts_known_coherent_values(void) {
+    TEST_ASSERT_TRUE(swd_dp_dpidr_is_valid(0x0BC12477u));  // RP2040
+    TEST_ASSERT_TRUE(swd_dp_dpidr_is_valid(0x2BA01477u));  // common ARM Cortex-M DP
+}
+
+static void test_dpidr_validator_rejects_bus_noise_sentinels(void) {
+    TEST_ASSERT_FALSE(swd_dp_dpidr_is_valid(0x00000000u));
+    TEST_ASSERT_FALSE(swd_dp_dpidr_is_valid(0xFFFFFFFFu));
+    TEST_ASSERT_FALSE(swd_dp_dpidr_is_valid(0x0BC12476u));  // architected ID bit clear
+    TEST_ASSERT_FALSE(swd_dp_dpidr_is_valid(0x00001001u));  // empty designer / part
 }
 
 // -----------------------------------------------------------------------------
@@ -266,18 +296,65 @@ static void test_ap_read_sets_apndp_bit_in_request(void) {
 }
 
 // -----------------------------------------------------------------------------
-// connect — line reset + JTAG-to-SWD switch + DPIDR read
+// wake-up / JTAG-to-SWD / IDCODE request / bus detect / connect
 // -----------------------------------------------------------------------------
 
-static void test_connect_returns_ok_with_dpidr(void) {
-    // swd_dp_connect now performs the SWDv2 multi-drop sequence:
-    //   ... line resets / dormant-to-SWD ...
-    //   TARGETSEL write — clocks 3 ACK bits (host discards them
-    //                     per multi-drop convention).
-    //   DPIDR  read    — clocks 3 ACK bits + 32 data + 1 parity.
-    // Pre-populate the RX FIFO with 1 dummy ACK for TARGETSEL (the
-    // value is discarded), then the OK + DPIDR + parity for DPIDR.
-    push_ack(SWD_ACK_NO_TARGET);   // TARGETSEL ack (discarded)
+static void test_wakeup_emits_selection_alert_and_activation(void) {
+    swd_dp_wakeup();
+
+    // Each swd_phy_write_bits call emits command,data pairs.
+    assert_write_at(0u,  8u,  0xffu);
+    assert_write_at(2u,  32u, 0x6209f392u);
+    assert_write_at(4u,  32u, 0x86852d95u);
+    assert_write_at(6u,  32u, 0xe3ddafe9u);
+    assert_write_at(8u,  32u, 0x19bc0ea2u);
+    assert_write_at(10u, 4u,  0x0u);
+    assert_write_at(12u, 8u,  0x1au);
+}
+
+static void test_switch_jtag_to_swd_emits_line_resets_and_command(void) {
+    swd_dp_switch_jtag_to_swd();
+
+    for (uint32_t i = 0; i < 7u; i++) {
+        assert_write_at(i * 2u, 8u, 0xffu);
+    }
+    assert_write_at(14u, 16u, 0xe79eu);
+    for (uint32_t i = 0; i < 7u; i++) {
+        assert_write_at(16u + i * 2u, 8u, 0xffu);
+    }
+}
+
+static void test_request_idcode_reads_dpidr_and_emits_idle(void) {
+    push_ack(SWD_ACK_OK);
+    push_data32(0x0BC12477u);
+    push_parity(swd_dp_compute_parity(0x0BC12477u));
+
+    uint32_t idcode = 0u;
+    TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_request_idcode(&idcode));
+    TEST_ASSERT_EQUAL_HEX32(0x0BC12477u, idcode);
+
+    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    assert_write_at(0u, 8u, 0xa5u);
+    TEST_ASSERT_GREATER_OR_EQUAL_UINT32(2u, sm->tx_count);
+    assert_write_at(sm->tx_count - 2u, 8u, 0x00u);
+}
+
+static void test_bus_detect_returns_ok_with_dpidr(void) {
+    // swd_dp_bus_detect is intentionally composed from:
+    //   wake-up -> JTAG-to-SWD -> IDCODE request.
+    push_ack(SWD_ACK_OK);
+    push_data32(0x0BC12477u);
+    push_parity(swd_dp_compute_parity(0x0BC12477u));
+    uint32_t dpidr = 0u;
+    TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_bus_detect(&dpidr));
+    TEST_ASSERT_EQUAL_HEX32(0x0BC12477u, dpidr);
+}
+
+static void test_connect_returns_ok_with_dpidr_after_targetsel(void) {
+    // swd_dp_connect performs the targeted SWDv2 multi-drop sequence:
+    // dormant-to-SWD, TARGETSEL write, then DPIDR read. TARGETSEL ACK
+    // clocks are discarded by design, so the first queued ACK is dummy.
+    push_ack(SWD_ACK_NO_TARGET);
     push_ack(SWD_ACK_OK);
     push_data32(0x0BC12477u);
     push_parity(swd_dp_compute_parity(0x0BC12477u));
@@ -299,6 +376,8 @@ int main(void) {
     RUN_TEST(test_parity_of_one_bit_is_one);
     RUN_TEST(test_parity_of_three_bits_is_one);
     RUN_TEST(test_parity_of_alternating_bits_is_zero);
+    RUN_TEST(test_dpidr_validator_accepts_known_coherent_values);
+    RUN_TEST(test_dpidr_validator_rejects_bus_noise_sentinels);
     RUN_TEST(test_dp_read_dpidr_emits_request_byte_0xA5);
     RUN_TEST(test_dp_write_ctrlstat_emits_request_byte_0xA9);
     RUN_TEST(test_dp_read_returns_ok_with_data_on_ack_ok);
@@ -309,7 +388,11 @@ int main(void) {
     RUN_TEST(test_dp_write_emits_data_and_parity_after_request);
     RUN_TEST(test_abort_targets_dp_address_zero);
     RUN_TEST(test_ap_read_sets_apndp_bit_in_request);
-    RUN_TEST(test_connect_returns_ok_with_dpidr);
+    RUN_TEST(test_wakeup_emits_selection_alert_and_activation);
+    RUN_TEST(test_switch_jtag_to_swd_emits_line_resets_and_command);
+    RUN_TEST(test_request_idcode_reads_dpidr_and_emits_idle);
+    RUN_TEST(test_bus_detect_returns_ok_with_dpidr);
+    RUN_TEST(test_connect_returns_ok_with_dpidr_after_targetsel);
     RUN_TEST(test_connect_propagates_no_target);
     return UNITY_END();
 }

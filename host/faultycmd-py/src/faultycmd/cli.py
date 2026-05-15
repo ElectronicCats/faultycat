@@ -506,14 +506,26 @@ def scanner_swd_deinit(ctx: click.Context) -> None:
         console.print(cli.swd_deinit())
 
 
+@scanner.command("swd-idcode")
+@click.pass_context
+def scanner_swd_idcode(ctx: click.Context) -> None:
+    """Detect an SWD bus without TARGETSEL, then request IDCODE/DPIDR."""
+    with _scanner_client(ctx) as cli:
+        line, dpidr = cli.swd_idcode()
+    console.print(line)
+    if dpidr is not None:
+        console.print(f"[green]IDCODE/DPIDR[/green] = 0x{dpidr:08X}")
+
+
 @scanner.command("swd-connect")
 @click.pass_context
 def scanner_swd_connect(ctx: click.Context) -> None:
+    """Connect through the firmware's targeted TARGETSEL path."""
     with _scanner_client(ctx) as cli:
         line, dpidr = cli.swd_connect()
     console.print(line)
     if dpidr is not None:
-        console.print(f"[green]DPIDR[/green] = 0x{dpidr:08X}")
+        console.print(f"[green]IDCODE/DPIDR[/green] = 0x{dpidr:08X}")
 
 
 @scanner.command("swd-read32")
@@ -595,7 +607,11 @@ def scanner_scan_jtag(ctx: click.Context, timeout_s: float) -> None:
 
 
 @scanner.command("scan-swd")
-@click.option("--targetsel", default=None, help="Hex string, e.g. 01002927")
+@click.option(
+    "--targetsel",
+    default=None,
+    help="Legacy hex TARGETSEL argument; scanner discovery is bus-wide.",
+)
 @click.option("--timeout-s", type=float, default=30.0, show_default=True)
 @click.pass_context
 def scanner_scan_swd(ctx: click.Context, targetsel: str | None, timeout_s: float) -> None:

@@ -196,9 +196,11 @@ Current tree health:
   (`pinout_perm_init` / `_next` / `_total`) plus `pinout_scan_jtag`
   (P(8,4) = 1680 candidates, validated by `jtag_idcode_is_valid`)
   and `pinout_scan_swd` (P(8,2) = 56 candidates, validated by
-  `swd_dp_connect` returning `SWD_ACK_OK` with non-zero DPIDR).
-  Shell on CDC2 gains `scan jtag` and `scan swd [<targetsel_hex>]`
-  (default TARGETSEL = `SWD_DP_TARGETSEL_RP2040_CORE0`). The
+  `swd_dp_bus_detect` returning `SWD_ACK_OK` with a coherent, stable
+  DPIDR; no RP2040-only DPIDR allowlist).
+  Shell on CDC2 gains `scan jtag` and `scan swd [<targetsel_hex>]`;
+  the TARGETSEL argument is retained for compatibility while scan
+  discovery itself stays bus-wide. The
   candidate-iteration progress callback in `apps/faultycat_fw/
   main.c::scan_yield_progress` calls `usb_composite_task`,
   `pump_emfi_cdc`, `pump_crowbar_cdc`, `emfi_campaign_tick` and

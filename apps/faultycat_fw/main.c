@@ -162,7 +162,8 @@ static void shell_help(void) {
     shell_print("SHELL:   swd init <swclk_gp> <swdio_gp> [<nrst_gp>]   defaults 0 1 2\n");
     shell_print("SHELL:   swd deinit\n");
     shell_print("SHELL:   swd freq <khz>                               (100..24000)\n");
-    shell_print("SHELL:   swd connect | swd probe                      line reset + DPIDR\n");
+    shell_print("SHELL:   swd connect | swd probe                      TARGETSEL + DPIDR\n");
+    shell_print("SHELL:   swd idcode | swd bus-detect                  wake-up + JTAG-to-SWD + IDCODE\n");
     shell_print("SHELL:   swd read32 <hex_addr>\n");
     shell_print("SHELL:   swd write32 <hex_addr> <hex_val>\n");
     shell_print("SHELL:   swd reset 0|1                                nRST release / assert\n");
@@ -266,13 +267,22 @@ static void cmd_freq(int argc, char **argv) {
 static void cmd_connect(void) {
     if (!ensure_inited()) return;
     uint32_t dpidr = 0u;
-    // Default to RP2040 core 0 — F8 will let the operator choose
-    // a different TARGETID via the shell once jtag_core lands.
     swd_dp_ack_t ack = swd_dp_connect(SWD_DP_TARGETSEL_RP2040_CORE0, &dpidr);
     if (ack == SWD_ACK_OK) {
         shell_printf("SWD: OK connect dpidr=0x%08lX\n", (unsigned long)dpidr);
     } else {
         shell_printf("SWD: ERR connect ack=%s\n", ack_label(ack));
+    }
+}
+
+static void cmd_bus_detect(void) {
+    if (!ensure_inited()) return;
+    uint32_t dpidr = 0u;
+    swd_dp_ack_t ack = swd_dp_bus_detect(&dpidr);
+    if (ack == SWD_ACK_OK) {
+        shell_printf("SWD: OK bus-detect dpidr=0x%08lX\n", (unsigned long)dpidr);
+    } else {
+        shell_printf("SWD: ERR bus-detect ack=%s\n", ack_label(ack));
     }
 }
 
@@ -501,21 +511,19 @@ static void cmd_scan_swd(int argc, char **argv) {
         shell_print("SCAN: ERR swd_in_use (run `swd deinit` first)\n");
         return;
     }
-    uint32_t targetsel = (argc >= 3) ? (uint32_t)strtoul(argv[2], NULL, 16)
-                                     : SWD_DP_TARGETSEL_RP2040_CORE0;
+
     shell_printf("SCAN: starting SWD pinout scan over %u channels "
-               "(P(%u,%u)=%u) targetsel=0x%08lX\n",
+               "(P(%u,%u)=%u) targetsel_compat=0x%08lX\n",
                PINOUT_SCANNER_CHANNELS, PINOUT_SCANNER_CHANNELS,
-               PINOUT_SCANNER_SWD_PINS, PINOUT_SCANNER_SWD_TOTAL,
-               (unsigned long)targetsel);
+               PINOUT_SCANNER_SWD_PINS, PINOUT_SCANNER_SWD_TOTAL);
     pinout_scan_swd_result_t r;
-    bool found = pinout_scan_swd(targetsel, &r, scan_yield_progress);
+    bool found = pinout_scan_swd(&r, scan_yield_progress);
     if (!found) {
         shell_print("SCAN: swd NO_MATCH (no OK DPIDR found)\n");
         return;
     }
     shell_printf("SCAN: swd MATCH swclk=GP%u swdio=GP%u\n", r.swclk, r.swdio);
-    shell_printf("SCAN:   dpidr=0x%08lX targetsel=0x%08lX\n",
+    shell_printf("SCAN:   dpidr=0x%08lX targetsel_compat=0x%08lX\n",
                (unsigned long)r.dpidr, (unsigned long)r.targetsel);
 }
 
@@ -1062,6 +1070,10 @@ static void process_shell_line(char *line) {
     else if (!strcmp(sub, "freq"))    cmd_freq(argc, argv);
     else if (!strcmp(sub, "connect")
           || !strcmp(sub, "probe"))   cmd_connect();
+    else if (!strcmp(sub, "idcode")
+          || !strcmp(sub, "bus-detect")
+          || (!strcmp(sub, "bus") && argc >= 3 && !strcmp(argv[2], "detect")))
+                                      cmd_bus_detect();
     else if (!strcmp(sub, "read32"))  cmd_read32(argc, argv);
     else if (!strcmp(sub, "write32")) cmd_write32(argc, argv);
     else if (!strcmp(sub, "reset"))   cmd_reset(argc, argv);

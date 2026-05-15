@@ -70,8 +70,8 @@ def main() -> None:
     sub.add_parser("jtag")
     swd = sub.add_parser("swd")
     swd.add_argument("--targetsel", default=None,
-                     help="hex SWD multidrop TARGETSEL (defaults to "
-                          "RP2040 CORE0 0x01002927)")
+                     help="legacy hex SWD multidrop TARGETSEL argument; "
+                          "scanner discovery is bus-wide")
 
     args = p.parse_args()
     if args.cmd == "jtag":

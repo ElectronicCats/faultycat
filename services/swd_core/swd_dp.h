@@ -42,26 +42,33 @@ typedef enum {
 #define SWD_ABORT_ORUNERRCLR  (1u << 4)
 
 // SWDv2 multi-drop TARGETID values. RP2040 has two M0+ cores
-// addressable as separate DPs sharing one SWD bus. ADIv5.2 §B5.4
-// makes TARGETSEL mandatory before DPIDR even when only one DP is
-// physically present — RP2040's DPs ignore DPIDR until they see
-// their own TARGETID land in the multi-drop write.
+// addressable as separate DPs sharing one SWD bus; TARGETSEL chooses
+// which DP responds after the dormant-to-SWD wake-up sequence.
 #define SWD_DP_TARGETSEL_RP2040_CORE0  0x01002927u
 #define SWD_DP_TARGETSEL_RP2040_CORE1  0x11002927u
 #define SWD_DP_TARGETSEL_RP2040_RESCUE 0xF1002927u
 
+// SWD wake-up sequence (ADIv5.2 dormant-to-SWD): alert reset,
+// 128-bit selection alert, 4 idle LOW bits, activation code 0x1A.
+void swd_dp_wakeup(void);
+
+// SWJ switch sequence: line reset, JTAG_TO_SWD command 0xE79E,
+// line reset.
+void swd_dp_switch_jtag_to_swd(void);
+
+// Request the SWD IDCODE/DPIDR with request byte 0xA5, then emit
+// 8 idle LOW bits. Returns the ACK from the IDCODE read.
+swd_dp_ack_t swd_dp_request_idcode(uint32_t *out_idcode);
+
+// Generic SWD bus detection. Performs wake-up -> JTAG-to-SWD ->
+// IDCODE request without TARGETSEL, so it can identify any coherent
+// SWD DP on the bus. Used by the brute-force SWD pinout scanner.
+swd_dp_ack_t swd_dp_bus_detect(uint32_t *out_dpidr);
+
 // Initialize DP-layer state. Must be called after swd_phy_init.
-// Performs:
-//   1. dormant-to-SWD wakeup (ADIv5.2 §B5.4 selection alert +
-//      activation code 0x1A) — required because RP2040 boots in
-//      dormant state. Backward-compatible with non-dormant targets.
-//   2. line reset (≥50 SWCLKs SWDIO HIGH).
-//   3. TARGETSEL write of `targetsel` (one of SWD_DP_TARGETSEL_*).
-//      ACK is unacked per multi-drop convention; we clock 3 cycles
-//      and discard the result.
-//   4. DPIDR read.
-// Returns ACK from the DPIDR read. On ACK_OK the DPIDR is written
-// to *out_dpidr and the link is considered established.
+// Performs the targeted dormant-to-SWD + TARGETSEL sequence and then
+// reads DPIDR from the selected DP. On ACK_OK the DPIDR is written
+// to *out_dpidr.
 swd_dp_ack_t swd_dp_connect(uint32_t targetsel, uint32_t *out_dpidr);
 
 // Read DPIDR explicitly (also updates DP_SELECT to bank 0).
@@ -85,3 +92,10 @@ swd_dp_ack_t swd_dp_abort(uint32_t flags);
 // Even-parity helper. Returns 0 if the count of 1 bits in `v` is
 // even, 1 if odd. Exposed for tests.
 uint8_t swd_dp_compute_parity(uint32_t v);
+
+// Coherence check for SWD DP IDCODE/DPIDR values. This is not an
+// RP2040 allowlist: it accepts any non-sentinel value with the
+// architected ID bit set and non-empty designer/version/part fields.
+// Used by the pinout scanner to reject obvious floating-bus noise
+// while still allowing targets other than RP2040.
+bool swd_dp_dpidr_is_valid(uint32_t dpidr);
