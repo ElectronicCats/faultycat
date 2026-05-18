@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 
 from faultycmd.protocols import ScannerClient, ScannerError
+from faultycmd.protocols.scanner import parse_scan_swd_match
 
 
 class FakeShellSerial:
@@ -213,3 +214,35 @@ def test_close_runs_via_context():
     with _client(fake) as cli:
         cli.swd_init()
     assert fake.closed
+
+
+# -- parse_scan_swd_match -----------------------------------------
+
+def test_parse_scan_swd_match_picks_swclk_swdio():
+    lines = [
+        "SCAN: starting SWD pinout scan over 8 channels (P(8,2)=56)",
+        "SCAN: progress 12/56",
+        "SCAN: swd MATCH swclk=GP3 swdio=GP5",
+        "SCAN:   dpidr=0x0BC12477 targetsel_compat=0x01002927",
+    ]
+    assert parse_scan_swd_match(lines) == (3, 5)
+
+
+def test_parse_scan_swd_match_returns_none_on_no_match():
+    lines = [
+        "SCAN: starting SWD pinout scan over 8 channels (P(8,2)=56)",
+        "SCAN: swd NO_MATCH (no OK DPIDR found)",
+    ]
+    assert parse_scan_swd_match(lines) is None
+
+
+def test_parse_scan_swd_match_accepts_split_text_block():
+    # Same scenario but the caller hands us a single text blob
+    # (e.g. the `_run_scanner_task` `_render` output) and split()s
+    # it externally. parse_scan_swd_match takes any iterable of
+    # strings, so a list of split lines must still match.
+    blob = (
+        "SCAN: swd MATCH swclk=GP0 swdio=GP1\n"
+        "SCAN:   dpidr=0x0BC12477 targetsel_compat=0x01002927"
+    )
+    assert parse_scan_swd_match(blob.split("\n")) == (0, 1)

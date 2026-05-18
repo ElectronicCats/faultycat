@@ -24,6 +24,7 @@ have native external clients (OpenOCD, flashrom).
 """
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable, Iterable
 from typing import Protocol
@@ -353,6 +354,33 @@ class ScannerClient:
         return line
 
 
+# Firmware emits the SWD MATCH line as
+#     SCAN: swd MATCH swclk=GP<n> swdio=GP<n>
+# (apps/faultycat_fw/main.c::cmd_scan_swd, F8-2). The companion
+#     SCAN:   dpidr=0x... targetsel_compat=0x...
+# line carries the bus-detection hex but no pin data; the scanner
+# does NOT probe NRST, so the caller is expected to leave NRST
+# unset when re-initialising SWD from a scan result.
+_SCAN_SWD_MATCH_RE = re.compile(
+    r"\bswd\s+MATCH\s+swclk=GP(?P<swclk>\d+)\s+swdio=GP(?P<swdio>\d+)\b",
+    re.IGNORECASE,
+)
+
+
+def parse_scan_swd_match(lines: Iterable[str]) -> tuple[int, int] | None:
+    """Return ``(swclk_gp, swdio_gp)`` if a SWD MATCH line is present
+    in the scan output; ``None`` if NO_MATCH / ERR / unrecognised.
+
+    Accepts the raw list returned by :meth:`ScannerClient.scan_swd`
+    or any iterable of strings (including a single text block split
+    by ``\\n``)."""
+    for line in lines:
+        m = _SCAN_SWD_MATCH_RE.search(line)
+        if m:
+            return int(m.group("swclk")), int(m.group("swdio"))
+    return None
+
+
 def _parse_hex_after(line: str, marker: str) -> int | None:
     """Find ``marker`` in ``line`` and parse the hex token that follows."""
     idx = line.find(marker)
@@ -387,4 +415,5 @@ __all__ = [
     "ACCEPTED_PREFIXES",
     "ScannerClient",
     "ScannerError",
+    "parse_scan_swd_match",
 ]
