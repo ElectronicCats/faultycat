@@ -19,17 +19,32 @@ scripts and the four reference clients under `tools/` with a single
 faultycmd/
 ├── framing.py              CRC16-CCITT + frame builder/parser
 ├── usb.py                  port → CDC mapping helper (udevadm wrapped)
+├── persistence.py          XDG last-config store (one slot per engine:
+│                           emfi / crowbar / campaign / scanner)
 ├── protocols/
 │   ├── emfi.py             F4 emfi_proto client (CDC0)
 │   ├── crowbar.py          F5 crowbar_proto client (CDC1)
 │   ├── campaign.py         F9-4 campaign_proto over CDC0/CDC1
 │   ├── scanner.py          text-shell wrapper over CDC2 (F6 swd /
-│                           F8-1 jtag / F8-2 scan / F8-4 buspirate
-│                           / F8-5 serprog mode-switch)
+│   │                       F8-1 jtag / F8-2 scan / F8-4 buspirate
+│   │                       / F8-5 serprog mode-switch).
+│   │                       Also exports `parse_scan_swd_match` to
+│   │                       extract SWCLK/SWDIO from a `scan swd`
+│   │                       MATCH line.
 │   └── dap.py              pyocd / cmsis-dap wrapper (stub until F7)
 ├── cli.py                  click-based CLI; Rich-rendered output
-└── tui.py                  Textual app (HV / trigger / SWD / campaign
-                            panels; E/C/S/D hotkeys for mode switch)
+├── tui.py                  Textual 2×2 dashboard (EMFI / Crowbar /
+│                           Campaign / Diag-CDC2). Hotkeys: q r c s
+│                           e b p n.
+└── tui_modals.py           Modal screens — one per engine:
+                            • EmfiControlModal       (hotkey e)
+                            • CrowbarControlModal    (hotkey b)
+                            • CampaignControlModal   (hotkey p)
+                            • ScannerControlModal    (hotkey n)
+                            • HvConfirmModal         (gates EMFI arm)
+                            • SwdInitFromScanModal   (post scan-swd
+                              follow-up: pre-fills detected SWCLK /
+                              SWDIO + asks for NRST, default GP0)
 ```
 
 ## Quick start

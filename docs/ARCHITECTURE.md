@@ -376,20 +376,37 @@ changed.
 ```
 faultycmd.framing               — CRC16-CCITT helper + frame builder
 faultycmd.usb                   — port → CDC mapping (udevadm helper)
+faultycmd.persistence           — XDG last-config store, one slot per
+                                  engine: emfi / crowbar / campaign /
+                                  scanner
 faultycmd.protocols.emfi        — F4 emfi_proto client (CDC0)
 faultycmd.protocols.crowbar     — F5 crowbar_proto client (CDC1)
 faultycmd.protocols.campaign    — F9-4 campaign_proto over CDC0/CDC1
 faultycmd.protocols.scanner     — text-shell wrapper over CDC2
                                   (consolidates F6 swd / F8-1 jtag /
                                    F8-2 scan / F8-4 buspirate / F8-5
-                                   serprog mode-switch helpers)
+                                   serprog mode-switch helpers).
+                                  Also exports `parse_scan_swd_match`
+                                  to extract SWCLK/SWDIO from a
+                                  successful `scan swd` MATCH line.
 faultycmd.protocols.dap         — pyocd / cmsis-dap thin wrapper
                                   (stub until F7 daplink_usb lands)
 faultycmd.cli                   — click-based CLI; Rich-rendered
                                   output (tables, progress bars,
-                                  status panels)
-faultycmd.tui                   — Textual app (HV / trigger / SWD /
-                                  campaign panels + E/C/S/D hotkeys)
+                                  status panels). `scanner scan-swd`
+                                  prompts the operator for `swd init`
+                                  + NRST after a MATCH (suppressed
+                                  with --no-init or scripted with
+                                  --init --nrst <pin>|none).
+faultycmd.tui                   — Textual 4-panel dashboard (EMFI /
+                                  Crowbar / Campaign / Diag-CDC2).
+                                  Hotkeys: q r c s e b p n. Modal
+                                  control surfaces live in
+                                  faultycmd.tui_modals (one per
+                                  engine + HV confirm + post-scan
+                                  init prompt; see host tool README
+                                  §Scanner / SWD modal for the
+                                  wizard layout).
 ```
 
 A campaign manager streams (delay, width, power) sweeps with SWD
