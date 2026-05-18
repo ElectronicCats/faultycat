@@ -90,6 +90,9 @@ class HvConfirmModal(ModalScreen[bool]):
 
     BINDINGS = [
         Binding("escape", "decide(False)", "no"),
+        # `q` dismisses-as-No so the operator can q-q out of the
+        # app even when this HV confirm is on top.
+        Binding("q", "decide(False)", "no"),
     ]
 
     default_decision = False
@@ -147,6 +150,11 @@ class EmfiControlModal(ModalScreen[None]):
 
     BINDINGS = [
         Binding("escape", "close", "close"),
+        # `q` also closes the modal so the operator can press q-q
+        # to fully quit the app (first q dismisses any open modal,
+        # second q reaches App.action_quit). Without this, modals
+        # swallow `q` and the dashboard feels frozen.
+        Binding("q", "close", "close"),
     ]
 
     def __init__(
@@ -382,6 +390,11 @@ class CampaignControlModal(ModalScreen[None]):
 
     BINDINGS = [
         Binding("escape", "close", "close"),
+        # `q` also closes the modal so the operator can press q-q
+        # to fully quit the app (first q dismisses any open modal,
+        # second q reaches App.action_quit). Without this, modals
+        # swallow `q` and the dashboard feels frozen.
+        Binding("q", "close", "close"),
     ]
 
     def __init__(
@@ -565,6 +578,11 @@ class CrowbarControlModal(ModalScreen[None]):
 
     BINDINGS = [
         Binding("escape", "close", "close"),
+        # `q` also closes the modal so the operator can press q-q
+        # to fully quit the app (first q dismisses any open modal,
+        # second q reaches App.action_quit). Without this, modals
+        # swallow `q` and the dashboard feels frozen.
+        Binding("q", "close", "close"),
     ]
 
     def __init__(

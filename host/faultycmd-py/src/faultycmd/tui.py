@@ -361,6 +361,12 @@ class FaultycmdTUI(App[None]):
         self._stop_workers = threading.Event()
         self._poll_threads: list[threading.Thread] = []
         self._last_config = LastConfig()
+        # Set during quit/unmount so background workers (in
+        # particular the scanner task) skip re-opening CDC ports and
+        # re-spawning poll threads — otherwise those daemon threads
+        # outlive the asyncio loop and either spam RuntimeError or
+        # keep the process from exiting cleanly.
+        self._closing = False
 
     # -- compose ------------------------------------------------------
 
@@ -534,6 +540,207 @@ class FaultycmdTUI(App[None]):
 
     def _note_error(self, msg: str) -> None:
         self.notify(msg, severity="warning", timeout=2)
+
+    def _run_scanner_task(self, scanner_fn, *args, result_cb=None, **kwargs):
+        """Run a scanner command in a background thread while temporarily
+        dropping the CDC2 diag tail so the scanner shell can own the
+        port for the duration of the call. ``result_cb(text)`` is invoked
+        on the UI thread with the rendered output; if omitted, the
+        result is shown in a :class:`ScannerResultModal` popup.
+        """
+        self._stop_workers.set()
+        for t in self._poll_threads:
+            t.join(timeout=1.0)
+        self.conn.close()
+
+        def _render(result) -> str:
+            if isinstance(result, tuple):
+                line, extra = result
+                if extra is not None:
+                    return f"{line}\nExtra: 0x{extra:08X}"
+                return line
+            if isinstance(result, list):
+                return "\n".join(result)
+            return str(result)
+
+        def _default_show(text: str) -> None:
+            self.push_screen(ScannerResultModal(text))
+
+        show_cb = result_cb if result_cb is not None else _default_show
+
+        def worker():
+            try:
+                with ScannerClient.discover() as scanner:
+                    result = scanner_fn(scanner, *args, **kwargs)
+            except Exception as e:
+                err = str(e)
+                if not self._closing:
+                    try:
+                        self.call_from_thread(
+                            lambda: self.notify(
+                                f"Scanner error: {err}", severity="error"
+                            )
+                        )
+                    except RuntimeError:
+                        pass
+            else:
+                if not self._closing:
+                    text = _render(result)
+                    try:
+                        self.call_from_thread(lambda: show_cb(text))
+                    except RuntimeError:
+                        pass
+            finally:
+                # If the app is on its way out, skip the re-open +
+                # respawn — those daemon threads would outlive the
+                # asyncio loop's shutdown and keep the process from
+                # exiting cleanly.
+                if not self._closing:
+                    self.conn.open()
+                    if self.conn.last_error:
+                        err = self.conn.last_error
+                        try:
+                            self.call_from_thread(
+                                lambda: self.notify(err, severity="error")
+                            )
+                        except RuntimeError:
+                            pass
+                    else:
+                        self._spawn_workers()
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def action_open_scanner_modal(self) -> None:
+        """F11-0d: opens the Scanner / SWD control modal. Every callback
+        is wrapped in `_run_scanner_task` so the CDC2 diag tail is
+        paused while the scanner shell client owns the port. Results
+        land in the modal's own status line, not a popup."""
+        initial = ScannerFormState.from_dict(self._last_config.load("scanner"))
+
+        # `modal` is captured by late-binding so callbacks resolve it
+        # only after `push_screen` returns.
+        modal: ScannerControlModal
+
+        def _show_in_modal(text: str) -> None:
+            modal._set_status(text)
+
+        def _save() -> None:
+            self._last_config.save("scanner", modal.state.to_dict())
+
+        def _on_init(swclk: int, swdio: int, nrst: int | None) -> None:
+            _save()
+            self._run_scanner_task(
+                lambda s: s.swd_init(swclk, swdio, nrst),
+                result_cb=_show_in_modal,
+            )
+
+        def _on_deinit() -> None:
+            self._run_scanner_task(
+                lambda s: s.swd_deinit(),
+                result_cb=_show_in_modal,
+            )
+
+        def _on_freq(khz: int) -> None:
+            _save()
+            self._run_scanner_task(
+                lambda s: s.swd_freq(khz),
+                result_cb=_show_in_modal,
+            )
+
+        def _on_idcode() -> None:
+            self._run_scanner_task(
+                lambda s: s.swd_idcode(),
+                result_cb=_show_in_modal,
+            )
+
+        def _on_connect() -> None:
+            self._run_scanner_task(
+                lambda s: s.swd_connect(),
+                result_cb=_show_in_modal,
+            )
+
+        def _on_read32(addr: int) -> None:
+            _save()
+            self._run_scanner_task(
+                lambda s: s.swd_read32(addr),
+                result_cb=_show_in_modal,
+            )
+
+        def _on_write32(addr: int, value: int) -> None:
+            _save()
+            self._run_scanner_task(
+                lambda s: s.swd_write32(addr, value),
+                result_cb=_show_in_modal,
+            )
+
+        def _on_reset() -> None:
+            def _pulse(s):
+                # Active-LOW pulse: assert → 50 ms → deassert. Return
+                # the last OK line so the operator sees the deassert
+                # confirmation in the status field.
+                s.swd_reset(True)
+                time.sleep(0.05)
+                return s.swd_reset(False)
+            self._run_scanner_task(_pulse, result_cb=_show_in_modal)
+
+        def _on_scan_swd() -> None:
+            def _after_scan(text: str) -> None:
+                # Show the raw scan output in the modal status line
+                # first, then offer a follow-up "init with detected
+                # pins?" confirm if a MATCH was found.
+                _show_in_modal(text)
+                detected = parse_scan_swd_match(text.split("\n"))
+                if detected is None:
+                    return
+                swclk, swdio = detected
+
+                def _decision(result: tuple | None) -> None:
+                    # Dismiss payload from SwdInitFromScanModal is
+                    # ``(accept, nrst)`` — nrst is an int or None
+                    # depending on what the operator typed.
+                    if not result:
+                        return
+                    accept, nrst = result
+                    if not accept:
+                        return
+                    # Reflect the detected pins (and operator's
+                    # chosen NRST) in the modal state + persisted
+                    # last-config so the Init page reads the right
+                    # values next time the operator opens it.
+                    modal.state.swclk = swclk
+                    modal.state.swdio = swdio
+                    modal.state.nrst  = nrst
+                    _save()
+                    self._run_scanner_task(
+                        lambda s: s.swd_init(swclk, swdio, nrst),
+                        result_cb=_show_in_modal,
+                    )
+
+                self.push_screen(
+                    SwdInitFromScanModal(
+                        swclk=swclk, swdio=swdio, default_nrst=0,
+                    ),
+                    callback=_decision,
+                )
+
+            self._run_scanner_task(
+                lambda s: s.scan_swd(timeout_s=30.0),
+                result_cb=_after_scan,
+            )
+
+        modal = ScannerControlModal(
+            initial=initial,
+            init_cb=_on_init,
+            deinit_cb=_on_deinit,
+            freq_cb=_on_freq,
+            idcode_cb=_on_idcode,
+            connect_cb=_on_connect,
+            read32_cb=_on_read32,
+            write32_cb=_on_write32,
+            reset_cb=_on_reset,
+            scan_swd_cb=_on_scan_swd,
+        )
+        self.push_screen(modal)
 
     # -- hotkeys ------------------------------------------------------
 
@@ -764,6 +971,48 @@ class FaultycmdTUI(App[None]):
             drain_cb=_on_drain,
         )
         self.push_screen(modal)
+
+
+class ScannerResultModal(ModalScreen[None]):
+    """Modal to show scanner command output."""
+    DEFAULT_CSS = """
+    ScannerResultModal > Vertical {
+        background: $panel;
+        border: thick $accent;
+        padding: 1 2;
+        width: 80;
+        height: auto;
+    }
+    ScannerResultModal Static { width: 100%; height: auto; }
+    ScannerResultModal Button { margin: 1 0; }
+    """
+
+    BINDINGS = [
+        Binding("escape", "close", "close"),
+        # `q` closes this result popup too so q-q reaches App.quit
+        # in any state.
+        Binding("q", "close", "close"),
+    ]
+
+    def __init__(self, result: str | list[str]) -> None:
+        super().__init__()
+        if isinstance(result, list):
+            self.text = "\n".join(result)
+        else:
+            self.text = result
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("Scanner result")
+            yield Static(self.text, id="output")
+            yield Button("Accept", id="accept", variant="primary")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "accept":
+            self.action_close()
+
+    def action_close(self) -> None:
+        self.dismiss(None)
 
 
 # -----------------------------------------------------------------------------
