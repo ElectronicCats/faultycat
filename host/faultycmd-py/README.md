@@ -60,16 +60,69 @@ faultycmd campaign configure --engine crowbar \
     --delay 1000:3000:1000 --width 200:300:100 --power 1
 faultycmd campaign start
 faultycmd campaign watch
-faultycmd scanner swd-init 0 1 2
+
+# Scanner (CDC2 shell) — interactive: scan + offer to init
+faultycmd scanner scan-swd                # asks Y/n + NRST after MATCH
+faultycmd scanner scan-swd --init --nrst 0   # non-interactive (scripts)
+faultycmd scanner scan-swd --no-init      # just scan, never init
+faultycmd scanner swd-init 0 1 2          # manual init
 faultycmd scanner swd-idcode
 
 # Run the TUI
 faultycmd tui
 ```
 
+### TUI hotkeys
+
+| Key | Action |
+|-----|--------|
+| `q` | quit (also closes the active modal first if one is open) |
+| `r` | reconnect (drop + reopen the 4 CDCs — handy after re-flashing) |
+| `c` | clear the campaign live log |
+| `s` | stop the running sweep (express; no modal) |
+| `e` | EMFI control modal (configure / arm / fire / disarm / capture) |
+| `b` | crowBar control modal (configure / arm / fire / disarm) |
+| `p` | camPaign control modal (full sweep params + start / stop / drain) |
+| `n` | scanNer / SWD control modal (see below) |
+
+### Scanner / SWD modal (`n`)
+
+Two-step wizard:
+
+1. **Menu page** — 5×2 grid of action buttons:
+   `Init` · `Deinit` · `Freq` · `IDCODE` · `Connect` ·
+   `Read32` · `Write32` · `Reset` · `Scan SWD` · `Close`.
+2. **Per-action page** — only the inputs that action needs (or a
+   short "no parameters" notice), plus `Aceptar` (dispatches) and
+   `Atrás` (back to menu). Results land in the modal's own status
+   line; the diag tail on CDC2 is paused for the duration of the
+   call and reinstated automatically.
+
+Pin defaults mirror `drivers/include/board_v2.h`:
+`SWCLK=GP0`, `SWDIO=GP1`, `NRST=GP0` (editable; blank = no NRST).
+The last-applied values per engine persist under
+`$XDG_CONFIG_HOME/faultycmd/last_config.json`.
+
+After a successful `Scan SWD`, a follow-up `SwdInitFromScanModal`
+pops up showing the detected SWCLK / SWDIO plus an editable NRST
+field (default GP0). `Aceptar` runs `swd init` with those pins;
+`Cerrar` skips the init.
+
 ## Status
 
-F10 is in active development — sub-phases F10-1..F10-7 land
-incrementally on `rewrite/v3`. See the project's main
-`FAULTYCAT_REFACTOR_PLAN.md §F10` and `.claude/skills/
-faultycat-fase-actual/SKILL.md` for the current state.
+F10 closed `v3.0-f10` (2026-04-29). F11-0 (TUI complete control
+surface) is in active development — sub-fases F11-0a..k land
+incrementally on `rewrite/v3`. Progress as of this checkpoint:
+
+| Sub-fase | Subject | State |
+|----------|---------|-------|
+| F11-0a | EMFI control modal + HV confirm + capture autosave | ✓ |
+| F11-0b | Crowbar control modal + SharedSerial CDC1 race fix | ✓ |
+| F11-0c | Campaign control modal (engine=crowbar MVP) | ✓ |
+| F11-0d | Scanner / SWD control modal + post-scan init prompt | ✓ MVP |
+| F11-0e..k | Target UART panel, reflash, help, ownership, hardening, docs+tag | pending |
+
+See the project's main
+[`FAULTYCAT_REFACTOR_PLAN.md`](../../FAULTYCAT_REFACTOR_PLAN.md)
+`§F11` and `.claude/skills/faultycat-fase-actual/SKILL.md` for the
+authoritative roadmap and current state.

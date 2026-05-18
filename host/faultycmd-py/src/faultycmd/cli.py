@@ -37,6 +37,7 @@ from .protocols import (
 )
 from .protocols.crowbar import CrowbarOutput, CrowbarTrigger
 from .protocols.emfi import EmfiTrigger
+from .protocols.scanner import parse_scan_swd_match
 from .usb import discover
 
 console = Console()
@@ -613,11 +614,88 @@ def scanner_scan_jtag(ctx: click.Context, timeout_s: float) -> None:
     help="Legacy hex TARGETSEL argument; scanner discovery is bus-wide.",
 )
 @click.option("--timeout-s", type=float, default=30.0, show_default=True)
+@click.option(
+    "--init/--no-init",
+    "init_after",
+    default=None,
+    help="Skip the interactive prompt: --init runs `swd init` automatically "
+         "after a successful scan; --no-init suppresses it.",
+)
+@click.option(
+    "--nrst",
+    "nrst_arg",
+    type=str,
+    default=None,
+    help="NRST pin to pass to swd_init when --init runs. Bypasses the "
+         "interactive NRST prompt. Use 'none' (or '-') to skip NRST. "
+         "Defaults to the prompt (which itself defaults to GP0).",
+)
 @click.pass_context
-def scanner_scan_swd(ctx: click.Context, targetsel: str | None, timeout_s: float) -> None:
+def scanner_scan_swd(
+    ctx: click.Context,
+    targetsel: str | None,
+    timeout_s: float,
+    init_after: bool | None,
+    nrst_arg: str | None,
+) -> None:
     with _scanner_client(ctx) as cli:
-        cli.scan_swd(targetsel_hex=targetsel, timeout_s=timeout_s,
-                     on_progress=console.print)
+        lines = cli.scan_swd(
+            targetsel_hex=targetsel, timeout_s=timeout_s,
+            on_progress=console.print,
+        )
+        detected = parse_scan_swd_match(lines)
+        if detected is None:
+            return
+        swclk, swdio = detected
+        console.print(
+            f"\n[green]Detected SWD pins[/green]: "
+            f"SWCLK=GP{swclk}, SWDIO=GP{swdio}"
+        )
+        console.print(
+            "[dim]NRST was not auto-detected; defaulting to GP0 "
+            "(override at the prompt or with --nrst).[/dim]"
+        )
+        if init_after is None:
+            do_init = click.confirm(
+                "Initialize SWD with these pins?", default=True
+            )
+        else:
+            do_init = init_after
+        if not do_init:
+            console.print("[dim]swd init skipped.[/dim]")
+            return
+        nrst = _resolve_nrst_for_init(nrst_arg)
+        line = cli.swd_init(swclk, swdio, nrst)
+        console.print(line)
+
+
+def _resolve_nrst_for_init(nrst_arg: str | None) -> int | None:
+    """Resolve the NRST pin for a post-scan ``swd init``.
+
+    * ``nrst_arg`` provided on the CLI: parse it (``'none'`` / ``'-'``
+      / empty → ``None``); int otherwise. Invalid → error and treat
+      as ``None`` to avoid blocking the init.
+    * Otherwise interactively prompt; default is ``'0'``; blank /
+      ``'none'`` / ``'-'`` → ``None``.
+    """
+    def _parse(raw: str) -> int | None:
+        token = raw.strip().lower()
+        if token in ("", "-", "none"):
+            return None
+        try:
+            return int(token, 0)
+        except ValueError:
+            console.print(
+                f"[red]invalid NRST '{raw}', leaving unset[/red]"
+            )
+            return None
+
+    if nrst_arg is not None:
+        return _parse(nrst_arg)
+    raw = click.prompt(
+        "NRST pin (blank/'-' for none)", default="0", show_default=True,
+    )
+    return _parse(raw)
 
 
 # -----------------------------------------------------------------------------
