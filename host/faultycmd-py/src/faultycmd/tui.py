@@ -7,7 +7,7 @@ Four-panel 2×2 grid + hotkeys footer:
     ├─────────────────────────┼─────────────────────────┤
     │ Campaign live (CDC1)    │ Diag snapshot (CDC2)    │
     └─────────────────────────┴─────────────────────────┘
-       q quit · r reconnect · c clear · s stop sweep · e/b/p control modals
+       q quit · r reconnect · c clear · s stop sweep · e/b/p/n control modals
 
 Each panel polls independently:
 
@@ -26,15 +26,18 @@ Hotkeys:
     e   — open EMFI control modal (configure/arm/fire/disarm + capture)
     b   — open crowBar control modal (configure/arm/fire/disarm)
     p   — open camPaign control modal (full sweep params + start/stop/drain)
+    n   — open scanNer/SWD control modal (init/deinit/freq/idcode/connect/
+          read32/write32/reset + scan-swd, all over the CDC2 shell)
 
 CDC ownership during a TUI session:
     CDC0 is held by EMFI panel.
     CDC1 is held by Crowbar + Campaign panels (shared Serial).
-    CDC2 is held read-only by Diag panel — the operator should
-        NOT run `faultycmd scanner ...` or open picocom against
-        CDC2 simultaneously, or both readers will fight for bytes.
-        Use the CLI in a separate terminal session instead, after
-        quitting the TUI.
+    CDC2 is held read-only by the Diag panel; when the Scanner modal
+        dispatches a command, the diag tail is paused, the scanner
+        shell client owns CDC2 for the call, and the diag tail is
+        reinstated afterwards. The operator should NOT run
+        `faultycmd scanner ...` or open picocom against CDC2 from a
+        second terminal while the TUI is up.
 """
 from __future__ import annotations
 
@@ -46,9 +49,10 @@ from dataclasses import dataclass
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Grid
+from textual.containers import Grid, Vertical
 from textual.reactive import reactive
-from textual.widgets import Footer, Header, Static
+from textual.screen import ModalScreen
+from textual.widgets import Button, Footer, Header, Label, Static
 
 from .persistence import LastConfig
 from .protocols import (
@@ -58,10 +62,12 @@ from .protocols import (
     EmfiClient,
     EngineError,
     ProtocolError,
+    ScannerClient,
 )
 from .protocols.campaign import CampaignState
 from .protocols.crowbar import CrowbarOutput, CrowbarTrigger
 from .protocols.emfi import EmfiTrigger
+from .protocols.scanner import parse_scan_swd_match
 from .tui_modals import (
     CampaignControlModal,
     CampaignFormState,
@@ -70,6 +76,9 @@ from .tui_modals import (
     EmfiControlModal,
     EmfiFormState,
     HvConfirmModal,
+    ScannerControlModal,
+    ScannerFormState,
+    SwdInitFromScanModal,
 )
 from .usb import PortDiscoveryError, cdc_for
 
@@ -345,6 +354,7 @@ class FaultycmdTUI(App[None]):
         Binding("e", "open_emfi_modal", "EMFI control"),
         Binding("b", "open_crowbar_modal", "crowBar control"),
         Binding("p", "open_campaign_modal", "camPaign control"),
+        Binding("n", "open_scanner_modal", "scanner/SWD control"),
     ]
 
     title = "faultycmd — FaultyCat v3 dashboard"
@@ -393,6 +403,10 @@ class FaultycmdTUI(App[None]):
         self._spawn_workers()
 
     def on_unmount(self) -> None:
+        # Mark closing BEFORE setting the stop event so any worker
+        # racing past `_stop_workers.is_set()` still sees the close
+        # flag in its `finally`.
+        self._closing = True
         self._stop_workers.set()
         for t in self._poll_threads:
             t.join(timeout=1.0)
