@@ -143,6 +143,34 @@ swd_dp_ack_t swd_dp_read_dpidr(uint32_t *out) {
     return swd_dp_read(SWD_DP_ADDR_DPIDR, out);
 }
 
+swd_dp_ack_t swd_dp_power_up(uint32_t max_retries) {
+    // Default poll budget. At 1 MHz SWCLK each round-trip is roughly
+    // a few microseconds, so 1000 retries ≈ a handful of ms — long
+    // enough for any well-behaved DP to ack, short enough to fail
+    // fast on a gated power domain or a dead bus.
+    if (max_retries == 0u) max_retries = 1000u;
+
+    // 1. Clear sticky errors so a stale STKERR / WDERR from a prior
+    //    aborted transfer doesn't block the upcoming CTRL/STAT write.
+    swd_dp_ack_t ack = swd_dp_abort(SWD_ABORT_ALL_STKY_CLR);
+    if (ack != SWD_ACK_OK) return ack;
+
+    // 2. Request system + debug power-up.
+    ack = swd_dp_write(SWD_DP_ADDR_CTRLSTAT, SWD_CTRLSTAT_PWRUP_REQ);
+    if (ack != SWD_ACK_OK) return ack;
+
+    // 3. Poll CTRL/STAT until both ACKs come up.
+    uint32_t value = 0u;
+    for (uint32_t i = 0u; i < max_retries; ++i) {
+        ack = swd_dp_read(SWD_DP_ADDR_CTRLSTAT, &value);
+        if (ack != SWD_ACK_OK) return ack;
+        if ((value & SWD_CTRLSTAT_PWRUP_ACK) == SWD_CTRLSTAT_PWRUP_ACK) {
+            return SWD_ACK_OK;
+        }
+    }
+    return SWD_ACK_WAIT;
+}
+
 void swd_dp_wakeup(void) {
     // ADIv5.2 dormant-to-SWD wake-up sequence. swd_phy_write_bits()
     // shifts LSB-first on the wire, so these 32-bit words are the
@@ -240,24 +268,27 @@ static void targetsel_write(uint32_t targetsel) {
 }
 
 swd_dp_ack_t swd_dp_connect(uint32_t targetsel, uint32_t *out_dpidr) {
+
+    swd_dp_abort(SWD_ABORT_DAPABORT);
+    
     // Targeted SWDv2 connect for multi-drop-capable DPs (RP2040 is
     // the board-local reason this exists). This restores the original
     // flow: force a known state, wake dormant SWD, issue TARGETSEL,
     // then read DPIDR from the selected DP.
-    for (int i = 0; i < 7; i++) {
-        swd_phy_write_bits(8u, 0xffu);
-    }
+    // for (int i = 0; i < 7; i++) {
+    //    swd_phy_write_bits(8u, 0xffu);
+    // }
 
     // JTAG-to-dormant select, 39 bits, LSB-first 0x33bbbbba.
-    swd_phy_write_bits(32u, 0x33bbbbbau);
-    swd_phy_write_bits(7u,  0x00u);
+    // swd_phy_write_bits(32u, 0x33bbbbbau);
+    // swd_phy_write_bits(7u,  0x00u);
 
-    send_byte_stream(s_dormant_to_swd, (uint32_t)sizeof(s_dormant_to_swd));
+    // send_byte_stream(s_dormant_to_swd, (uint32_t)sizeof(s_dormant_to_swd));
 
-    for (int i = 0; i < 7; i++) {
-        swd_phy_write_bits(8u, 0xffu);
-    }
+    // for (int i = 0; i < 7; i++) {
+    //    swd_phy_write_bits(8u, 0xffu);
+    // }
 
-    targetsel_write(targetsel);
+    // targetsel_write(targetsel);
     return swd_dp_read_dpidr(out_dpidr);
 }

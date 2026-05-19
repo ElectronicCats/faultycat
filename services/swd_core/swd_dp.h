@@ -41,6 +41,27 @@ typedef enum {
 #define SWD_ABORT_WDERRCLR    (1u << 3)
 #define SWD_ABORT_ORUNERRCLR  (1u << 4)
 
+// All sticky-error CLR bits ORed together (everything in ABORT except
+// DAPABORT, which would cancel any AP transaction in flight). Used by
+// swd_dp_power_up() to wipe the slate before requesting power-up.
+#define SWD_ABORT_ALL_STKY_CLR ( \
+    SWD_ABORT_STKCMPCLR  |       \
+    SWD_ABORT_STKERRCLR  |       \
+    SWD_ABORT_WDERRCLR   |       \
+    SWD_ABORT_ORUNERRCLR)
+
+// DP CTRL/STAT (ADIv5 §B2.2.2). Only the power-up request/ack bits we
+// actually use are defined here; the rest of the register lives in the
+// spec.
+#define SWD_CTRLSTAT_CDBGPWRUPREQ   (1u << 28)
+#define SWD_CTRLSTAT_CDBGPWRUPACK   (1u << 29)
+#define SWD_CTRLSTAT_CSYSPWRUPREQ   (1u << 30)
+#define SWD_CTRLSTAT_CSYSPWRUPACK   (1u << 31)
+#define SWD_CTRLSTAT_PWRUP_REQ      ( \
+    SWD_CTRLSTAT_CDBGPWRUPREQ | SWD_CTRLSTAT_CSYSPWRUPREQ)
+#define SWD_CTRLSTAT_PWRUP_ACK      ( \
+    SWD_CTRLSTAT_CDBGPWRUPACK | SWD_CTRLSTAT_CSYSPWRUPACK)
+
 // SWDv2 multi-drop TARGETID values. RP2040 has two M0+ cores
 // addressable as separate DPs sharing one SWD bus; TARGETSEL chooses
 // which DP responds after the dormant-to-SWD wake-up sequence.
@@ -88,6 +109,29 @@ swd_dp_ack_t swd_dp_ap_write(uint8_t bank_addr, uint32_t val);
 // ABORT register write — clears sticky errors. Always succeeds at
 // the wire level (CMSIS-DAP treats ABORT specially).
 swd_dp_ack_t swd_dp_abort(uint32_t flags);
+
+// Clear sticky errors + request system & debug power-up, then poll
+// CTRL/STAT until both CSYSPWRUPACK and CDBGPWRUPACK are set.
+//
+// Standard ADIv5 first-contact sequence after `swd_dp_connect()` /
+// `swd_dp_bus_detect()` reports OK. Must be called before any AP
+// transaction (MEM-AP read32 / write32, scanning, etc.); without
+// power-up the AP returns FAULT / WAIT or pure zeroes.
+//
+// Returns:
+//   SWD_ACK_OK              — both power-up ACKs observed within the
+//                             retry budget.
+//   SWD_ACK_WAIT            — target never set the ACK bits before
+//                             `max_retries` exhausted (treat as a
+//                             timeout — power domain may be gated
+//                             off / target unresponsive).
+//   any other ack_t value   — propagated verbatim from the failing
+//                             swd_dp_write / swd_dp_read; sticky
+//                             state was not reached.
+//
+// `max_retries` of 0 falls back to a sensible default (~1000 polls,
+// ~ a few ms at 1 MHz SWCLK).
+swd_dp_ack_t swd_dp_power_up(uint32_t max_retries);
 
 // Even-parity helper. Returns 0 if the count of 1 bits in `v` is
 // even, 1 if odd. Exposed for tests.

@@ -370,6 +370,147 @@ static void test_connect_propagates_no_target(void) {
     TEST_ASSERT_EQUAL_HEX32(0xDEADu, dpidr);
 }
 
+// -----------------------------------------------------------------------------
+// swd_dp_power_up — clear sticky errors + request system & debug
+// power-up + poll CTRL/STAT until both ACK bits are set.
+//
+// Wire sequence (per call):
+//   1× write to ABORT  (1 ack on the wire)
+//   1× write to CTRLSTAT (1 ack)
+//   N× read  from CTRLSTAT (each = 1 ack + 32-bit data + 1-bit parity)
+// -----------------------------------------------------------------------------
+
+// Push the wire fixtures for a single CTRL/STAT read returning `value`.
+static void push_ctrlstat_read(uint32_t value) {
+    push_ack(SWD_ACK_OK);
+    push_data32(value);
+    push_parity(swd_dp_compute_parity(value));
+}
+
+static void test_power_up_acks_on_first_poll_returns_ok(void) {
+    push_ack(SWD_ACK_OK);                       // abort
+    push_ack(SWD_ACK_OK);                       // write CTRLSTAT
+    push_ctrlstat_read(SWD_CTRLSTAT_PWRUP_ACK); // first poll already up
+    TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_power_up(0));
+}
+
+static void test_power_up_waits_until_both_acks_are_set(void) {
+    // First few polls return only CDBGPWRUPACK (missing the system
+    // one) — power_up must keep polling until CSYSPWRUPACK shows up
+    // too, then return OK.
+    push_ack(SWD_ACK_OK);
+    push_ack(SWD_ACK_OK);
+    push_ctrlstat_read(0u);                         // poll 1: nothing
+    push_ctrlstat_read(SWD_CTRLSTAT_CDBGPWRUPACK);  // poll 2: half
+    push_ctrlstat_read(SWD_CTRLSTAT_PWRUP_ACK);     // poll 3: full
+    TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_power_up(0));
+}
+
+static void test_power_up_times_out_returns_wait(void) {
+    // 5 polls all returning 0 → power_up must give up and return WAIT
+    // (loop budget is per-call: pass max_retries=5).
+    push_ack(SWD_ACK_OK);
+    push_ack(SWD_ACK_OK);
+    for (uint32_t i = 0u; i < 5u; ++i) push_ctrlstat_read(0u);
+    TEST_ASSERT_EQUAL(SWD_ACK_WAIT, swd_dp_power_up(5u));
+}
+
+static void test_power_up_propagates_abort_failure(void) {
+    // ABORT write FAULTs → power_up returns the FAULT verbatim and
+    // never issues the CTRLSTAT request (nothing else is queued).
+    push_ack(SWD_ACK_FAULT);
+    TEST_ASSERT_EQUAL(SWD_ACK_FAULT, swd_dp_power_up(0));
+}
+
+static void test_power_up_propagates_ctrlstat_write_failure(void) {
+    push_ack(SWD_ACK_OK);     // abort OK
+    push_ack(SWD_ACK_WAIT);   // CTRLSTAT write WAITs
+    TEST_ASSERT_EQUAL(SWD_ACK_WAIT, swd_dp_power_up(0));
+}
+
+static void test_power_up_propagates_ctrlstat_read_failure(void) {
+    push_ack(SWD_ACK_OK);     // abort OK
+    push_ack(SWD_ACK_OK);     // CTRLSTAT write OK
+    push_ack(SWD_ACK_FAULT);  // first poll FAULTs
+    TEST_ASSERT_EQUAL(SWD_ACK_FAULT, swd_dp_power_up(0));
+}
+
+static void test_power_up_writes_pwrup_req_to_ctrlstat(void) {
+    push_ack(SWD_ACK_OK);                        // abort
+    push_ack(SWD_ACK_OK);                        // write CTRLSTAT
+    push_ctrlstat_read(SWD_CTRLSTAT_PWRUP_ACK);  // poll OK
+    TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_power_up(0));
+
+    // Scan the TX FIFO for the 32-bit data word that follows the
+    // CTRLSTAT write request (request byte = 0xA9, write to addr 4).
+    // The expected payload is SWD_CTRLSTAT_PWRUP_REQ = 0x50000000,
+    // XOR-inverted by swd_phy_write_bits for OD emulation.
+    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    bool found_request = false;
+    bool found_payload = false;
+    for (uint32_t i = 0u; i + 1u < sm->tx_count; ++i) {
+        if (cmd_count(sm->tx_fifo[i]) == 8u
+            && (uint8_t)sm->tx_fifo[i + 1u] == OD_INV8(0xA9u)) {
+            found_request = true;
+            // The 32-bit data word lives at the next count==32 entry
+            // after this request.
+            for (uint32_t j = i + 2u; j + 1u < sm->tx_count; ++j) {
+                if (cmd_count(sm->tx_fifo[j]) == 32u) {
+                    TEST_ASSERT_EQUAL_HEX32(
+                        OD_INV32(SWD_CTRLSTAT_PWRUP_REQ),
+                        sm->tx_fifo[j + 1u]);
+                    found_payload = true;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    TEST_ASSERT_TRUE(found_request);
+    TEST_ASSERT_TRUE(found_payload);
+}
+
+static void test_power_up_writes_sticky_clear_to_abort(void) {
+    push_ack(SWD_ACK_OK);                        // abort
+    push_ack(SWD_ACK_OK);                        // write CTRLSTAT
+    push_ctrlstat_read(SWD_CTRLSTAT_PWRUP_ACK);  // poll OK
+    TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_power_up(0));
+
+    // ABORT write request byte = 0x81 (addr 0, write). Look for the
+    // first 8-bit TX entry that matches that byte and check the 32-
+    // bit payload that follows is SWD_ABORT_ALL_STKY_CLR (0x1E).
+    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    bool found_payload = false;
+    for (uint32_t i = 0u; i + 1u < sm->tx_count; ++i) {
+        if (cmd_count(sm->tx_fifo[i]) == 8u
+            && (uint8_t)sm->tx_fifo[i + 1u] == OD_INV8(0x81u)) {
+            for (uint32_t j = i + 2u; j + 1u < sm->tx_count; ++j) {
+                if (cmd_count(sm->tx_fifo[j]) == 32u) {
+                    TEST_ASSERT_EQUAL_HEX32(
+                        OD_INV32(SWD_ABORT_ALL_STKY_CLR),
+                        sm->tx_fifo[j + 1u]);
+                    found_payload = true;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    TEST_ASSERT_TRUE(found_payload);
+}
+
+static void test_power_up_default_retry_budget_when_max_retries_zero(void) {
+    // Passing 0 must fall back to the internal default (~1000).
+    // Queue 1000 zero polls; if the default is honoured the function
+    // returns WAIT and consumes them all. We only assert WAIT here —
+    // confirming the exact default value would over-fit to an
+    // implementation detail.
+    push_ack(SWD_ACK_OK);
+    push_ack(SWD_ACK_OK);
+    for (uint32_t i = 0u; i < 1000u; ++i) push_ctrlstat_read(0u);
+    TEST_ASSERT_EQUAL(SWD_ACK_WAIT, swd_dp_power_up(0));
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_parity_of_zero_is_zero);
@@ -394,5 +535,14 @@ int main(void) {
     RUN_TEST(test_bus_detect_returns_ok_with_dpidr);
     RUN_TEST(test_connect_returns_ok_with_dpidr_after_targetsel);
     RUN_TEST(test_connect_propagates_no_target);
+    RUN_TEST(test_power_up_acks_on_first_poll_returns_ok);
+    RUN_TEST(test_power_up_waits_until_both_acks_are_set);
+    RUN_TEST(test_power_up_times_out_returns_wait);
+    RUN_TEST(test_power_up_propagates_abort_failure);
+    RUN_TEST(test_power_up_propagates_ctrlstat_write_failure);
+    RUN_TEST(test_power_up_propagates_ctrlstat_read_failure);
+    RUN_TEST(test_power_up_writes_pwrup_req_to_ctrlstat);
+    RUN_TEST(test_power_up_writes_sticky_clear_to_abort);
+    RUN_TEST(test_power_up_default_retry_budget_when_max_retries_zero);
     return UNITY_END();
 }
