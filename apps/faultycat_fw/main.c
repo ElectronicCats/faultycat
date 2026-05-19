@@ -48,6 +48,15 @@
 #define SNAPSHOT_PERIOD_MS       500u
 #define EMFI_MANUAL_WIDTH_US     5u
 
+// F11 release: the JTAG sub-shell + direct-SWD sub-shell + `scan jtag`
+// are WIP and hidden from the public surface (see `shell_help` and
+// `process_shell_line` / `process_scan_subcmd`). Their cmd_* helpers
+// are still compiled in — v3.1 simply re-wires the dispatcher — but
+// without dispatcher entries the compiler treats them as unused, which
+// becomes a hard error under `-Wunused-function -Werror`. Mark them
+// `FW_WIP_UNUSED` so they survive the cut without warnings.
+#define FW_WIP_UNUSED  __attribute__((unused))
+
 // Shell input modes — F8-3 introduced the dispatcher, F8-4 plugs in
 // the BusPirate binary parser, F8-5 will plug in serprog. While in a
 // binary mode we route every CDC2 byte through the corresponding
@@ -104,9 +113,9 @@ static void diag_banner(void) {
     diag_printf(" CROWBAR      : controlled via CDC1 (crowbar_proto)\n");
     diag_printf("                — `tools/crowbar_client.py ping` to verify\n");
     diag_printf(" EMFI         : controlled via CDC0 (emfi_proto)\n");
-    diag_printf(" SWD          : line-buffered shell on this CDC (CDC2)\n");
-    diag_printf(" JTAG         : `jtag <subcmd>` on this CDC (CDC2)\n");
+    diag_printf(" SCANNER      : line-buffered shell on this CDC (CDC2)\n");
     diag_printf("                type `?` for the command list\n");
+    diag_printf("                (JTAG / direct-SWD verbs: WIP, hidden)\n");
     diag_printf(" Snapshot every %u ms.\n\n", SNAPSHOT_PERIOD_MS);
 }
 
@@ -158,24 +167,7 @@ static void shell_printf(const char *fmt, ...) {
 static void shell_help(void) {
     shell_print("SHELL: commands —\n");
     shell_print("SHELL:   ? | help\n");
-    shell_print("SHELL: --- SWD (F6) ---\n");
-    shell_print("SHELL:   swd init <swclk_gp> <swdio_gp> [<nrst_gp>]   defaults 0 1 2\n");
-    shell_print("SHELL:   swd deinit\n");
-    shell_print("SHELL:   swd freq <khz>                               (100..24000)\n");
-    shell_print("SHELL:   swd connect | swd probe                      TARGETSEL + DPIDR\n");
-    shell_print("SHELL:   swd idcode | swd bus-detect                  wake-up + JTAG-to-SWD + IDCODE\n");
-    shell_print("SHELL:   swd read32 <hex_addr>\n");
-    shell_print("SHELL:   swd write32 <hex_addr> <hex_val>\n");
-    shell_print("SHELL:   swd reset 0|1                                nRST release / assert\n");
-    shell_print("SHELL: --- JTAG (F8-1) ---\n");
-    shell_print("SHELL:   jtag init <tdi_gp> <tdo_gp> <tms_gp> <tck_gp> [<trst_gp>]\n");
-    shell_print("SHELL:   jtag deinit\n");
-    shell_print("SHELL:   jtag reset                                   TAP → Run-Test/Idle\n");
-    shell_print("SHELL:   jtag trst                                    pulse TRST low ~1 ms\n");
-    shell_print("SHELL:   jtag chain                                   detect # of TAPs\n");
-    shell_print("SHELL:   jtag idcode                                  read IDCODE chain\n");
-    shell_print("SHELL: --- Pinout scan (F8-2) ---\n");
-    shell_print("SHELL:   scan jtag                                    P(8,4)=1680 perms\n");
+    shell_print("SHELL: --- Pinout scan ---\n");
     shell_print("SHELL:   scan swd  [<targetsel_hex>]                  P(8,2)=56 perms\n");
     shell_print("SHELL: --- Campaign (F9) ---\n");
     shell_print("SHELL:   campaign status                              show state + counters\n");
@@ -187,11 +179,11 @@ static void shell_help(void) {
     shell_print("SHELL:                                                defaults: 0 1 2 3, exit with 0x0F\n");
     shell_print("SHELL:   serprog enter [<cs> <mosi> <miso> <sck>]     flashrom serprog (F8-5)\n");
     shell_print("SHELL:                                                defaults: 0 1 2 3, exit on host disconnect\n");
-    shell_print("SHELL: NOTE: SWD and JTAG share scanner pins (GP0..GP7) — only one\n");
-    shell_print("SHELL:       may be inited at a time. F9 lifts this to a real mutex.\n");
+    shell_print("SHELL: NOTE: JTAG and direct-SWD verbs (jtag *, swd *, scan jtag) are\n");
+    shell_print("SHELL:       WIP and disabled in this release — they will respond `ERR wip`.\n");
 }
 
-static const char *ack_label(swd_dp_ack_t a) {
+static FW_WIP_UNUSED const char *ack_label(swd_dp_ack_t a) {
     switch (a) {
         case SWD_ACK_OK:           return "OK";
         case SWD_ACK_WAIT:         return "WAIT";
@@ -205,7 +197,7 @@ static const char *ack_label(swd_dp_ack_t a) {
 // Lazy-init: any swd_* command that needs the phy auto-inits with
 // the scanner-header defaults if the operator hasn't called
 // `swd init` yet. Saves typing in the common case.
-static bool ensure_inited(void) {
+static FW_WIP_UNUSED bool ensure_inited(void) {
     if (swd_shell_inited) return true;
     if (!swd_phy_init(BOARD_GP_SWCLK_DEFAULT,
                       BOARD_GP_SWDIO_DEFAULT,
@@ -217,7 +209,7 @@ static bool ensure_inited(void) {
     return true;
 }
 
-static void cmd_init(int argc, char **argv) {
+static FW_WIP_UNUSED void cmd_init(int argc, char **argv) {
     // F8-1 soft-lock: SWD and JTAG share GP0..GP7. Refuse SWD init
     // while JTAG owns the bus instead of silently corrupting both.
     if (jtag_is_inited()) {
@@ -243,7 +235,7 @@ static void cmd_init(int argc, char **argv) {
                swclk, swdio, nrst);
 }
 
-static void cmd_deinit(void) {
+static FW_WIP_UNUSED void cmd_deinit(void) {
     if (!swd_shell_inited) {
         shell_print("SWD: OK deinit (was already idle)\n");
         return;
@@ -253,7 +245,7 @@ static void cmd_deinit(void) {
     shell_print("SWD: OK deinit\n");
 }
 
-static void cmd_freq(int argc, char **argv) {
+static FW_WIP_UNUSED void cmd_freq(int argc, char **argv) {
     if (argc < 3) {
         shell_print("SWD: ERR missing_khz\n");
         return;
@@ -264,7 +256,7 @@ static void cmd_freq(int argc, char **argv) {
     shell_printf("SWD: OK freq %u khz (clamped to range if needed)\n", khz);
 }
 
-static void cmd_connect(void) {
+static FW_WIP_UNUSED void cmd_connect(void) {
     if (!ensure_inited()) return;
     uint32_t dpidr = 0u;
     swd_dp_ack_t ack = swd_dp_connect(SWD_DP_TARGETSEL_RP2040_CORE0, &dpidr);
@@ -275,7 +267,7 @@ static void cmd_connect(void) {
     }
 }
 
-static void cmd_bus_detect(void) {
+static FW_WIP_UNUSED void cmd_bus_detect(void) {
     if (!ensure_inited()) return;
     uint32_t dpidr = 0u;
     swd_dp_ack_t ack = swd_dp_bus_detect(&dpidr);
@@ -286,7 +278,7 @@ static void cmd_bus_detect(void) {
     }
 }
 
-static void cmd_read32(int argc, char **argv) {
+static FW_WIP_UNUSED void cmd_read32(int argc, char **argv) {
     if (argc < 3) {
         shell_print("SWD: ERR missing_addr\n");
         return;
@@ -308,7 +300,7 @@ static void cmd_read32(int argc, char **argv) {
     }
 }
 
-static void cmd_write32(int argc, char **argv) {
+static FW_WIP_UNUSED void cmd_write32(int argc, char **argv) {
     if (argc < 4) {
         shell_print("SWD: ERR missing_addr_or_val\n");
         return;
@@ -330,7 +322,7 @@ static void cmd_write32(int argc, char **argv) {
     }
 }
 
-static void cmd_reset(int argc, char **argv) {
+static FW_WIP_UNUSED void cmd_reset(int argc, char **argv) {
     if (argc < 3) {
         shell_print("SWD: ERR missing_state\n");
         return;
@@ -350,7 +342,7 @@ static void cmd_reset(int argc, char **argv) {
 // SWD vs JTAG replies on the shared CDC2 stream.
 // -----------------------------------------------------------------------------
 
-static void cmd_jtag_init(int argc, char **argv) {
+static FW_WIP_UNUSED void cmd_jtag_init(int argc, char **argv) {
     if (swd_shell_inited) {
         shell_print("JTAG: ERR swd_in_use (run `swd deinit` first)\n");
         return;
@@ -376,7 +368,7 @@ static void cmd_jtag_init(int argc, char **argv) {
                p.tdi, p.tdo, p.tms, p.tck, p.trst);
 }
 
-static void cmd_jtag_deinit(void) {
+static FW_WIP_UNUSED void cmd_jtag_deinit(void) {
     if (!jtag_is_inited()) {
         shell_print("JTAG: OK deinit (was already idle)\n");
         return;
@@ -385,7 +377,7 @@ static void cmd_jtag_deinit(void) {
     shell_print("JTAG: OK deinit\n");
 }
 
-static void cmd_jtag_reset(void) {
+static FW_WIP_UNUSED void cmd_jtag_reset(void) {
     if (!jtag_is_inited()) {
         shell_print("JTAG: ERR not_inited (run `jtag init ...` first)\n");
         return;
@@ -394,7 +386,7 @@ static void cmd_jtag_reset(void) {
     shell_print("JTAG: OK reset (TAP → Run-Test/Idle)\n");
 }
 
-static void cmd_jtag_trst(void) {
+static FW_WIP_UNUSED void cmd_jtag_trst(void) {
     if (!jtag_is_inited()) {
         shell_print("JTAG: ERR not_inited\n");
         return;
@@ -403,7 +395,7 @@ static void cmd_jtag_trst(void) {
     shell_print("JTAG: OK trst pulse (no-op if no TRST)\n");
 }
 
-static void cmd_jtag_chain(void) {
+static FW_WIP_UNUSED void cmd_jtag_chain(void) {
     if (!jtag_is_inited()) {
         shell_print("JTAG: ERR not_inited\n");
         return;
@@ -412,7 +404,7 @@ static void cmd_jtag_chain(void) {
     shell_printf("JTAG: OK chain devices=%u\n", (unsigned)n);
 }
 
-static void cmd_jtag_idcode(void) {
+static FW_WIP_UNUSED void cmd_jtag_idcode(void) {
     if (!jtag_is_inited()) {
         shell_print("JTAG: ERR not_inited\n");
         return;
@@ -477,7 +469,7 @@ static void scan_yield_progress(uint32_t cur, uint32_t total) {
     }
 }
 
-static void cmd_scan_jtag(void) {
+static FW_WIP_UNUSED void cmd_scan_jtag(void) {
     if (jtag_is_inited()) {
         shell_print("SCAN: ERR jtag_in_use (run `jtag deinit` first)\n");
         return;
@@ -529,13 +521,18 @@ static void cmd_scan_swd(int argc, char **argv) {
 
 static void process_scan_subcmd(int argc, char **argv) {
     if (argc < 2) {
-        shell_print("SCAN: ERR scan needs subcommand: jtag | swd\n");
+        shell_print("SCAN: ERR scan needs subcommand: swd\n");
         return;
     }
     const char *sub = argv[1];
-    if      (!strcmp(sub, "jtag")) cmd_scan_jtag();
-    else if (!strcmp(sub, "swd"))  cmd_scan_swd(argc, argv);
-    else {
+    if      (!strcmp(sub, "swd"))  cmd_scan_swd(argc, argv);
+    else if (!strcmp(sub, "jtag")) {
+        // F11 release: `scan jtag` is WIP and hidden from the public
+        // surface. The implementation (cmd_scan_jtag + service_jtag +
+        // service_pinout_scanner) is still compiled in; v3.1 will
+        // re-expose it once the JTAG path is validated end-to-end.
+        shell_print("SCAN: ERR wip (scan jtag not available in this release)\n");
+    } else {
         shell_printf("SCAN: ERR unknown_subcmd: %s (try `?`)\n", sub);
     }
 }
@@ -1001,7 +998,7 @@ static void process_campaign_subcmd(int argc, char **argv) {
     }
 }
 
-static void process_jtag_subcmd(int argc, char **argv) {
+static FW_WIP_UNUSED void process_jtag_subcmd(int argc, char **argv) {
     if (argc < 2) {
         shell_print("JTAG: ERR jtag needs subcommand (try `?`)\n");
         return;
@@ -1036,10 +1033,6 @@ static void process_shell_line(char *line) {
         shell_help();
         return;
     }
-    if (!strcmp(argv[0], "jtag")) {
-        process_jtag_subcmd(argc, argv);
-        return;
-    }
     if (!strcmp(argv[0], "scan")) {
         process_scan_subcmd(argc, argv);
         return;
@@ -1056,30 +1049,21 @@ static void process_shell_line(char *line) {
         process_serprog_subcmd(argc, argv);
         return;
     }
-    if (strcmp(argv[0], "swd") != 0) {
-        shell_printf("SHELL: ERR unknown_cmd: %s (try `?`)\n", argv[0]);
+    // F11 release: the JTAG sub-shell and the direct-SWD sub-shell are
+    // WIP and hidden from the public surface. The cmd_* implementations
+    // + service_jtag + service_swd stay compiled in (so v3.1 can re-
+    // expose them without re-writing anything), but the dispatcher
+    // refuses both verbs with a stable `ERR wip` reply that the host
+    // tooling can recognise.
+    if (!strcmp(argv[0], "jtag")) {
+        shell_print("JTAG: ERR wip (not available in this release)\n");
         return;
     }
-    if (argc < 2) {
-        shell_print("SWD: ERR swd needs subcommand (try `?`)\n");
+    if (!strcmp(argv[0], "swd")) {
+        shell_print("SWD: ERR wip (not available in this release)\n");
         return;
     }
-    const char *sub = argv[1];
-    if      (!strcmp(sub, "init"))    cmd_init(argc, argv);
-    else if (!strcmp(sub, "deinit"))  cmd_deinit();
-    else if (!strcmp(sub, "freq"))    cmd_freq(argc, argv);
-    else if (!strcmp(sub, "connect")
-          || !strcmp(sub, "probe"))   cmd_connect();
-    else if (!strcmp(sub, "idcode")
-          || !strcmp(sub, "bus-detect")
-          || (!strcmp(sub, "bus") && argc >= 3 && !strcmp(argv[2], "detect")))
-                                      cmd_bus_detect();
-    else if (!strcmp(sub, "read32"))  cmd_read32(argc, argv);
-    else if (!strcmp(sub, "write32")) cmd_write32(argc, argv);
-    else if (!strcmp(sub, "reset"))   cmd_reset(argc, argv);
-    else {
-        shell_printf("SWD: ERR unknown_subcmd: %s (try `?`)\n", sub);
-    }
+    shell_printf("SHELL: ERR unknown_cmd: %s (try `?`)\n", argv[0]);
 }
 
 static void pump_shell_cdc(void) {
