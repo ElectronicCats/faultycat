@@ -286,7 +286,7 @@ def crowbar_status(ctx: click.Context) -> None:
               default="immediate", show_default=True)
 @click.option("--output", "output_str",
               type=click.Choice(["lp", "hp"]), default="hp", show_default=True,
-              help="lp = low-power gate (GP16), hp = N-MOSFET (GP17, real glitch).")
+              help="lp = low-power gate (GP17), hp = N-MOSFET (GP16, real glitch).")
 @click.option("--delay-us", type=int, default=0, show_default=True)
 @click.option("--width-ns", type=int, default=200, show_default=True,
               help="8..50000 ns (driver-bounded).")

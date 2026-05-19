@@ -567,7 +567,7 @@ class CrowbarControlModal(ModalScreen[None]):
     """Crowbar configure / arm / fire / disarm.
 
     Unlike EMFI, no action involves the HV cap — the crowbar gates
-    pre-existing rails through GP16 (LP, logic-level) or GP17 (HP,
+    pre-existing rails through GP17 (LP, logic-level) or GP16 (HP,
     N-MOSFET). No HV confirm modal is interposed; `requires_hv_confirm`
     is False for every action."""
 

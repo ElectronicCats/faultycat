@@ -38,8 +38,8 @@ Authoritative sources used for this map:
 | GP10 | —               | LED "STATUS"                     | `ui_leds`         | **NOT** a scanner channel. Used by the F0 blink. Physically confirmed on v2.2, 2026-04-23. |
 | GP11 | —               | BTN "PULSE"                      | `ui_buttons`      | active-low, pullup + input-invert |
 | GP14 | HVPULSE         | EMFI HV pulse out (PIO-driven)   | `emfi_pulse`      | **HV domain — see §3** |
-| GP16 | LPGLITCH2       | Crowbar low-power path           | `crowbar_mosfet`  | |
-| GP17 | HPGLITCH2       | Crowbar N-MOSFET gate (IRLML0060)| `crowbar_mosfet`  | **the real voltage glitch path** |
+| GP16 | HPGLITCH2       | Crowbar N-MOSFET gate (IRLML0060)| `crowbar_mosfet`  | **the real voltage glitch path** |
+| GP17 | LPGLITCH2       | Crowbar low-power path           | `crowbar_mosfet`  | |
 | GP18 | CHARGED         | HV feedback "charged" (act-low)  | `hv_charger`      | **HV domain** |
 | GP20 | HVPWM           | HV flyback PWM ~2.5 kHz          | `hv_charger`      | **HV domain** |
 | GP25 | —               | NOT CONNECTED on v2.x            | —                 | legacy `board_config.h` has `PIN_LED_STATUS = 25` — that is a Pico-module relic; the v2.x PCB wires RP2040 directly and GP25 goes nowhere. Do not use. |
@@ -137,7 +137,7 @@ HV driver lands.)
   **collides** with `PIN_LED_CHARGE_ON = 27`. On v2.x, GP27 is the
   charge-on LED (confirmed by the maintainer on 2026-04-23). The
   legacy constant is a stale upstream faultier relic; v3 does not port
-  `PIN_EXT1` at all. Crowbar uses GP17 (`HPGLITCH2`).
+  `PIN_EXT1` at all. Crowbar uses GP16 (`HPGLITCH2`).
 - `firmware/c/board_config.h` has `PIN_LED_STATUS = 25`, but on v2.x
   **GP25 is not connected to anything** — the Pico-module assumption
   is stale (FaultyCat v2.x uses bare RP2040). The real STATUS LED is

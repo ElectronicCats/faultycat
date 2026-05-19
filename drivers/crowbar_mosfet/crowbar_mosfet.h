@@ -6,8 +6,8 @@
 //
 // v2.x exposes two possible glitch paths; software chooses one by
 // driving the corresponding gate HIGH:
-//   * LP (GP16) — low-power shorting path (auxiliary crowbar / bleed)
-//   * HP (GP17) — main N-MOSFET (IRLML0060) — the real voltage glitch
+//   * LP (GP17) — low-power shorting path (auxiliary crowbar / bleed)
+//   * HP (GP16) — main N-MOSFET (IRLML0060) — the real voltage glitch
 //
 // There is NO hardware multiplexer on v2.2 — the driver just asserts
 // or de-asserts each gate pin. HV is applied elsewhere
@@ -31,8 +31,8 @@ typedef enum {
     CROWBAR_PATH_HP   = 2,  // high-power path (N-MOSFET)
 } crowbar_path_t;
 
-// Configure GP16 and GP17 as outputs, both LOW. Must be called
-// before any other function. Safe to call more than once.
+// Configure GP17 (LP) and GP16 (HP) as outputs, both LOW. Must be
+// called before any other function. Safe to call more than once.
 void crowbar_mosfet_init(void);
 
 // Select which path (if any) is active. Break-before-make: if

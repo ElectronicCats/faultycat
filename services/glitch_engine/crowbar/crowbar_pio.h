@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 // services/glitch_engine/crowbar/crowbar_pio — compiled PIO program
-// that drives ONE crowbar gate (LP on GP16 or HP on GP17) after an
+// that drives ONE crowbar gate (LP on GP17 or HP on GP16) after an
 // optional external trigger and a configurable delay. The selected
 // gate is pulled HIGH for `width_ns`, then LOW, then IRQ 1 fires.
 //

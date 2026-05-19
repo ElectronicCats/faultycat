@@ -44,8 +44,8 @@ class CrowbarOutput(IntEnum):
     """``crowbar_out_t`` — selects which gate the PIO drives."""
 
     NONE = 0
-    LP   = 1   # GP16 — low-power path
-    HP   = 2   # GP17 — N-MOSFET (real voltage glitch)
+    LP   = 1   # GP17 — low-power path
+    HP   = 2   # GP16 — N-MOSFET (real voltage glitch)
 
 
 class CrowbarState(IntEnum):

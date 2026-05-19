@@ -4,7 +4,7 @@
 //
 // The plan §3 reserves this slot for a voltage multiplexer IC, but
 // the v2.2 PCB has no such component (confirmed by the maintainer on
-// 2026-04-23). The two crowbar paths (LP on GP16, HP on GP17) are
+// 2026-04-23). The two crowbar paths (LP on GP17, HP on GP16) are
 // selected by software through drivers/crowbar_mosfet, not by an
 // analog mux.
 //

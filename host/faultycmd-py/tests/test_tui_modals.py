@@ -234,8 +234,8 @@ def test_crowbar_modal_construction_prefills():
 
 
 def test_crowbar_modal_no_action_requires_hv_confirm():
-    """Crowbar does NOT involve the HV cap (it gates either GP16
-    LP path or GP17 N-MOSFET on already-present rails). Unlike
+    """Crowbar does NOT involve the HV cap (it gates either GP17
+    LP path or GP16 N-MOSFET on already-present rails). Unlike
     EMFI, no action requires the HV confirm modal."""
     m = CrowbarControlModal(initial=CrowbarFormState())
     for action in ("apply", "arm", "fire", "disarm", "capture"):

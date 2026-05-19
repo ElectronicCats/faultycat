@@ -10,8 +10,8 @@ pattern that `hextreeio/faultier` uses on its own hardware.
 FaultyCat HW v2.2 has **no voltage mux** component. The two crowbar
 paths available in firmware —
 
-- `LP` (low-power path, GP16)
-- `HP` (N-MOSFET real voltage-glitch path, GP17)
+- `LP` (low-power path, GP17)
+- `HP` (N-MOSFET real voltage-glitch path, GP16)
 
 — are selected by software toggling the respective gate GPIO through
 `drivers/crowbar_mosfet`. There is no analog switch between paths and

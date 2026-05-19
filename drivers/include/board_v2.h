@@ -62,8 +62,12 @@
 // the low-power path and the real N-MOSFET path; there is NO hardware
 // multiplexer on v2.x (confirmed by maintainer 2026-04-23).
 // -----------------------------------------------------------------------------
-#define BOARD_GP_CROWBAR_LP         16u  // low-power shorting path
-#define BOARD_GP_CROWBAR_HP         17u  // IRLML0060 N-MOSFET gate (REAL glitch)
+// Pin assignment matches HW v2.x silkscreen (verified on the
+// physical board): HPGLITCH2 net routes to GP16 and LPGLITCH2 to
+// GP17. An earlier revision of this header had the two swapped;
+// fixed 2026-05-19 after operator validation on v2.2.
+#define BOARD_GP_CROWBAR_HP         16u  // IRLML0060 N-MOSFET gate (REAL glitch)
+#define BOARD_GP_CROWBAR_LP         17u  // low-power shorting path
 
 // -----------------------------------------------------------------------------
 // EMFI pulse (PIO-driven HV pulse out) — HV DOMAIN

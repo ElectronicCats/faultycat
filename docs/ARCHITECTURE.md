@@ -326,7 +326,7 @@ compatible — existing EMFI / crowbar configures are unaffected.
 │    target_monitor (ADC ch3 / GP29, direct, no divider)          ✓ F2a        │
 │    scanner_io     (GP0..GP7, 8 channels)                        ✓ F2a        │
 │    ext_trigger    (GP8 + pull config)                           ✓ F2a        │
-│    crowbar_mosfet (GP16 LP / GP17 HP + break-before-make)       ✓ F2b        │
+│    crowbar_mosfet (GP17 LP / GP16 HP + break-before-make)       ✓ F2b        │
 │    voltage_mux    (stub — no HW mux on v2.x)                    ✓ F2b        │
 │    hv_charger     (GP20 PWM flyback + GP18 CHARGED, 60s auto)   ✓ F2b SIGNED │
 │    emfi_pulse     (GP14 HV pulse, CPU-timed manual)             ✓ F2b SIGNED │

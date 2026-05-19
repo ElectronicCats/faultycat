@@ -95,7 +95,7 @@ by the host tests. Breaking any of them is a safety bug.
    accident — callers must explicitly opt in with `auto_disarm_ms =
    0` and a corresponding `Safety-justification` line).
 3. `crowbar_mosfet` guarantees break-before-make: no steady state
-   has both LP (GP16) and HP (GP17) gates HIGH simultaneously.
+   has both LP (GP17) and HP (GP16) gates HIGH simultaneously.
 4. The glitch-fire path in `services/glitch_engine` (F5) takes
    ownership of the MOSFET gate for the pulse duration only. Before
    and after the fire window, `crowbar_mosfet` owns the gate state.
