@@ -1,15 +1,20 @@
 """CDC2 text-shell wrapper.
 
 Consolidates ``tools/{swd,jtag,scanner}_diag.py`` into one client.
-The CDC2 shell hosts F6 SWD + F8-1 JTAG + F8-2 pinout scanner +
-F8-3 unified menu + F8-4 BusPirate entry + F8-5 serprog entry +
-F9-3 campaign demo, all line-buffered text. Replies are
-prefix-tagged so the client can demux:
+The CDC2 shell hosts F8-2 pinout scanner (``scan swd``) +
+F8-4 BusPirate entry + F8-5 serprog entry + F9-3 campaign demo,
+all line-buffered text. The F6 SWD sub-shell and F8-1 JTAG
+sub-shell + ``scan jtag`` are WIP and hidden from this release's
+public surface; the firmware responds with ``ERR wip`` on those
+verbs (see ``apps/faultycat_fw/main.c``). The Python wrappers for
+those WIP verbs survive as underscored methods (``_swd_*`` /
+``_jtag_*`` / ``_scan_jtag``) so the v3.1 unblock can re-expose
+them without re-writing the layer. Reply prefixes:
 
     SHELL:    top-level help / unknown command
-    SWD:      F6 swd_* commands
-    JTAG:     F8-1 jtag_* commands
-    SCAN:     F8-2 scan jtag / scan swd
+    SWD:      F6 swd_* commands (WIP — internal use only)
+    JTAG:     F8-1 jtag_* commands (WIP — internal use only)
+    SCAN:     F8-2 ``scan swd`` (public); ``scan jtag`` (WIP/internal)
     BPIRATE:  F8-4 binary-mode entry confirmation
     SERPROG:  F8-5 binary-mode entry confirmation
     CAMPAIGN: F9-3 demo crowbar + status + drain + stop
@@ -209,23 +214,29 @@ class ScannerClient:
             return out
         raise TimeoutError(f"no shell reply for {line!r}")
 
-    # -- SWD (F6) ----------------------------------------------------
+    # -- SWD (F6) — WIP, hidden from public surface (F11). The shell
+    #    verb itself responds `SWD: ERR wip ...` in this release, so
+    #    these wrappers stay as scaffolding for the v3.1 unblock
+    #    (HW gate F6 + CMSIS-DAP path F7). Names are underscored so
+    #    they don't show up via tab-completion or `dir(client)` as
+    #    if they were stable API.
+    # ---------------------------------------------------------------
 
-    def swd_init(self, swclk_gp: int = 0, swdio_gp: int = 1,
-                 nrst_gp: int | None = 2) -> str:
+    def _swd_init(self, swclk_gp: int = 0, swdio_gp: int = 1,
+                  nrst_gp: int | None = 2) -> str:
         if nrst_gp is None:
             cmd = f"swd init {swclk_gp} {swdio_gp}"
         else:
             cmd = f"swd init {swclk_gp} {swdio_gp} {nrst_gp}"
         return self._expect_ok("SWD:", cmd)
 
-    def swd_deinit(self) -> str:
+    def _swd_deinit(self) -> str:
         return self._expect_ok("SWD:", "swd deinit")
 
-    def swd_freq(self, khz: int) -> str:
+    def _swd_freq(self, khz: int) -> str:
         return self._expect_ok("SWD:", f"swd freq {khz}")
 
-    def swd_idcode(self) -> tuple[str, int | None]:
+    def _swd_idcode(self) -> tuple[str, int | None]:
         """Run generic SWD bus detection without TARGETSEL.
 
         The firmware prints the SWD IDCODE using the historical
@@ -234,26 +245,26 @@ class ScannerClient:
         line = self.send_line("swd idcode", accept_prefixes=("SWD:",))
         return line, _parse_hex_after(line, "dpidr=")
 
-    def swd_connect(self) -> tuple[str, int | None]:
+    def _swd_connect(self) -> tuple[str, int | None]:
         """Run firmware's targeted TARGETSEL connect path."""
         line = self.send_line("swd connect", accept_prefixes=("SWD:",))
         return line, _parse_hex_after(line, "dpidr=")
 
-    def swd_read32(self, addr: int) -> tuple[str, int | None]:
+    def _swd_read32(self, addr: int) -> tuple[str, int | None]:
         line = self.send_line(f"swd read32 0x{addr:08X}", accept_prefixes=("SWD:",))
         return line, _parse_hex_after(line, "]=")
 
-    def swd_write32(self, addr: int, value: int) -> str:
+    def _swd_write32(self, addr: int, value: int) -> str:
         return self._expect_ok(
             "SWD:", f"swd write32 0x{addr:08X} 0x{value:08X}"
         )
 
-    def swd_reset(self, asserted: bool) -> str:
+    def _swd_reset(self, asserted: bool) -> str:
         return self._expect_ok("SWD:", f"swd reset {1 if asserted else 0}")
 
-    # -- JTAG (F8-1) -------------------------------------------------
+    # -- JTAG (F8-1) — WIP, hidden from public surface (F11). ---------
 
-    def jtag_init(
+    def _jtag_init(
         self, tdi: int, tdo: int, tms: int, tck: int,
         trst: int | None = None,
     ) -> str:
@@ -262,20 +273,20 @@ class ScannerClient:
             parts.append(str(trst))
         return self._expect_ok("JTAG:", " ".join(parts))
 
-    def jtag_deinit(self) -> str:
+    def _jtag_deinit(self) -> str:
         return self._expect_ok("JTAG:", "jtag deinit")
 
-    def jtag_reset(self) -> str:
+    def _jtag_reset(self) -> str:
         return self._expect_ok("JTAG:", "jtag reset")
 
-    def jtag_trst(self) -> str:
+    def _jtag_trst(self) -> str:
         return self._expect_ok("JTAG:", "jtag trst")
 
-    def jtag_chain(self) -> tuple[str, int | None]:
+    def _jtag_chain(self) -> tuple[str, int | None]:
         line = self.send_line("jtag chain", accept_prefixes=("JTAG:",))
         return line, _parse_int_after(line, "devices=")
 
-    def jtag_idcode(self) -> list[str]:
+    def _jtag_idcode(self) -> list[str]:
         """Returns every JTAG: line emitted by the multi-line response.
 
         First line is ``JTAG: OK idcodes count=N``; the next N lines
@@ -288,9 +299,11 @@ class ScannerClient:
             timeout=5.0,
         )
 
-    # -- SCAN (F8-2) -------------------------------------------------
+    # -- SCAN — `scan jtag` is WIP (hidden); `scan swd` is the only
+    #    public scanner verb in this release.
+    # ---------------------------------------------------------------
 
-    def scan_jtag(
+    def _scan_jtag(
         self,
         timeout_s: float = 30.0,
         on_progress: Callable[[str], None] | None = None,

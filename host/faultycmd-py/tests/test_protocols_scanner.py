@@ -76,7 +76,7 @@ def test_swd_init_ok():
     fake = FakeShellSerial()
     fake.queue_lines("SWD: OK init swclk=GP0 swdio=GP1 nrst=2")
     with _client(fake) as cli:
-        line = cli.swd_init(0, 1, 2)
+        line = cli._swd_init(0, 1, 2)
     assert "OK init" in line
 
 
@@ -84,7 +84,7 @@ def test_swd_connect_parses_dpidr():
     fake = FakeShellSerial()
     fake.queue_lines("SWD: OK connect dpidr=0x2BA01477")
     with _client(fake) as cli:
-        line, dpidr = cli.swd_connect()
+        line, dpidr = cli._swd_connect()
     assert dpidr == 0x2BA01477
     assert b"swd connect\r\n" in bytes(fake.written)
 
@@ -93,7 +93,7 @@ def test_swd_idcode_parses_dpidr_and_uses_new_command():
     fake = FakeShellSerial()
     fake.queue_lines("SWD: OK bus-detect dpidr=0x0BC12477")  # RP2040 is just one example.
     with _client(fake) as cli:
-        line, dpidr = cli.swd_idcode()
+        line, dpidr = cli._swd_idcode()
     assert "OK bus-detect" in line
     assert dpidr == 0x0BC12477
     assert b"swd idcode\r\n" in bytes(fake.written)
@@ -103,7 +103,7 @@ def test_swd_read32_parses_value():
     fake = FakeShellSerial()
     fake.queue_lines("SWD: OK read32 [0x20000000]=0xDEADBEEF")
     with _client(fake) as cli:
-        line, value = cli.swd_read32(0x20000000)
+        line, value = cli._swd_read32(0x20000000)
     assert value == 0xDEADBEEF
 
 
@@ -111,7 +111,7 @@ def test_swd_err_raises():
     fake = FakeShellSerial()
     fake.queue_lines("SWD: ERR phy_init_failed")
     with _client(fake) as cli, pytest.raises(ScannerError) as ei:
-        cli.swd_init()
+        cli._swd_init()
     assert "phy_init_failed" in ei.value.line
 
 
@@ -121,7 +121,7 @@ def test_jtag_init_with_trst():
     fake = FakeShellSerial()
     fake.queue_lines("JTAG: OK init tdi=GP0 tdo=GP1 tms=GP2 tck=GP3 trst=4")
     with _client(fake) as cli:
-        cli.jtag_init(0, 1, 2, 3, 4)
+        cli._jtag_init(0, 1, 2, 3, 4)
     assert b"jtag init 0 1 2 3 4\r\n" in bytes(fake.written)
 
 
@@ -129,7 +129,7 @@ def test_jtag_chain_parses_count():
     fake = FakeShellSerial()
     fake.queue_lines("JTAG: OK chain devices=2")
     with _client(fake) as cli:
-        line, n = cli.jtag_chain()
+        line, n = cli._jtag_chain()
     assert n == 2
 
 
@@ -141,7 +141,7 @@ def test_jtag_idcode_collects_multi_line():
         "JTAG:   [1] 0x4BA00477 VALID mfg_bank=0x4 mfg_id=0x3B part=0xBA00 ver=0x4",
     )
     with _client(fake) as cli:
-        lines = cli.jtag_idcode()
+        lines = cli._jtag_idcode()
     assert len(lines) == 3
     assert "count=2" in lines[0]
     assert "0x1BA01477" in lines[1]
@@ -160,7 +160,7 @@ def test_scan_jtag_streams_progress_until_terminal():
     )
     seen: list[str] = []
     with _client(fake) as cli:
-        lines = cli.scan_jtag(timeout_s=2.0, on_progress=seen.append)
+        lines = cli._scan_jtag(timeout_s=2.0, on_progress=seen.append)
     assert any("NO_MATCH" in line for line in lines)
     assert any("starting" in line for line in seen)
     assert any("NO_MATCH" in line for line in seen)
@@ -212,7 +212,7 @@ def test_close_runs_via_context():
     fake = FakeShellSerial()
     fake.queue_lines("SWD: OK init swclk=GP0 swdio=GP1 nrst=2")
     with _client(fake) as cli:
-        cli.swd_init()
+        cli._swd_init()
     assert fake.closed
 
 
