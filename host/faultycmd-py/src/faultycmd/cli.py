@@ -5,18 +5,19 @@ Top-level command groups mirror the firmware's CDC layout:
     faultycmd emfi      (F4 emfi_proto on CDC0)
     faultycmd crowbar   (F5 crowbar_proto on CDC1)
     faultycmd campaign  (F9-4 campaign_proto on CDC0/CDC1, --engine)
-    faultycmd scanner   (F6/F8-* text shell on CDC2)
-    faultycmd tui       (F10-5 Textual dashboard — stub until F10-5)
+    faultycmd scanner   (F8-2 ``scan swd`` over CDC2 text shell)
+    faultycmd tui       (F10-5 Textual dashboard)
     faultycmd info      (USB enumeration helper)
 
 Each subcommand wraps the corresponding ``faultycmd.protocols.*``
 client. ``click.echo`` is used only for plain status lines; Rich
 :class:`Console` handles tables, progress bars, and live displays.
 
-The CLI surface is designed to cover the legacy reference clients
-(``tools/{emfi,crowbar,campaign}_client.py`` +
-``tools/{swd,jtag,scanner}_diag.py``) one-for-one so F11 can archive
-the legacy tools without losing operator-facing functionality.
+JTAG and direct-SWD verbs (init/deinit/freq/idcode/connect/read32/
+write32/reset + scan-jtag) are WIP and intentionally hidden from
+this release; the underlying ``ScannerClient`` keeps them as
+underscored methods so the v3.1 unblock can re-expose them
+without re-writing the protocol layer.
 """
 from __future__ import annotations
 
@@ -37,7 +38,6 @@ from .protocols import (
 )
 from .protocols.crowbar import CrowbarOutput, CrowbarTrigger
 from .protocols.emfi import EmfiTrigger
-from .protocols.scanner import parse_scan_swd_match
 from .usb import discover
 
 console = Console()
@@ -480,131 +480,16 @@ def campaign_watch(ctx: click.Context, every_ms: int) -> None:
 @click.option("--port", default=None, help="Override the default scanner CDC node.")
 @click.pass_context
 def scanner(ctx: click.Context, port: str | None) -> None:
-    """F6 SWD + F8-1..F8-2 JTAG/scanner over CDC2 text shell."""
+    """F8-2 SWD pinout scanner over CDC2 text shell.
+
+    JTAG / direct SWD verbs are WIP and not exposed in this release.
+    """
     ctx.obj = port
 
 
 def _scanner_client(ctx: click.Context) -> ScannerClient:
     port = ctx.obj
     return ScannerClient(port) if port is not None else ScannerClient.discover()
-
-
-@scanner.command("swd-init")
-@click.argument("swclk_gp", type=int, default=0)
-@click.argument("swdio_gp", type=int, default=1)
-@click.argument("nrst_gp", type=int, default=2)
-@click.pass_context
-def scanner_swd_init(ctx: click.Context, swclk_gp: int, swdio_gp: int, nrst_gp: int) -> None:
-    with _scanner_client(ctx) as cli:
-        line = cli.swd_init(swclk_gp, swdio_gp, nrst_gp)
-    console.print(line)
-
-
-@scanner.command("swd-deinit")
-@click.pass_context
-def scanner_swd_deinit(ctx: click.Context) -> None:
-    with _scanner_client(ctx) as cli:
-        console.print(cli.swd_deinit())
-
-
-@scanner.command("swd-idcode")
-@click.pass_context
-def scanner_swd_idcode(ctx: click.Context) -> None:
-    """Detect an SWD bus without TARGETSEL, then request IDCODE/DPIDR."""
-    with _scanner_client(ctx) as cli:
-        line, dpidr = cli.swd_idcode()
-    console.print(line)
-    if dpidr is not None:
-        console.print(f"[green]IDCODE/DPIDR[/green] = 0x{dpidr:08X}")
-
-
-@scanner.command("swd-connect")
-@click.pass_context
-def scanner_swd_connect(ctx: click.Context) -> None:
-    """Connect through the firmware's targeted TARGETSEL path."""
-    with _scanner_client(ctx) as cli:
-        line, dpidr = cli.swd_connect()
-    console.print(line)
-    if dpidr is not None:
-        console.print(f"[green]IDCODE/DPIDR[/green] = 0x{dpidr:08X}")
-
-
-@scanner.command("swd-read32")
-@click.argument("addr", type=str)
-@click.pass_context
-def scanner_swd_read32(ctx: click.Context, addr: str) -> None:
-    addr_int = int(addr, 0)
-    with _scanner_client(ctx) as cli:
-        line, value = cli.swd_read32(addr_int)
-    console.print(line)
-    if value is not None:
-        console.print(f"[green]value[/green] = 0x{value:08X}")
-
-
-@scanner.command("swd-write32")
-@click.argument("addr", type=str)
-@click.argument("value", type=str)
-@click.pass_context
-def scanner_swd_write32(ctx: click.Context, addr: str, value: str) -> None:
-    with _scanner_client(ctx) as cli:
-        console.print(cli.swd_write32(int(addr, 0), int(value, 0)))
-
-
-@scanner.command("freq")
-@click.argument("khz", type=int)
-@click.pass_context
-def scanner_swd_freq(ctx: click.Context, khz: int) -> None:
-    with _scanner_client(ctx) as cli:
-        console.print(cli.swd_freq(khz))
-
-
-@scanner.command("jtag-init")
-@click.argument("tdi", type=int, default=0)
-@click.argument("tdo", type=int, default=1)
-@click.argument("tms", type=int, default=2)
-@click.argument("tck", type=int, default=3)
-@click.option("--trst", type=int, default=None)
-@click.pass_context
-def scanner_jtag_init(
-    ctx: click.Context, tdi: int, tdo: int, tms: int, tck: int, trst: int | None,
-) -> None:
-    with _scanner_client(ctx) as cli:
-        console.print(cli.jtag_init(tdi, tdo, tms, tck, trst))
-
-
-@scanner.command("jtag-deinit")
-@click.pass_context
-def scanner_jtag_deinit(ctx: click.Context) -> None:
-    with _scanner_client(ctx) as cli:
-        console.print(cli.jtag_deinit())
-
-
-@scanner.command("jtag-chain")
-@click.pass_context
-def scanner_jtag_chain(ctx: click.Context) -> None:
-    with _scanner_client(ctx) as cli:
-        line, n = cli.jtag_chain()
-    console.print(line)
-    if n is not None:
-        console.print(f"[green]devices[/green] = {n}")
-
-
-@scanner.command("jtag-idcode")
-@click.pass_context
-def scanner_jtag_idcode(ctx: click.Context) -> None:
-    with _scanner_client(ctx) as cli:
-        for line in cli.jtag_idcode():
-            console.print(line)
-
-
-@scanner.command("scan-jtag")
-@click.option("--timeout-s", type=float, default=30.0, show_default=True)
-@click.pass_context
-def scanner_scan_jtag(ctx: click.Context, timeout_s: float) -> None:
-    with _scanner_client(ctx) as cli:
-        # on_progress prints each line as it arrives; the returned
-        # list is redundant.
-        cli.scan_jtag(timeout_s=timeout_s, on_progress=console.print)
 
 
 @scanner.command("scan-swd")
@@ -614,88 +499,24 @@ def scanner_scan_jtag(ctx: click.Context, timeout_s: float) -> None:
     help="Legacy hex TARGETSEL argument; scanner discovery is bus-wide.",
 )
 @click.option("--timeout-s", type=float, default=30.0, show_default=True)
-@click.option(
-    "--init/--no-init",
-    "init_after",
-    default=None,
-    help="Skip the interactive prompt: --init runs `swd init` automatically "
-         "after a successful scan; --no-init suppresses it.",
-)
-@click.option(
-    "--nrst",
-    "nrst_arg",
-    type=str,
-    default=None,
-    help="NRST pin to pass to swd_init when --init runs. Bypasses the "
-         "interactive NRST prompt. Use 'none' (or '-') to skip NRST. "
-         "Defaults to the prompt (which itself defaults to GP0).",
-)
 @click.pass_context
 def scanner_scan_swd(
     ctx: click.Context,
     targetsel: str | None,
     timeout_s: float,
-    init_after: bool | None,
-    nrst_arg: str | None,
 ) -> None:
+    """Run the F8-2 SWD pinout scan over the CDC2 shell.
+
+    Streams the firmware's ``SCAN: ...`` lines as they arrive and
+    returns once a MATCH / NO_MATCH / ERR terminal line is seen.
+    No follow-up ``swd init`` is offered — the direct-SWD verbs are
+    WIP-gated in this release.
+    """
     with _scanner_client(ctx) as cli:
-        lines = cli.scan_swd(
+        cli.scan_swd(
             targetsel_hex=targetsel, timeout_s=timeout_s,
             on_progress=console.print,
         )
-        detected = parse_scan_swd_match(lines)
-        if detected is None:
-            return
-        swclk, swdio = detected
-        console.print(
-            f"\n[green]Detected SWD pins[/green]: "
-            f"SWCLK=GP{swclk}, SWDIO=GP{swdio}"
-        )
-        console.print(
-            "[dim]NRST was not auto-detected; defaulting to GP0 "
-            "(override at the prompt or with --nrst).[/dim]"
-        )
-        if init_after is None:
-            do_init = click.confirm(
-                "Initialize SWD with these pins?", default=True
-            )
-        else:
-            do_init = init_after
-        if not do_init:
-            console.print("[dim]swd init skipped.[/dim]")
-            return
-        nrst = _resolve_nrst_for_init(nrst_arg)
-        line = cli.swd_init(swclk, swdio, nrst)
-        console.print(line)
-
-
-def _resolve_nrst_for_init(nrst_arg: str | None) -> int | None:
-    """Resolve the NRST pin for a post-scan ``swd init``.
-
-    * ``nrst_arg`` provided on the CLI: parse it (``'none'`` / ``'-'``
-      / empty → ``None``); int otherwise. Invalid → error and treat
-      as ``None`` to avoid blocking the init.
-    * Otherwise interactively prompt; default is ``'0'``; blank /
-      ``'none'`` / ``'-'`` → ``None``.
-    """
-    def _parse(raw: str) -> int | None:
-        token = raw.strip().lower()
-        if token in ("", "-", "none"):
-            return None
-        try:
-            return int(token, 0)
-        except ValueError:
-            console.print(
-                f"[red]invalid NRST '{raw}', leaving unset[/red]"
-            )
-            return None
-
-    if nrst_arg is not None:
-        return _parse(nrst_arg)
-    raw = click.prompt(
-        "NRST pin (blank/'-' for none)", default="0", show_default=True,
-    )
-    return _parse(raw)
 
 
 # -----------------------------------------------------------------------------
