@@ -4,6 +4,15 @@
 > v2.2** (per maintainer Sabas, 2026-04-23); v2.1 → v2.2 changed only
 > silkscreen labels, not nets. All pin assignments below apply to both.
 
+> **F11 release cut (2026-05-19):** the CDC2 shell commands listed
+> below (`swd init/deinit/freq/connect/idcode/read32/write32/reset`,
+> `jtag init/deinit/reset/trst/chain/idcode`, `scan jtag`) are
+> WIP-gated in this release. The firmware shell answers
+> `<PREFIX>: ERR wip (not available in this release)`. Only
+> `scan swd` is publicly exposed. The HW notes in this document
+> describe the **pinout and electrical contract** — they remain
+> the authoritative reference for when v3.1 re-exposes the verbs.
+
 Authoritative sources used for this map:
 
 - `firmware/c/board_config.h` (the current v2.x firmware, proven in the

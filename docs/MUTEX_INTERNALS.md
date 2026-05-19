@@ -7,6 +7,15 @@ they enforce. For the F8 wire stack (JTAG, scanner, BusPirate,
 serprog) see [`JTAG_INTERNALS.md`](JTAG_INTERNALS.md); for the
 high-level service tree see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
+> **F11 release cut (2026-05-19):** the shell-level mutex contract
+> documented in §3 is for the direct `swd init` / `jtag init`
+> verbs, which are WIP-gated in this release (firmware shell
+> answers `<PREFIX>: ERR wip`). `services/swd_bus_lock` itself is
+> **not** affected — the service-layer mutex still arbitrates
+> between campaign, daplink, and the bus-wide `scan swd` scanner.
+> The contract described here is the authoritative reference for
+> when v3.1 re-exposes the direct verbs.
+
 ## 1. Service stack
 
 ```

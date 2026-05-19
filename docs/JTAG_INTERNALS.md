@@ -8,6 +8,21 @@ For the high-level service tree see
 [`PORTING.md`](PORTING.md); for HW pinout caveats see
 [`HARDWARE_V2.md`](HARDWARE_V2.md).
 
+> **F11 release cut (2026-05-19):** every JTAG verb (`jtag
+> init/deinit/reset/trst/chain/idcode`) plus `scan jtag` is gated as
+> WIP in this release. The firmware shell answers
+> `JTAG: ERR wip` / `SCAN: ERR wip` and the host-tool surface (CLI
+> `faultycmd scanner jtag-*`, `scanner scan-jtag`, TUI Scanner modal
+> JTAG pages) is removed. **The service-layer code documented in
+> this file is not modified** — `services/jtag_core`,
+> `services/pinout_scanner`, `services/buspirate_compat` and
+> `services/flashrom_serprog` remain compiled in and the
+> `apps/faultycat_fw/main.c` helpers stay (marked `FW_WIP_UNUSED`),
+> so v3.1 can re-expose the verbs by reverting the dispatcher
+> patch. The `buspirate enter` and `serprog enter` mode-switches
+> stay public; only the direct `jtag <subcmd>` and `scan jtag`
+> verbs are gated.
+
 ## 1. Service stack
 
 ```

@@ -25,12 +25,13 @@ faultycmd/
 │   ├── emfi.py             F4 emfi_proto client (CDC0)
 │   ├── crowbar.py          F5 crowbar_proto client (CDC1)
 │   ├── campaign.py         F9-4 campaign_proto over CDC0/CDC1
-│   ├── scanner.py          text-shell wrapper over CDC2 (F6 swd /
-│   │                       F8-1 jtag / F8-2 scan / F8-4 buspirate
-│   │                       / F8-5 serprog mode-switch).
-│   │                       Also exports `parse_scan_swd_match` to
-│   │                       extract SWCLK/SWDIO from a `scan swd`
-│   │                       MATCH line.
+│   ├── scanner.py          text-shell wrapper over CDC2. Public
+│   │                       surface in this release: `scan_swd`,
+│   │                       `buspirate_enter`, `serprog_enter` +
+│   │                       `parse_scan_swd_match`. F6 SWD and
+│   │                       F8-1 JTAG verbs (`_swd_*` / `_jtag_*` /
+│   │                       `_scan_jtag`) are WIP — kept as
+│   │                       underscored methods for v3.1 re-expose.
 │   └── dap.py              pyocd / cmsis-dap wrapper (stub until F7)
 ├── cli.py                  click-based CLI; Rich-rendered output
 ├── tui.py                  Textual 2×2 dashboard (EMFI / Crowbar /
@@ -42,9 +43,6 @@ faultycmd/
                             • CampaignControlModal   (hotkey p)
                             • ScannerControlModal    (hotkey n)
                             • HvConfirmModal         (gates EMFI arm)
-                            • SwdInitFromScanModal   (post scan-swd
-                              follow-up: pre-fills detected SWCLK /
-                              SWDIO + asks for NRST, default GP0)
 ```
 
 ## Quick start
@@ -61,12 +59,14 @@ faultycmd campaign configure --engine crowbar \
 faultycmd campaign start
 faultycmd campaign watch
 
-# Scanner (CDC2 shell) — interactive: scan + offer to init
-faultycmd scanner scan-swd                # asks Y/n + NRST after MATCH
-faultycmd scanner scan-swd --init --nrst 0   # non-interactive (scripts)
-faultycmd scanner scan-swd --no-init      # just scan, never init
-faultycmd scanner swd-init 0 1 2          # manual init
-faultycmd scanner swd-idcode
+# Scanner (CDC2 shell) — pinout discovery
+# Direct SWD verbs (init/deinit/idcode/connect/read32/write32/freq)
+# and the JTAG verbs (init/deinit/chain/idcode + scan-jtag) are WIP
+# and not exposed in this release. `scan-swd` just streams the
+# firmware's SCAN: ... lines (MATCH/NO_MATCH/ERR) and exits — no
+# follow-up init is offered.
+faultycmd scanner scan-swd
+faultycmd scanner scan-swd --targetsel 01002927 --timeout-s 60
 
 # Run the TUI
 faultycmd tui
@@ -83,30 +83,21 @@ faultycmd tui
 | `e` | EMFI control modal (configure / arm / fire / disarm / capture) |
 | `b` | crowBar control modal (configure / arm / fire / disarm) |
 | `p` | camPaign control modal (full sweep params + start / stop / drain) |
-| `n` | scanNer / SWD control modal (see below) |
+| `n` | scan SWD modal (single `Scan SWD` action over CDC2 shell) |
 
-### Scanner / SWD modal (`n`)
+### Scan SWD modal (`n`)
 
-Two-step wizard:
+Single-button modal that runs `scan swd` over the CDC2 text shell
+(P(8,2)=56 permutations, 30 s timeout). The diag tail on CDC2 is
+paused for the duration of the call and reinstated automatically.
+The raw scan output (MATCH / NO_MATCH / ERR lines) lands in the
+modal's status line.
 
-1. **Menu page** — 5×2 grid of action buttons:
-   `Init` · `Deinit` · `Freq` · `IDCODE` · `Connect` ·
-   `Read32` · `Write32` · `Reset` · `Scan SWD` · `Close`.
-2. **Per-action page** — only the inputs that action needs (or a
-   short "no parameters" notice), plus `Aceptar` (dispatches) and
-   `Atrás` (back to menu). Results land in the modal's own status
-   line; the diag tail on CDC2 is paused for the duration of the
-   call and reinstated automatically.
-
-Pin defaults mirror `drivers/include/board_v2.h`:
-`SWCLK=GP0`, `SWDIO=GP1`, `NRST=GP0` (editable; blank = no NRST).
-The last-applied values per engine persist under
-`$XDG_CONFIG_HOME/faultycmd/last_config.json`.
-
-After a successful `Scan SWD`, a follow-up `SwdInitFromScanModal`
-pops up showing the detected SWCLK / SWDIO plus an editable NRST
-field (default GP0). `Aceptar` runs `swd init` with those pins;
-`Cerrar` skips the init.
+No follow-up auto-init prompt is offered after a MATCH — the
+direct `swd init` verb is WIP-gated in this release. The manual
+init / deinit / freq / idcode / connect / read32 / write32 /
+reset action pages and the JTAG pages are also WIP and have been
+pulled from the menu.
 
 ## Status
 
@@ -119,7 +110,7 @@ incrementally on `rewrite/v3`. Progress as of this checkpoint:
 | F11-0a | EMFI control modal + HV confirm + capture autosave | ✓ |
 | F11-0b | Crowbar control modal + SharedSerial CDC1 race fix | ✓ |
 | F11-0c | Campaign control modal (engine=crowbar MVP) | ✓ |
-| F11-0d | Scanner / SWD control modal + post-scan init prompt | ✓ MVP |
+| F11-0d | Scan SWD modal (single-button MVP; JTAG / direct-SWD verbs WIP-gated) | ✓ MVP |
 | F11-0e..k | Target UART panel, reflash, help, ownership, hardening, docs+tag | pending |
 
 See the project's main

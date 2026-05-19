@@ -28,6 +28,19 @@ closed 2026-04-29 — `host/faultycmd-py/`, the host tool. **Plan §1
 CLI based on team familiarity + reuse of the four legacy reference
 clients. Wire protocols are unchanged.
 
+**JTAG / direct-SWD WIP cut (2026-05-19, applied on `rewrite/v3`):**
+F6 and F8-1 verbs (JTAG `init/deinit/reset/trst/chain/idcode`,
+direct-SWD `init/deinit/freq/connect/idcode/read32/write32/reset`,
+and `scan jtag`) are gated as WIP and hidden from the public
+surface in CLI, TUI, and firmware shell. Only `scan swd` remains
+public. The `services/{swd_core, jtag_core, pinout_scanner,
+swd_bus_lock}` libraries are **not modified** — the gate is
+purely at the dispatcher / CLI / TUI surface (firmware answers
+`<PREFIX>: ERR wip` to the hidden verbs; the host wrappers
+survive as underscored `_swd_*` / `_jtag_*` / `_scan_jtag`
+methods so v3.1 can re-expose without re-writing the protocol
+layer). 404 firmware Unity tests + 144 host pytests remain green.
+
 | Phase | Tag | Status |
 |-------|-----|--------|
 | F0 — bootstrap + vendoring + docs + CI | `v3.0-f0` | ✓ closed |
@@ -42,7 +55,7 @@ clients. Wire protocols are unchanged.
 | F8 — JTAG core + pinout scanner + BusPirate + serprog (blueTag) | `v3.0-f8` | ✓ closed — F8-1 `services/jtag_core/` (CPU bit-bang TAP + IDCODE chain). F8-2 `services/pinout_scanner/` (P(8,4) / P(8,2) brute-force scan + first-match). F8-3 unified CDC2 shell dispatcher. F8-4 `services/buspirate_compat/` (streaming BPv1 BBIO + OOCD JTAG sub-mode). F8-5 `services/flashrom_serprog/` (streaming serprog v1 + 4-pin CPU SPI bit-bang). F8-6 polish: 3-read consistency check on `pinout_scan_jtag`/`_swd` rejects bus-noise false positives empirically observed when a non-JTAG device is wired to the scanner header; `pump_shell_cdc` breaks out on mode-switch so the trailing `\n` of `\r\n` doesn't bleed into the new binary parser; new `docs/JTAG_INTERNALS.md`. Disconnect detection in main loop fires `bp_on_exit_cb` / `sp_on_exit_cb` if the host drops DTR mid-session. Diag snapshot gagged while in binary modes. Physical smoke 2026-04-28 on v2.2 board: 13/13 checks green (golden + regression). |
 | F9 — Campaign manager + SWD mutex | `v3.0-f9` | ✓ closed — F9-1 `services/swd_bus_lock/` (volatile-flag cooperative mutex over the scanner-header SWD bus, 4 owner tags IDLE/CAMPAIGN/SCANNER/DAPLINK, single-owner no-reentrance; 13 host tests). F9-2 `services/campaign_manager/` (6-state machine over cartesian sweep + 256-entry × 28 B result ringbuffer + pluggable step executor with no-op default; 27 host tests). F9-3 engine adapters in `apps/faultycat_fw/main.c` — `campaign_executor_emfi/_crowbar` blocking-with-cooperative-yield; verify hook acquires/releases swd_bus_lock around a no-op call (F-future plugs real SWD post-fire verify). Shell `campaign <subcmd>` for status/stop/drain/`demo crowbar` smoke. F9-4 `services/host_proto/campaign_proto/` — CRC16-CCITT framing extending emfi_proto / crowbar_proto with CAMPAIGN_CONFIG/START/STOP/STATUS/DRAIN opcodes; engine implied by CDC; 17 host tests. F9-5 `tools/campaign_client.py` reference pyserial CLI mirroring emfi/crowbar_client.py. F9-6 polish: bumped CROWBAR_PROTO_MAX_PAYLOAD from 64 → 512 (DRAIN replies were silently dropped); made pump_emfi/crowbar_cdc reply[768] static (defensive vs stack overflow in deep executor wait loops). Smoke 2026-04-28: `campaign demo crowbar` shell + `campaign_client.py configure → start → watch` both stream complete sweeps end-to-end on v2.2. |
 | F10 — faultycmd Python (Textual TUI + Rich CLI) | `v3.0-f10` | ✓ closed 2026-04-29 — `host/faultycmd-py/` package: F10-1 framing + USB enum, F10-2 protocols.{emfi,crowbar,campaign}, F10-3 protocols.scanner text-shell wrapper, F10-4 click+Rich CLI (`faultycmd info/emfi/crowbar/campaign/scanner` command groups), F10-5 Textual 4-panel dashboard (EMFI / Crowbar / Campaign / Diag CDC2 tail), F10-6 ruff lint + 3-version pytest matrix CI workflow (.github/workflows/host-py.yml) + `python -m faultycmd` entry point + PyInstaller smoke. F10-polish: TUI was shadowing Textual's `App._workers` (the `WorkerManager` backing field) with our list of daemon polling threads — every Static panel hit `'list' has no cancel_node'` on unmount and the cascade dumped both `AttributeError` and a follow-up `RuntimeError: Event loop is closed` from the daemon threads. Renamed our field to `_poll_threads`, added a `_post()` helper that wraps `call_from_thread()` in `try/except RuntimeError` for the daemon-thread / asyncio-loop shutdown race, plus regression test `test_app_does_not_shadow_textual_workers`. 86 host-tests pass on Python 3.10/3.11/3.12. Real-device smoke verified end-to-end: `faultycmd info` enumerates the 4 CDCs, `faultycmd campaign --engine crowbar configure → start → watch` streams a 6-step LP sweep into a Rich Live table, the `faultycmd tui` dashboard runs all 12 checklist items (launch + 4 panels populate + diag CDC2 stream + multiplex CDC1 + 4 hotkeys + clean `q` exit with no traceback). Plan §1 #6 override (Rust → Python) documented in §F10 cierre + project memory. Legacy reference clients (`tools/{emfi,crowbar,campaign}_client.py` + `tools/{swd,jtag,scanner}_diag.py`) stay in tree as deprecated debug fallback until F11 archive. |
-| F11 — Hardening, docs, release `v3.0.0` | — | in progress — **scope expanded 2026-04-29** to include F11-0 (TUI complete control surface, 11 sub-fases F11-0a..k) before F11-1..F11-7 docs/benchmarks/release polish. The TUI shipped in `v3.0-f10` is monitor + locked 6-step crowbar demo; F11-0 lifts it to "100% del faultycmd viejo + campañas + switch entre engines" per the original §F10 criterion. Sub-progress: F11-0a (EMFI control modal + HV confirm + capture auto-save), F11-0b (Crowbar control modal + SharedSerial CDC1 race fix), F11-0c (Campaign control modal, engine=crowbar MVP) all ✓; F11-0d (Scanner/SWD control modal — wizard-style 2-step UI: 5×2 grid of actions + per-action input page with Aceptar/Atrás; hotkey `n`; post-scan-swd follow-up `SwdInitFromScanModal` parses the firmware MATCH line via `parse_scan_swd_match` and offers a one-click `swd init` with detected SWCLK/SWDIO + editable NRST default GP0) ✓ MVP; F11-0e..k (target UART, reflash, help, CDC ownership badge, lockfile, hardening, tests+docs) pending. TUI shutdown was hardened in the same iteration — `_closing` flag stops the scanner-task worker's `finally` from re-opening CDC ports / re-spawning poll threads after `q`, and every ModalScreen binds `q` to its own close action so `q-q` always quits the app even from inside a modal. |
+| F11 — Hardening, docs, release `v3.0.0` | — | in progress — **scope expanded 2026-04-29** to include F11-0 (TUI complete control surface, 11 sub-fases F11-0a..k) before F11-1..F11-7 docs/benchmarks/release polish. The TUI shipped in `v3.0-f10` is monitor + locked 6-step crowbar demo; F11-0 lifts it to "100% del faultycmd viejo + campañas + switch entre engines" per the original §F10 criterion. Sub-progress: F11-0a (EMFI control modal + HV confirm + capture auto-save), F11-0b (Crowbar control modal + SharedSerial CDC1 race fix), F11-0c (Campaign control modal, engine=crowbar MVP) all ✓; F11-0d (Scan SWD modal — **reduced to single-button MVP on 2026-05-19** as part of the JTAG/direct-SWD WIP cut: the full-feature wizard-style 2-step UI with init/deinit/freq/idcode/connect/read32/write32/reset action pages, `SwdInitFromScanModal` post-MATCH follow-up, and JTAG pages all moved to v3.1; in this release the `n` hotkey opens a one-action modal that just streams `scan swd` output to its status line) ✓ MVP; F11-0e..k (target UART, reflash, help, CDC ownership badge, lockfile, hardening, tests+docs) pending. TUI shutdown was hardened in the same iteration — `_closing` flag stops the scanner-task worker's `finally` from re-opening CDC ports / re-spawning poll threads after `q`, and every ModalScreen binds `q` to its own close action so `q-q` always quits the app even from inside a modal. |
 | F12 — GUI Web local (v3.1.0) | — | post `v3.0.0`. New phase added 2026-04-29. Stack: FastAPI + Tailwind + Alpine.js + Chart.js inside `host/faultycmd-py/` as `faultycmd.gui` submodule. `faultycmd gui` opens browser at localhost:8080. Audience: technical operators + trainees + classroom + conference demos (broader than CLI/TUI). Reuses 100% of the Python protocol clients; only the host-side rendering changes. Plots/heat-maps/embedded target serial via xterm.js. See plan §F12. |
 
 Current tree health:
@@ -74,7 +87,12 @@ Current tree health:
   text shell on CDC2 with 7 commands (`?`, `swd init/deinit/freq/
   connect/read32/write32/reset`) and lazy-init defaults to scanner
   header CH0/CH1/CH2. `tools/swd_diag.py` is the pyserial reference
-  client.
+  client. **F11 release cut (2026-05-19)**: the direct-SWD verbs
+  are WIP-gated and the shell dispatcher answers `SWD: ERR wip` to
+  every `swd <subcmd>`. The `cmd_*` helpers in `apps/faultycat_fw/
+  main.c` are kept (marked `FW_WIP_UNUSED`) and `services/swd_core/`
+  is untouched so v3.1 can re-expose the verbs by reverting the
+  dispatcher patch.
 - **`services/jtag_core/`** (F8-1) complete: `jtag_core.{c,h}` —
   CPU bit-bang TAP controller with `jtag_init`, `jtag_deinit`,
   `jtag_reset_to_run_test_idle`, `jtag_assert_trst`,
@@ -87,7 +105,13 @@ Current tree health:
   `tools/jtag_diag.py` can demux from F6 SWD replies). Soft-lock
   vs `swd_phy` enforced shell-side: `swd init` while JTAG is held
   returns `SWD: ERR jtag_in_use`, and vice versa. F9 promotes the
-  soft-lock to a `mutex_t`.
+  soft-lock to a `mutex_t`. **F11 release cut (2026-05-19)**: the
+  JTAG verbs are WIP-gated and the shell dispatcher answers
+  `JTAG: ERR wip` to every `jtag <subcmd>`. The `cmd_jtag_*`
+  helpers + `process_jtag_subcmd` in `apps/faultycat_fw/main.c`
+  are kept (marked `FW_WIP_UNUSED`) and `services/jtag_core/`
+  is untouched so v3.1 can re-expose the verbs by reverting the
+  dispatcher patch.
 - **`services/swd_bus_lock/`** (F9-1) complete:
   `swd_bus_lock.{c,h}` — service-layer mutual exclusion over the
   shared scanner-header SWD/JTAG bus. Volatile bool + owner tag,
@@ -200,7 +224,12 @@ Current tree health:
   DPIDR; no RP2040-only DPIDR allowlist).
   Shell on CDC2 gains `scan jtag` and `scan swd [<targetsel_hex>]`;
   the TARGETSEL argument is retained for compatibility while scan
-  discovery itself stays bus-wide. The
+  discovery itself stays bus-wide. **F11 release cut (2026-05-19)**:
+  `scan jtag` is WIP-gated (the dispatcher answers
+  `SCAN: ERR wip`); `scan swd` is the only public scanner verb in
+  this release. `pinout_scan_jtag` and its caller `cmd_scan_jtag`
+  in `apps/faultycat_fw/main.c` remain compiled in (marked
+  `FW_WIP_UNUSED`). The
   candidate-iteration progress callback in `apps/faultycat_fw/
   main.c::scan_yield_progress` calls `usb_composite_task`,
   `pump_emfi_cdc`, `pump_crowbar_cdc`, `emfi_campaign_tick` and
@@ -382,31 +411,53 @@ faultycmd.persistence           — XDG last-config store, one slot per
 faultycmd.protocols.emfi        — F4 emfi_proto client (CDC0)
 faultycmd.protocols.crowbar     — F5 crowbar_proto client (CDC1)
 faultycmd.protocols.campaign    — F9-4 campaign_proto over CDC0/CDC1
-faultycmd.protocols.scanner     — text-shell wrapper over CDC2
-                                  (consolidates F6 swd / F8-1 jtag /
-                                   F8-2 scan / F8-4 buspirate / F8-5
-                                   serprog mode-switch helpers).
-                                  Also exports `parse_scan_swd_match`
-                                  to extract SWCLK/SWDIO from a
-                                  successful `scan swd` MATCH line.
+faultycmd.protocols.scanner     — text-shell wrapper over CDC2.
+                                  Public surface in this release:
+                                  `scan_swd`, `buspirate_enter`,
+                                  `serprog_enter`, and
+                                  `parse_scan_swd_match`. F6 SWD
+                                  and F8-1 JTAG verbs are WIP and
+                                  kept as underscored methods
+                                  (`_swd_*` / `_jtag_*` /
+                                  `_scan_jtag`) for v3.1 re-expose.
 faultycmd.protocols.dap         — pyocd / cmsis-dap thin wrapper
                                   (stub until F7 daplink_usb lands)
 faultycmd.cli                   — click-based CLI; Rich-rendered
                                   output (tables, progress bars,
-                                  status panels). `scanner scan-swd`
-                                  prompts the operator for `swd init`
-                                  + NRST after a MATCH (suppressed
-                                  with --no-init or scripted with
-                                  --init --nrst <pin>|none).
+                                  status panels). `faultycmd
+                                  scanner scan-swd` is the only
+                                  scanner subcommand in this
+                                  release; it streams the
+                                  firmware's `SCAN: ...` lines and
+                                  exits on the MATCH/NO_MATCH/ERR
+                                  terminal. Flags: `--targetsel`,
+                                  `--timeout-s`. No follow-up
+                                  auto-init is offered — the
+                                  `--init`/`--no-init`/`--nrst`
+                                  flags + interactive prompt were
+                                  removed with the JTAG/direct-SWD
+                                  WIP cut (2026-05-19). The JTAG
+                                  and direct-SWD subcommands
+                                  (swd-init/deinit/idcode/connect/
+                                  read32/write32/freq + jtag-* +
+                                  scan-jtag) are WIP and not
+                                  registered with click.
 faultycmd.tui                   — Textual 4-panel dashboard (EMFI /
                                   Crowbar / Campaign / Diag-CDC2).
                                   Hotkeys: q r c s e b p n. Modal
                                   control surfaces live in
                                   faultycmd.tui_modals (one per
-                                  engine + HV confirm + post-scan
-                                  init prompt; see host tool README
-                                  §Scanner / SWD modal for the
-                                  wizard layout).
+                                  engine + HV confirm). The
+                                  Scanner modal is reduced to a
+                                  single `Scan SWD` action in this
+                                  release and shows the raw scan
+                                  output in its status line — the
+                                  init/deinit/freq/idcode/connect/
+                                  read32/write32/reset action
+                                  pages, the JTAG pages, and the
+                                  `SwdInitFromScanModal` post-MATCH
+                                  follow-up are WIP and pulled
+                                  from the modal.
 ```
 
 A campaign manager streams (delay, width, power) sweeps with SWD
