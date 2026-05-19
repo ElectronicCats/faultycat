@@ -477,6 +477,13 @@ class CampaignControlModal(ModalScreen[None]):
             pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        # Each callback dispatches the CDC1 op to a daemon thread
+        # (see `tui.action_open_campaign_modal._run`) so the Textual
+        # event loop never blocks waiting on the shared CDC1 lock /
+        # firmware ack. Inline status shows "<action> dispatched…"
+        # immediately; the worker thread overwrites it with
+        # "OK <action>" or "<action>: <err>" via call_from_thread
+        # once the round-trip completes.
         action = event.button.id or ""
         if action == "close":
             self.action_close()
@@ -488,25 +495,25 @@ class CampaignControlModal(ModalScreen[None]):
                 return
             try:
                 self.configure_cb(self.state)
-                self._set_status("OK configured")
+                self._set_status("configure dispatched…")
             except Exception as e:
                 self._set_status(f"configure: {e}")
         elif action == "start" and self.start_cb:
             try:
                 self.start_cb()
-                self._set_status("OK started")
+                self._set_status("start dispatched…")
             except Exception as e:
                 self._set_status(f"start: {e}")
         elif action == "stop" and self.stop_cb:
             try:
                 self.stop_cb()
-                self._set_status("OK stopped")
+                self._set_status("stop dispatched…")
             except Exception as e:
                 self._set_status(f"stop: {e}")
         elif action == "drain" and self.drain_cb:
             try:
-                count = self.drain_cb()
-                self._set_status(f"OK drain ({count} results pushed to dashboard)")
+                self.drain_cb()
+                self._set_status("drain dispatched…")
             except Exception as e:
                 self._set_status(f"drain: {e}")
 
@@ -699,136 +706,22 @@ class CrowbarControlModal(ModalScreen[None]):
 
 
 # -----------------------------------------------------------------
-# Post-scan "init with detected pins?" confirm (F11-0d follow-up)
-# -----------------------------------------------------------------
-
-
-class SwdInitFromScanModal(ModalScreen[tuple]):
-    """Pops up after a successful ``scan swd`` to ask the operator
-    whether to immediately run ``swd init`` with the detected
-    SWCLK / SWDIO. The scanner does NOT probe NRST, so this modal
-    exposes an editable NRST input (default ``0``; leave blank for
-    no NRST) that the operator can override before pressing
-    Aceptar.
-
-    Dismiss payload is ``(accept: bool, nrst: int | None)``:
-      * Aceptar → ``(True, nrst_from_input)``  (nrst may be None
-        if the operator cleared the field)
-      * Cerrar / Escape → ``(False, None)``"""
-
-    DEFAULT_CSS = """
-    SwdInitFromScanModal > Vertical {
-        background: $panel;
-        border: thick $accent;
-        padding: 1 2;
-        width: 70;
-        height: auto;
-        align: center middle;
-    }
-    SwdInitFromScanModal Input { width: 100%; }
-    SwdInitFromScanModal Button { margin: 1 1 0 1; }
-    """
-
-    BINDINGS = [
-        Binding("escape", "cancel", "close"),
-        # `q` dismisses-as-cancel so the operator can q-q out of
-        # the app even when this prompt is on top.
-        Binding("q", "cancel", "close"),
-    ]
-
-    def __init__(
-        self,
-        *,
-        swclk: int,
-        swdio: int,
-        default_nrst: int | None = 0,
-    ) -> None:
-        super().__init__()
-        self.swclk = swclk
-        self.swdio = swdio
-        self.default_nrst = default_nrst
-
-    def compose(self) -> ComposeResult:
-        with Vertical():
-            yield Label(
-                f"SWD detected: [bold]SWCLK=GP{self.swclk}[/bold], "
-                f"[bold]SWDIO=GP{self.swdio}[/bold]"
-            )
-            yield Label(
-                "[dim]NRST was not auto-detected; defaulting to GP0 — "
-                "edit or clear to suit your wiring.[/dim]"
-            )
-            yield Label("NRST pin (blank for none):")
-            yield Input(
-                value="" if self.default_nrst is None else str(self.default_nrst),
-                id="nrst",
-            )
-            yield Static("", id="nrst_status")
-            yield Label("Initialize SWD with these pins?")
-            with Horizontal():
-                yield Button("Aceptar", id="accept", variant="primary")
-                yield Button("Cerrar",  id="close")
-
-    def _parse_nrst(self) -> tuple[bool, int | None]:
-        """Parse the NRST input. Returns ``(ok, value)`` — value is
-        ``None`` when the field is blank (= no NRST). On parse
-        failure shows an inline error and returns ``(False, None)``."""
-        raw = self.query_one("#nrst", Input).value.strip()
-        if raw == "":
-            return True, None
-        try:
-            v = int(raw, 0)
-        except ValueError:
-            self.query_one("#nrst_status", Static).update(
-                "error: NRST must be an integer or blank"
-            )
-            return False, None
-        if v < 0:
-            self.query_one("#nrst_status", Static).update(
-                "error: NRST must be >= 0"
-            )
-            return False, None
-        return True, v
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "accept":
-            ok, nrst = self._parse_nrst()
-            if not ok:
-                return
-            self.dismiss((True, nrst))
-        elif event.button.id == "close":
-            self.dismiss((False, None))
-
-    def action_cancel(self) -> None:
-        self.dismiss((False, None))
-
-
-# -----------------------------------------------------------------
 # Scanner / SWD control modal (F11-0d)
 # -----------------------------------------------------------------
-
-
-# SWCLK/SWDIO defaults mirror the firmware `BOARD_GP_*_DEFAULT`
-# symbols in `drivers/include/board_v2.h`: SWCLK=GP0, SWDIO=GP1.
-# NRST defaults to 0 per operator preference — the field is still
-# editable; passing 0 wires NRST to GP0 (same as SWCLK), so the
-# operator is expected to override before pressing Aceptar when
-# the target's NRST sits on a different pin.
-_SCANNER_DEFAULT_SWCLK = 0
-_SCANNER_DEFAULT_SWDIO = 1
-_SCANNER_DEFAULT_NRST  = 0
-_SCANNER_DEFAULT_FREQ_KHZ = 1000
+#
+# This release only exposes ``scan swd``. The init/deinit/freq/
+# idcode/connect/read32/write32/reset action pages plus the JTAG
+# pages are WIP and have been pulled from the menu — the underlying
+# ``ScannerClient`` keeps the wrappers as underscored methods so
+# v3.1 can re-expose them without re-writing the protocol layer.
 
 
 @dataclass
 class ScannerFormState:
-    swclk: int = _SCANNER_DEFAULT_SWCLK
-    swdio: int = _SCANNER_DEFAULT_SWDIO
-    nrst:  int | None = _SCANNER_DEFAULT_NRST
-    freq_khz:    int = _SCANNER_DEFAULT_FREQ_KHZ
-    read_addr:   str = "0xE000ED00"      # SCB CPUID — sanity-check default
-    write_addr:  str = "0x20000000"
-    write_value: str = "0x00000000"
+    """No tunables for ``scan swd`` (the firmware drives the full
+    P(8,2)=56 sweep with a fixed 30 s timeout). The dataclass is
+    kept so the dashboard's persistence layer has something to
+    serialize without raising KeyError on existing config files."""
 
     @classmethod
     def from_dict(cls, d: dict) -> ScannerFormState:
@@ -841,49 +734,22 @@ class ScannerFormState:
 
 
 class ScannerControlModal(ModalScreen[None]):
-    """SWD pin assignment + init / deinit / freq / idcode / connect /
-    read32 / write32 / reset + scan-swd, all over CDC2's text shell.
+    """``scan swd`` over CDC2's text shell.
 
-    UX is a two-step wizard so the operator never has to look at
-    inputs that don't apply to the action they want to fire:
-
-        1. Page ``menu``: just the list of action buttons + Close.
-        2. Page ``<action>``: only the inputs that action needs
-           (or a brief "no parameters" notice) plus an ``Aceptar``
-           button that dispatches the corresponding callback and a
-           ``Atrás`` button that returns to the menu.
-
-    The dashboard wires each callback through ``_run_scanner_task``,
+    The dashboard wires ``scan_swd_cb`` through ``_run_scanner_task``,
     which temporarily drops the diag tail's hold on CDC2 so the
     scanner shell can own the port for the duration of the call and
-    then reinstates the diag tail. Results land in ``#status_line``
-    of this modal (persisted across page switches)."""
+    then reinstates the diag tail. Results land in ``#status_line``."""
 
     DEFAULT_CSS = """
     ScannerControlModal > Vertical {
         background: $panel;
         border: thick $accent;
         padding: 1 2;
-        width: 110;
+        width: 80;
         height: auto;
     }
-    ScannerControlModal Input { width: 100%; }
     ScannerControlModal Button { margin: 0 1; }
-    /* 5×2 menu: two Horizontal rows of 5 buttons each. `1fr`
-       distributes each row's width evenly; `min-width: 0` cancels
-       Button's intrinsic minimum so long labels don't force an
-       uneven layout. */
-    ScannerControlModal .menu_row {
-        height: 3;
-        width: 100%;
-        margin-bottom: 1;
-    }
-    ScannerControlModal .menu_row Button {
-        width: 1fr;
-        height: 3;
-        margin: 0 1;
-        min-width: 0;
-    }
     """
 
     BINDINGS = [
@@ -895,206 +761,31 @@ class ScannerControlModal(ModalScreen[None]):
         Binding("q", "close", "close"),
     ]
 
-    # All page container ids. The first one is the menu; the rest
-    # are per-action input pages. `_show_page(action)` flips display
-    # on these via `id == target`.
-    _PAGE_IDS = (
-        "menu",
-        "page_init",
-        "page_deinit",
-        "page_freq",
-        "page_idcode",
-        "page_connect",
-        "page_read32",
-        "page_write32",
-        "page_reset",
-        "page_scan_swd",
-    )
-
     def __init__(
         self,
         *,
         initial: ScannerFormState | None = None,
-        init_cb=None,
-        deinit_cb=None,
-        freq_cb=None,
-        idcode_cb=None,
-        connect_cb=None,
-        read32_cb=None,
-        write32_cb=None,
-        reset_cb=None,
         scan_swd_cb=None,
     ) -> None:
         super().__init__()
         self.state = initial or ScannerFormState()
-        self.init_cb = init_cb
-        self.deinit_cb = deinit_cb
-        self.freq_cb = freq_cb
-        self.idcode_cb = idcode_cb
-        self.connect_cb = connect_cb
-        self.read32_cb = read32_cb
-        self.write32_cb = write32_cb
-        self.reset_cb = reset_cb
         self.scan_swd_cb = scan_swd_cb
-        self.current_page: str = "menu"
 
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label("Scanner / SWD control")
-            yield Label("[dim]CDC2 · F6 swd shell · F8-2 scan[/dim]")
-
-            # -- page: menu (action picker) --------------------
-            # 10 actions laid out as 5 cols × 2 rows so the menu
-            # reads horizontally first instead of taking 10
-            # vertical rows. Implemented as two Horizontals because
-            # Textual 8.x's Grid kept collapsing to the natural
-            # cell width when the modal's parent Vertical didn't
-            # propagate the outer `width: 110`.
-            with Vertical(id="menu"):
-                yield Label("Choose an action:")
-                with Horizontal(classes="menu_row"):
-                    yield Button("Init",     id="menu_init",     variant="primary")
-                    yield Button("Deinit",   id="menu_deinit")
-                    yield Button("Freq",     id="menu_freq")
-                    yield Button("IDCODE",   id="menu_idcode",   variant="success")
-                    yield Button("Connect",  id="menu_connect")
-                with Horizontal(classes="menu_row"):
-                    yield Button("Read32",   id="menu_read32")
-                    yield Button("Write32",  id="menu_write32")
-                    yield Button("Reset",    id="menu_reset",    variant="warning")
-                    yield Button("Scan SWD", id="menu_scan_swd", variant="primary")
-                    yield Button("Close",    id="menu_close")
-
-            # -- page: init ------------------------------------
-            with Vertical(id="page_init"):
-                yield Label("[bold]swd init[/bold] — pin assignment")
-                yield Label("SWCLK:")
-                yield Input(value=str(self.state.swclk), id="swclk")
-                yield Label("SWDIO:")
-                yield Input(value=str(self.state.swdio), id="swdio")
-                yield Label("NRST (blank for none):")
-                yield Input(
-                    value="" if self.state.nrst is None else str(self.state.nrst),
-                    id="nrst",
-                )
-                with Horizontal():
-                    yield Button("Aceptar", id="apply_init", variant="primary")
-                    yield Button("Atrás",   id="back_init")
-
-            # -- page: freq ------------------------------------
-            with Vertical(id="page_freq"):
-                yield Label("[bold]swd freq[/bold] — set SWCLK rate")
-                yield Label("freq-khz:")
-                yield Input(value=str(self.state.freq_khz), id="freq_khz")
-                with Horizontal():
-                    yield Button("Aceptar", id="apply_freq", variant="primary")
-                    yield Button("Atrás",   id="back_freq")
-
-            # -- page: read32 ----------------------------------
-            with Vertical(id="page_read32"):
-                yield Label("[bold]swd read32[/bold] — single-word read")
-                yield Label("addr (hex, e.g. 0xE000ED00):")
-                yield Input(value=self.state.read_addr, id="read_addr")
-                with Horizontal():
-                    yield Button("Aceptar", id="apply_read32", variant="primary")
-                    yield Button("Atrás",   id="back_read32")
-
-            # -- page: write32 ---------------------------------
-            with Vertical(id="page_write32"):
-                yield Label("[bold]swd write32[/bold] — single-word write")
-                yield Label("addr (hex):")
-                yield Input(value=self.state.write_addr,  id="write_addr")
-                yield Label("value (hex):")
-                yield Input(value=self.state.write_value, id="write_value")
-                with Horizontal():
-                    yield Button("Aceptar", id="apply_write32", variant="primary")
-                    yield Button("Atrás",   id="back_write32")
-
-            # -- pages with no params --------------------------
-            with Vertical(id="page_deinit"):
-                yield Label("[bold]swd deinit[/bold] — release the SWD pins")
-                yield Label("[dim]No parameters.[/dim]")
-                with Horizontal():
-                    yield Button("Aceptar", id="apply_deinit", variant="primary")
-                    yield Button("Atrás",   id="back_deinit")
-            with Vertical(id="page_idcode"):
-                yield Label("[bold]swd idcode[/bold] — detect bus, request IDCODE/DPIDR")
-                yield Label("[dim]No parameters.[/dim]")
-                with Horizontal():
-                    yield Button("Aceptar", id="apply_idcode", variant="primary")
-                    yield Button("Atrás",   id="back_idcode")
-            with Vertical(id="page_connect"):
-                yield Label("[bold]swd connect[/bold] — firmware TARGETSEL path")
-                yield Label("[dim]No parameters.[/dim]")
-                with Horizontal():
-                    yield Button("Aceptar", id="apply_connect", variant="primary")
-                    yield Button("Atrás",   id="back_connect")
-            with Vertical(id="page_reset"):
-                yield Label("[bold]swd reset[/bold] — NRST pulse: assert → 50 ms → deassert")
-                yield Label("[dim]No parameters.[/dim]")
-                with Horizontal():
-                    yield Button("Aceptar", id="apply_reset", variant="primary")
-                    yield Button("Atrás",   id="back_reset")
-            with Vertical(id="page_scan_swd"):
-                yield Label("[bold]scan swd[/bold] — bus-wide discovery (timeout 30 s)")
-                yield Label("[dim]No parameters.[/dim]")
-                with Horizontal():
-                    yield Button("Aceptar", id="apply_scan_swd", variant="primary")
-                    yield Button("Atrás",   id="back_scan_swd")
-
-            # Status line persists across page switches.
+            yield Label("[dim]CDC2 · F8-2 scan swd[/dim]")
+            yield Label(
+                "[bold]scan swd[/bold] — bus-wide discovery (timeout 30 s)"
+            )
+            yield Label(
+                "[dim]JTAG and direct-SWD verbs are WIP and hidden in "
+                "this release.[/dim]"
+            )
             yield Static("", id="status_line")
-
-    def on_mount(self) -> None:
-        # Start on the menu; hide every input page until selected.
-        self._show_page("menu")
-
-    # -- page navigation -------------------------------------------
-
-    def _show_page(self, page: str) -> None:
-        """``page`` is one of the entries in ``_PAGE_IDS`` minus
-        the ``page_`` prefix, or the literal ``"menu"``."""
-        target = "menu" if page == "menu" else f"page_{page}"
-        if target not in self._PAGE_IDS:
-            return
-        self.current_page = page
-        for pid in self._PAGE_IDS:
-            try:
-                self.query_one(f"#{pid}").display = (pid == target)
-            except Exception:
-                # During unit-construction (no DOM) `query_one`
-                # raises; safe to ignore — `on_mount` re-runs the
-                # show once the widgets are real.
-                pass
-
-    # -- input sync helpers ----------------------------------------
-
-    def _sync_pins(self) -> bool:
-        try:
-            swclk = int(self.query_one("#swclk", Input).value or "0")
-            swdio = int(self.query_one("#swdio", Input).value or "0")
-            nrst_str = self.query_one("#nrst", Input).value.strip()
-            nrst: int | None = int(nrst_str) if nrst_str != "" else None
-        except ValueError:
-            self._set_status("error: invalid integer")
-            return False
-        if swclk < 0 or swdio < 0 or (nrst is not None and nrst < 0):
-            self._set_status("error: pins must be >= 0")
-            return False
-        self.state.swclk, self.state.swdio, self.state.nrst = swclk, swdio, nrst
-        return True
-
-    def _sync_freq(self) -> bool:
-        try:
-            khz = int(self.query_one("#freq_khz", Input).value or "0")
-        except ValueError:
-            self._set_status("error: invalid frequency")
-            return False
-        if khz <= 0:
-            self._set_status("error: freq must be > 0")
-            return False
-        self.state.freq_khz = khz
-        return True
+            with Horizontal():
+                yield Button("Scan SWD", id="apply_scan_swd", variant="primary")
+                yield Button("Close",    id="close")
 
     def _set_status(self, msg: str) -> None:
         try:
@@ -1102,111 +793,12 @@ class ScannerControlModal(ModalScreen[None]):
         except Exception:
             pass
 
-    # -- button dispatch -------------------------------------------
-
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id or ""
-
-        # --- Menu buttons: navigate to per-action page.
-        if bid.startswith("menu_"):
-            sub = bid[len("menu_"):]
-            if sub == "close":
-                self.action_close()
-                return
-            self._set_status("")
-            self._show_page(sub)
+        if bid == "close":
+            self.action_close()
             return
-
-        # --- Back buttons on any page: return to menu.
-        if bid.startswith("back_"):
-            self._set_status("")
-            self._show_page("menu")
-            return
-
-        # --- Apply buttons: dispatch the matching callback.
-        if bid == "apply_init":
-            if not self._sync_pins():
-                return
-            if self.init_cb is None:
-                return
-            try:
-                self.init_cb(self.state.swclk, self.state.swdio, self.state.nrst)
-                self._set_status("init dispatched…")
-            except Exception as e:
-                self._set_status(f"init: {e}")
-        elif bid == "apply_deinit":
-            if self.deinit_cb is None:
-                return
-            try:
-                self.deinit_cb()
-                self._set_status("deinit dispatched…")
-            except Exception as e:
-                self._set_status(f"deinit: {e}")
-        elif bid == "apply_freq":
-            if not self._sync_freq():
-                return
-            if self.freq_cb is None:
-                return
-            try:
-                self.freq_cb(self.state.freq_khz)
-                self._set_status("freq dispatched…")
-            except Exception as e:
-                self._set_status(f"freq: {e}")
-        elif bid == "apply_idcode":
-            if self.idcode_cb is None:
-                return
-            try:
-                self.idcode_cb()
-                self._set_status("idcode dispatched…")
-            except Exception as e:
-                self._set_status(f"idcode: {e}")
-        elif bid == "apply_connect":
-            if self.connect_cb is None:
-                return
-            try:
-                self.connect_cb()
-                self._set_status("connect dispatched…")
-            except Exception as e:
-                self._set_status(f"connect: {e}")
-        elif bid == "apply_read32":
-            try:
-                addr = int(self.query_one("#read_addr", Input).value or "0", 0)
-            except ValueError:
-                self._set_status("error: read addr not hex/int")
-                return
-            self.state.read_addr = f"0x{addr:08X}"
-            if self.read32_cb is None:
-                return
-            try:
-                self.read32_cb(addr)
-                self._set_status("read32 dispatched…")
-            except Exception as e:
-                self._set_status(f"read32: {e}")
-        elif bid == "apply_write32":
-            try:
-                addr  = int(self.query_one("#write_addr",  Input).value or "0", 0)
-                value = int(self.query_one("#write_value", Input).value or "0", 0)
-            except ValueError:
-                self._set_status("error: write addr/value not hex/int")
-                return
-            self.state.write_addr  = f"0x{addr:08X}"
-            self.state.write_value = f"0x{value:08X}"
-            if self.write32_cb is None:
-                return
-            try:
-                self.write32_cb(addr, value)
-                self._set_status("write32 dispatched…")
-            except Exception as e:
-                self._set_status(f"write32: {e}")
-        elif bid == "apply_reset":
-            if self.reset_cb is None:
-                return
-            try:
-                self.reset_cb()
-                self._set_status("reset pulse dispatched…")
-            except Exception as e:
-                self._set_status(f"reset: {e}")
-        elif bid == "apply_scan_swd":
+        if bid == "apply_scan_swd":
             if self.scan_swd_cb is None:
                 return
             try:

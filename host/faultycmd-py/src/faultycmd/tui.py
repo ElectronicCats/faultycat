@@ -26,8 +26,8 @@ Hotkeys:
     e   — open EMFI control modal (configure/arm/fire/disarm + capture)
     b   — open crowBar control modal (configure/arm/fire/disarm)
     p   — open camPaign control modal (full sweep params + start/stop/drain)
-    n   — open scanNer/SWD control modal (init/deinit/freq/idcode/connect/
-          read32/write32/reset + scan-swd, all over the CDC2 shell)
+    n   — open scan SWD modal (scan-swd over the CDC2 shell)
+          (JTAG / direct-SWD verbs are WIP in this release)
 
 CDC ownership during a TUI session:
     CDC0 is held by EMFI panel.
@@ -67,7 +67,6 @@ from .protocols import (
 from .protocols.campaign import CampaignState
 from .protocols.crowbar import CrowbarOutput, CrowbarTrigger
 from .protocols.emfi import EmfiTrigger
-from .protocols.scanner import parse_scan_swd_match
 from .tui_modals import (
     CampaignControlModal,
     CampaignFormState,
@@ -78,7 +77,6 @@ from .tui_modals import (
     HvConfirmModal,
     ScannerControlModal,
     ScannerFormState,
-    SwdInitFromScanModal,
 )
 from .usb import PortDiscoveryError, cdc_for
 
@@ -354,7 +352,7 @@ class FaultycmdTUI(App[None]):
         Binding("e", "open_emfi_modal", "EMFI control"),
         Binding("b", "open_crowbar_modal", "crowBar control"),
         Binding("p", "open_campaign_modal", "camPaign control"),
-        Binding("n", "open_scanner_modal", "scanner/SWD control"),
+        Binding("n", "open_scanner_modal", "scan SWD"),
     ]
 
     title = "faultycmd — FaultyCat v3 dashboard"
@@ -625,133 +623,31 @@ class FaultycmdTUI(App[None]):
         threading.Thread(target=worker, daemon=True).start()
 
     def action_open_scanner_modal(self) -> None:
-        """F11-0d: opens the Scanner / SWD control modal. Every callback
-        is wrapped in `_run_scanner_task` so the CDC2 diag tail is
-        paused while the scanner shell client owns the port. Results
-        land in the modal's own status line, not a popup."""
+        """F11-0d (reduced): opens the SWD scan modal. Only ``scan swd``
+        is exposed in this release; the JTAG / direct-SWD verbs are WIP
+        and hidden. The scan callback is wrapped in `_run_scanner_task`
+        so the CDC2 diag tail is paused while the scanner shell client
+        owns the port. The raw scan output (MATCH / NO_MATCH lines)
+        lands in the modal status line — no follow-up auto-init prompt
+        is offered, because the underlying ``swd init`` shell verb is
+        WIP-gated in this release."""
         initial = ScannerFormState.from_dict(self._last_config.load("scanner"))
 
-        # `modal` is captured by late-binding so callbacks resolve it
-        # only after `push_screen` returns.
+        # `modal` is captured by late-binding so the callback resolves
+        # it only after `push_screen` returns.
         modal: ScannerControlModal
 
         def _show_in_modal(text: str) -> None:
             modal._set_status(text)
 
-        def _save() -> None:
-            self._last_config.save("scanner", modal.state.to_dict())
-
-        def _on_init(swclk: int, swdio: int, nrst: int | None) -> None:
-            _save()
-            self._run_scanner_task(
-                lambda s: s.swd_init(swclk, swdio, nrst),
-                result_cb=_show_in_modal,
-            )
-
-        def _on_deinit() -> None:
-            self._run_scanner_task(
-                lambda s: s.swd_deinit(),
-                result_cb=_show_in_modal,
-            )
-
-        def _on_freq(khz: int) -> None:
-            _save()
-            self._run_scanner_task(
-                lambda s: s.swd_freq(khz),
-                result_cb=_show_in_modal,
-            )
-
-        def _on_idcode() -> None:
-            self._run_scanner_task(
-                lambda s: s.swd_idcode(),
-                result_cb=_show_in_modal,
-            )
-
-        def _on_connect() -> None:
-            self._run_scanner_task(
-                lambda s: s.swd_connect(),
-                result_cb=_show_in_modal,
-            )
-
-        def _on_read32(addr: int) -> None:
-            _save()
-            self._run_scanner_task(
-                lambda s: s.swd_read32(addr),
-                result_cb=_show_in_modal,
-            )
-
-        def _on_write32(addr: int, value: int) -> None:
-            _save()
-            self._run_scanner_task(
-                lambda s: s.swd_write32(addr, value),
-                result_cb=_show_in_modal,
-            )
-
-        def _on_reset() -> None:
-            def _pulse(s):
-                # Active-LOW pulse: assert → 50 ms → deassert. Return
-                # the last OK line so the operator sees the deassert
-                # confirmation in the status field.
-                s.swd_reset(True)
-                time.sleep(0.05)
-                return s.swd_reset(False)
-            self._run_scanner_task(_pulse, result_cb=_show_in_modal)
-
         def _on_scan_swd() -> None:
-            def _after_scan(text: str) -> None:
-                # Show the raw scan output in the modal status line
-                # first, then offer a follow-up "init with detected
-                # pins?" confirm if a MATCH was found.
-                _show_in_modal(text)
-                detected = parse_scan_swd_match(text.split("\n"))
-                if detected is None:
-                    return
-                swclk, swdio = detected
-
-                def _decision(result: tuple | None) -> None:
-                    # Dismiss payload from SwdInitFromScanModal is
-                    # ``(accept, nrst)`` — nrst is an int or None
-                    # depending on what the operator typed.
-                    if not result:
-                        return
-                    accept, nrst = result
-                    if not accept:
-                        return
-                    # Reflect the detected pins (and operator's
-                    # chosen NRST) in the modal state + persisted
-                    # last-config so the Init page reads the right
-                    # values next time the operator opens it.
-                    modal.state.swclk = swclk
-                    modal.state.swdio = swdio
-                    modal.state.nrst  = nrst
-                    _save()
-                    self._run_scanner_task(
-                        lambda s: s.swd_init(swclk, swdio, nrst),
-                        result_cb=_show_in_modal,
-                    )
-
-                self.push_screen(
-                    SwdInitFromScanModal(
-                        swclk=swclk, swdio=swdio, default_nrst=0,
-                    ),
-                    callback=_decision,
-                )
-
             self._run_scanner_task(
                 lambda s: s.scan_swd(timeout_s=30.0),
-                result_cb=_after_scan,
+                result_cb=_show_in_modal,
             )
 
         modal = ScannerControlModal(
             initial=initial,
-            init_cb=_on_init,
-            deinit_cb=_on_deinit,
-            freq_cb=_on_freq,
-            idcode_cb=_on_idcode,
-            connect_cb=_on_connect,
-            read32_cb=_on_read32,
-            write32_cb=_on_write32,
-            reset_cb=_on_reset,
             scan_swd_cb=_on_scan_swd,
         )
         self.push_screen(modal)
@@ -933,49 +829,90 @@ class FaultycmdTUI(App[None]):
         Campaign control modal with a sweep-params form. MVP only
         supports engine=crowbar (CDC1); engine=emfi multiplex is
         F-future (needs `Connections` refactor for CDC0 SharedSerial
-        + EmfiClient retrofit)."""
+        + EmfiClient retrofit).
+
+        Each callback dispatches its CDC1 op to a daemon thread —
+        the lock + the round-trip both happen off the Textual event
+        loop, so the UI stays responsive even when the daemon
+        `_poll_cdc1` is mid-cycle. The result lands in the modal's
+        status line via `call_from_thread`. Without this offload,
+        pressing Stop right after Start could collide with the
+        poll's status+drain cycle (which holds `cdc1_shared.lock`
+        across 3 round-trips), and the UI would freeze waiting on
+        the lock + the firmware ack."""
         if not (self.conn.campaign and self.conn.cdc1_shared):
             self.notify("no campaign client", severity="error")
             return
         initial = CampaignFormState.from_dict(self._last_config.load("campaign"))
 
-        # All callbacks hold cdc1_shared.lock — campaign opcodes
-        # multiplex on the engine's CDC, which for engine=crowbar
-        # is CDC1 (shared with CrowbarClient).
+        # `modal` is captured by late-binding so callbacks resolve it
+        # only after `push_screen` returns.
+        modal: CampaignControlModal
+
+        def _show(text: str) -> None:
+            modal._set_status(text)
+
+        def _run(label: str, task) -> None:
+            """Dispatch a CDC1 op to a daemon thread. Holds
+            `cdc1_shared.lock` across the call and posts an
+            `OK <label>` / `<label>: <err>` line back to the modal
+            status. The Textual event loop is never blocked."""
+            def worker() -> None:
+                try:
+                    with self.conn.cdc1_shared.lock:
+                        task()
+                except (CampaignError, EngineError, ProtocolError, OSError) as e:
+                    err = str(e)
+                    self._post(_show, f"{label}: {err}")
+                else:
+                    self._post(_show, f"OK {label}")
+            threading.Thread(target=worker, daemon=True).start()
+
         def _on_configure(state: CampaignFormState) -> None:
-            delay, width, power, settle = state.parse()
-            with self.conn.cdc1_shared.lock:
+            try:
+                delay, width, power, settle = state.parse()
+            except ValueError as e:
+                _show(f"configure: {e}")
+                return
+
+            def _task() -> None:
                 self.conn.campaign.configure(
                     delay=delay, width=width, power=power, settle_ms=settle,
                 )
-            self._last_config.save("campaign", state.to_dict())
+                self._last_config.save("campaign", state.to_dict())
+            _run("configure", _task)
 
         def _on_start() -> None:
-            with self.conn.cdc1_shared.lock:
-                self.conn.campaign.start()
+            _run("start", self.conn.campaign.start)
 
         def _on_stop() -> None:
-            with self.conn.cdc1_shared.lock:
-                self.conn.campaign.stop()
+            _run("stop", self.conn.campaign.stop)
 
-        def _on_drain() -> int:
+        def _on_drain() -> None:
             """Drain remaining results manually. The daemon's
             `_poll_cdc1` already auto-drains while state is
             SWEEPING/DONE; this handles STOPPED/ERROR/IDLE states
-            where the daemon skips. Pushes the rendered lines into
-            the dashboard's CampaignPanel tail and returns the
-            count for the modal status_line."""
-            with self.conn.cdc1_shared.lock:
-                results = self.conn.campaign.drain(18)
-            if results and self.campaign_panel is not None:
-                rendered = [
-                    f"step={r.step_n} d={r.delay} w={r.width} "
-                    f"p={r.power} fire=0x{r.fire_status:02X} "
-                    f"verify=0x{r.verify_status:02X}"
-                    for r in results
-                ]
-                self.campaign_panel.push_results(rendered)
-            return len(results)
+            where the daemon skips. The rendered lines are pushed
+            into the dashboard's CampaignPanel tail from the worker
+            thread via `call_from_thread`."""
+            def worker() -> None:
+                try:
+                    with self.conn.cdc1_shared.lock:
+                        results = self.conn.campaign.drain(18)
+                except (CampaignError, EngineError, ProtocolError, OSError) as e:
+                    err = str(e)
+                    self._post(_show, f"drain: {err}")
+                    return
+                if results and self.campaign_panel is not None:
+                    rendered = [
+                        f"step={r.step_n} d={r.delay} w={r.width} "
+                        f"p={r.power} fire=0x{r.fire_status:02X} "
+                        f"verify=0x{r.verify_status:02X}"
+                        for r in results
+                    ]
+                    self._post(self.campaign_panel.push_results, rendered)
+                self._post(_show, f"OK drain ({len(results)} results)")
+            threading.Thread(target=worker, daemon=True).start()
 
         modal = CampaignControlModal(
             initial=initial,
