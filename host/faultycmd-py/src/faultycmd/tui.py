@@ -833,29 +833,52 @@ class FaultycmdTUI(App[None]):
         if not self.conn.crowbar:
             self.notify("no crowbar client (CDC1)", severity="error")
             return
+        if not self.conn.cdc1_shared:
+            self.notify("no shared CDC1", severity="error")
+            return
         initial = CrowbarFormState.from_dict(self._last_config.load("crowbar"))
 
-        # F11-0b-fix: every callback that touches CDC1 must hold
-        # `cdc1_shared.lock` across the whole transaction so the
-        # daemon `_poll_cdc1` doesn't race over reset/write/read.
+        modal: CrowbarControlModal
+
+        def _show(text: str) -> None:
+            modal._set_status(text)
+
+        def _run(label: str, task) -> None:
+            """Dispatch a CDC1 op to a daemon thread. Holds
+            `cdc1_shared.lock` across the call and posts an
+            `OK <label>` / `<label>: <err>` line back to the modal
+            status. The Textual event loop is never blocked — same
+            offload as `action_open_campaign_modal._run`, needed
+            because the daemon `_poll_cdc1` may hold the lock for a
+            full status round-trip and the UI thread would otherwise
+            freeze waiting on it."""
+            def worker() -> None:
+                try:
+                    with self.conn.cdc1_shared.lock:
+                        task()
+                except (EngineError, ProtocolError, OSError) as e:
+                    err = str(e)
+                    self._post(_show, f"{label}: {err}")
+                else:
+                    self._post(_show, f"OK {label}")
+            threading.Thread(target=worker, daemon=True).start()
+
         def _on_apply(state: CrowbarFormState) -> None:
-            # Same string→enum map as the CLI:
-            # `CrowbarTrigger[s.upper()]` / `CrowbarOutput[s.upper()]`.
-            with self.conn.cdc1_shared.lock:
+            def _task() -> None:
                 self.conn.crowbar.configure(
                     trigger=CrowbarTrigger[state.trigger.upper()],
                     output=CrowbarOutput[state.output.upper()],
                     delay_us=state.delay_us,
                     width_ns=state.width_ns,
                 )
-            self._last_config.save("crowbar", state.to_dict())
+                self._last_config.save("crowbar", state.to_dict())
+            _run("apply", _task)
 
         def _on_arm(state: CrowbarFormState) -> None:
             # Crowbar has no HV cap to charge — no confirm modal.
-            # We still re-push the form's configure so an arm after
-            # disarm picks up current form values (same WYSIWYG as
-            # EMFI's _on_arm).
-            with self.conn.cdc1_shared.lock:
+            # Re-push configure so arm-after-disarm picks up current
+            # form values (WYSIWYG, same as EMFI's _on_arm).
+            def _task() -> None:
                 self.conn.crowbar.configure(
                     trigger=CrowbarTrigger[state.trigger.upper()],
                     output=CrowbarOutput[state.output.upper()],
@@ -863,14 +886,13 @@ class FaultycmdTUI(App[None]):
                     width_ns=state.width_ns,
                 )
                 self.conn.crowbar.arm()
+            _run("arm", _task)
 
         def _on_fire() -> None:
-            with self.conn.cdc1_shared.lock:
-                self.conn.crowbar.fire()
+            _run("fire", self.conn.crowbar.fire)
 
         def _on_disarm() -> None:
-            with self.conn.cdc1_shared.lock:
-                self.conn.crowbar.disarm()
+            _run("disarm", self.conn.crowbar.disarm)
 
         modal = CrowbarControlModal(
             initial=initial,
