@@ -712,68 +712,104 @@ class FaultycmdTUI(App[None]):
             return
         initial = EmfiFormState.from_dict(self._last_config.load("emfi"))
 
+        # `modal` is captured by late-binding so callbacks resolve it
+        # only after `push_screen` returns.
+        modal: EmfiControlModal
+
+        def _show(text: str) -> None:
+            modal._set_status(text)
+
+        def _run(label: str, task) -> None:
+            """Dispatch a CDC0 op to a daemon thread. Holds
+            `cdc0_lock` across the call and posts an `OK <label>` /
+            `<label>: <err>` line back to the modal status. Mirror
+            of `action_open_crowbar_modal._run` for CDC1 — the
+            Textual event loop is never blocked on USB I/O."""
+            def worker() -> None:
+                try:
+                    with self.conn.cdc0_lock:
+                        task()
+                except (ProtocolError, EngineError, OSError) as e:
+                    err = str(e)
+                    self._post(_show, f"{label}: {err}")
+                else:
+                    self._post(_show, f"OK {label}")
+            threading.Thread(target=worker, daemon=True).start()
+
         def _on_apply(state: EmfiFormState) -> None:
             # `EmfiFormState.trigger` is a string for Select-widget
             # ergonomics; the wire-level `EmfiClient.configure`
-            # expects an `EmfiTrigger | int` (int(trigger) into the
-            # CMD_CONFIGURE payload). Map it here, the same way the
-            # CLI does (cli.py: `EmfiTrigger[trigger.upper()]`).
-            self.conn.emfi.configure(
-                trigger=EmfiTrigger[state.trigger.upper()],
-                delay_us=state.delay_us,
-                width_us=state.width_us,
-                charge_timeout_ms=state.charge_timeout_ms,
-            )
-            self._last_config.save("emfi", state.to_dict())
+            # expects an `EmfiTrigger | int`. Map it here, same way
+            # the CLI does (`EmfiTrigger[trigger.upper()]`).
+            def _task() -> None:
+                self.conn.emfi.configure(
+                    trigger=EmfiTrigger[state.trigger.upper()],
+                    delay_us=state.delay_us,
+                    width_us=state.width_us,
+                    charge_timeout_ms=state.charge_timeout_ms,
+                )
+                self._last_config.save("emfi", state.to_dict())
+            _run("apply", _task)
 
-        def _on_arm(state: EmfiFormState) -> None:
-            self.conn.emfi.arm()
+        def _on_arm(_state: EmfiFormState) -> None:
+            _run("arm", self.conn.emfi.arm)
 
         def _on_fire() -> None:
-            self.conn.emfi.fire()
+            _run("fire", self.conn.emfi.fire)
 
         def _on_disarm() -> None:
-            self.conn.emfi.disarm()
+            _run("disarm", self.conn.emfi.disarm)
 
         def _on_capture() -> None:
-            # F11-0a-fix: auto-save the entire 8 KB ADC ring to a
-            # timestamped file under XDG cache so the operator can
-            # numpy.fromfile / matplotlib it offline. The TUI itself
-            # doesn't plot (that's F12 GUI scope); a peak/length
-            # toast is meaningless without context. Path mirrors
-            # the persistence module's XDG resolution.
+            # Auto-save the entire 8 KB ADC ring to a timestamped
+            # file under XDG cache so the operator can
+            # `numpy.fromfile` / matplotlib it offline. The TUI
+            # itself doesn't plot (F12 GUI scope). 16+ round-trips
+            # of 512 B each — must run off the UI thread or the
+            # dashboard freezes for hundreds of ms.
             from pathlib import Path
             xdg_cache = os.environ.get("XDG_CACHE_HOME") or str(
                 Path(os.environ.get("HOME", str(Path.home()))) / ".cache"
             )
             out_dir = Path(xdg_cache) / "faultycmd" / "captures"
-            out_dir.mkdir(parents=True, exist_ok=True)
-            # Pull only what's filled. capture_fill saturates at 8192.
-            try:
-                st = self.conn.emfi.status()
-                fill = min(int(st.capture_fill), 8192)
-            except (ProtocolError, EngineError, OSError) as e:
-                self.notify(f"capture: status check failed: {e}", severity="error")
-                return
-            if fill == 0:
-                self.notify("capture: ring empty (no fire yet)",
-                            severity="warning")
-                return
-            chunks: list[bytes] = []
-            offset = 0
-            while offset < fill:
-                length = min(512, fill - offset)
-                chunks.append(self.conn.emfi.capture(offset=offset, length=length))
-                offset += length
-            buf = b"".join(chunks)
-            ts = int(time.time())
-            out_path = out_dir / f"emfi_{ts}.bin"
-            out_path.write_bytes(buf)
-            self.notify(
-                f"capture: saved {len(buf)} B → {out_path}",
-                severity="information",
-                timeout=5,
-            )
+
+            def worker() -> None:
+                try:
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    with self.conn.cdc0_lock:
+                        st = self.conn.emfi.status()
+                        fill = min(int(st.capture_fill), 8192)
+                        if fill == 0:
+                            self._post(
+                                self.notify,
+                                "capture: ring empty (no fire yet)",
+                            )
+                            self._post(_show, "capture: ring empty")
+                            return
+                        chunks: list[bytes] = []
+                        offset = 0
+                        while offset < fill:
+                            length = min(512, fill - offset)
+                            chunks.append(
+                                self.conn.emfi.capture(
+                                    offset=offset, length=length,
+                                )
+                            )
+                            offset += length
+                    buf = b"".join(chunks)
+                    ts = int(time.time())
+                    out_path = out_dir / f"emfi_{ts}.bin"
+                    out_path.write_bytes(buf)
+                except (ProtocolError, EngineError, OSError) as e:
+                    self._post(_show, f"capture: {e}")
+                    return
+                self._post(
+                    self.notify,
+                    f"capture: saved {len(buf)} B → {out_path}",
+                )
+                self._post(_show, f"OK capture ({len(buf)} B)")
+            threading.Thread(target=worker, daemon=True).start()
+            _show("capture dispatched…")
 
         def _confirm_arm(after) -> None:
             """Push HvConfirmModal; on dismiss invoke `after(bool)`."""

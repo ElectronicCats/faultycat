@@ -242,6 +242,12 @@ class EmfiControlModal(ModalScreen[None]):
     # -- actions ---------------------------------------------------
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        # Each callback dispatches the CDC0 op to a daemon thread
+        # (see `tui.action_open_emfi_modal._run`) so the Textual
+        # event loop never blocks waiting on the CDC0 lock /
+        # firmware ack. Inline status shows "<action> dispatched…"
+        # immediately; the worker overwrites it with "OK <action>"
+        # or "<action>: <err>" via call_from_thread on completion.
         action = event.button.id or ""
         if action == "close":
             self.action_close()
@@ -252,7 +258,7 @@ class EmfiControlModal(ModalScreen[None]):
         if action == "apply" and self.apply_cb:
             try:
                 self.apply_cb(self.state)
-                self._set_status("OK applied")
+                self._set_status("apply dispatched…")
             except Exception as e:
                 self._set_status(f"apply: {e}")
         elif action == "arm":
@@ -264,19 +270,21 @@ class EmfiControlModal(ModalScreen[None]):
         elif action == "fire" and self.fire_cb:
             try:
                 self.fire_cb()
-                self._set_status("OK fire")
+                self._set_status("fire dispatched…")
             except Exception as e:
                 self._set_status(f"fire: {e}")
         elif action == "disarm" and self.disarm_cb:
             try:
                 self.disarm_cb()
-                self._set_status("OK disarm")
+                self._set_status("disarm dispatched…")
             except Exception as e:
                 self._set_status(f"disarm: {e}")
         elif action == "capture" and self.capture_cb:
             try:
                 self.capture_cb()
-                self._set_status("OK capture (see panel)")
+                # Capture handler sets its own status (it runs a
+                # multi-step worker that may abort with "ring empty"
+                # before any dispatch happens).
             except Exception as e:
                 self._set_status(f"capture: {e}")
 
@@ -286,7 +294,7 @@ class EmfiControlModal(ModalScreen[None]):
             return
         try:
             self.arm_cb(self.state)
-            self._set_status("OK arm")
+            self._set_status("arm dispatched…")
         except Exception as e:
             self._set_status(f"arm: {e}")
 
