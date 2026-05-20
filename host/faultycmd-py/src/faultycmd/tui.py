@@ -684,16 +684,27 @@ class FaultycmdTUI(App[None]):
         """F11-0c: replaces F10's `s = toggle demo` (locked 6-step
         crowbar LP). The demo concept is gone — `p` opens the real
         Campaign control modal. `s` here is an express-stop hotkey
-        for aborting an in-flight sweep without opening the modal."""
+        for aborting an in-flight sweep without opening the modal.
+
+        The stop round-trip is dispatched to a daemon thread so the
+        Textual event loop never blocks on `cdc1_shared.lock` /
+        firmware ack — same offload reason as the Campaign modal."""
         if not (self.conn.campaign and self.conn.cdc1_shared):
             self.notify("no campaign client", severity="error")
             return
-        try:
-            with self.conn.cdc1_shared.lock:
-                self.conn.campaign.stop()
-            self.notify("sweep stop sent", severity="information")
-        except (CampaignError, EngineError, ProtocolError, OSError) as e:
-            self.notify(f"stop: {e}", severity="error")
+
+        def _notify(msg: str, severity: str) -> None:
+            self.notify(msg, severity=severity)
+
+        def worker() -> None:
+            try:
+                with self.conn.cdc1_shared.lock:
+                    self.conn.campaign.stop()
+            except (CampaignError, EngineError, ProtocolError, OSError) as e:
+                self._post(_notify, f"stop: {e}", "error")
+            else:
+                self._post(_notify, "sweep stop sent", "information")
+        threading.Thread(target=worker, daemon=True).start()
 
     def action_open_emfi_modal(self) -> None:
         if not self.conn.emfi:
