@@ -45,7 +45,7 @@ import os
 import re
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -195,6 +195,12 @@ class Connections:
     campaign: CampaignClient | None = None
     cdc1_shared: SharedSerial | None = None
     cdc2_serial: object | None = None       # serial.Serial in diag tail
+    # CDC0 has a single owner (EmfiClient) but the daemon `_poll_emfi`
+    # and the EMFI modal callbacks both touch it — without a lock,
+    # a poll cycle in flight when the operator presses Apply/Arm/Fire
+    # races on the shared serial. CDC1 is already covered by
+    # `SharedSerial.lock`; this is the CDC0 analogue.
+    cdc0_lock: threading.Lock = field(default_factory=threading.Lock)
     last_error: str = ""
 
     def open(self) -> None:
@@ -439,7 +445,11 @@ class FaultycmdTUI(App[None]):
                 time.sleep(0.5)
                 continue
             try:
-                st = self.conn.emfi.status()
+                # Hold `cdc0_lock` so a concurrent modal action on the
+                # UI thread can't race with the status round-trip.
+                # Symmetric to `_poll_cdc1`'s use of `cdc1_shared.lock`.
+                with self.conn.cdc0_lock:
+                    st = self.conn.emfi.status()
                 self._post(self._update_emfi, st)
             except (ProtocolError, EngineError, OSError) as e:
                 self._post(self._note_error, f"emfi: {e}")
