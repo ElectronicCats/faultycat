@@ -99,6 +99,30 @@ init / deinit / freq / idcode / connect / read32 / write32 /
 reset action pages and the JTAG pages are also WIP and have been
 pulled from the menu.
 
+### Trigger timeout (EMFI / Crowbar fire)
+
+`fire` carries a per-call `trigger_timeout_ms` that bounds how
+long the firmware waits for the external trigger before tripping
+`*_ERR_TRIGGER_TIMEOUT`. Defaults and semantics are symmetric
+across EMFI and Crowbar:
+
+- Default: **60 000 ms** (1 minute) — enough for manual external
+  triggers without having to reach for the CLI.
+- `0` means **wait forever** (firmware enforces it in
+  `tick_waiting` — disarm cancels the wait by tearing down the
+  PIO and resetting state).
+
+Where to set it:
+
+- **TUI** (`e` / `b`): the modal form exposes a
+  `trigger-timeout-ms` Input. It is read on every `fire` press,
+  so the operator can tune it between fires without re-applying.
+  The value is persisted alongside the rest of the form in
+  `last_config.json`.
+- **CLI**: `faultycmd emfi fire --trigger-timeout-ms <ms>` and
+  `faultycmd crowbar fire --trigger-timeout-ms <ms>`. Same
+  default (60 000).
+
 ## Status
 
 F10 closed `v3.0-f10` (2026-04-29). F11-0 (TUI complete control
