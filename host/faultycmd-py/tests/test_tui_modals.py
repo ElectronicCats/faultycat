@@ -66,7 +66,10 @@ def test_emfi_form_state_validates_width_bounds():
 
 
 def test_emfi_form_state_validates_trigger_enum():
-    valid = ("immediate", "ext_rising", "ext_falling", "ext_pulse_pos")
+    valid = (
+        "immediate", "ext_rising", "ext_falling",
+        "ext_pulse_pos", "ext_pulse_neg",
+    )
     for t in valid:
         EmfiFormState(trigger=t).validate()
     with pytest.raises(ValueError):
@@ -201,7 +204,10 @@ def test_crowbar_form_state_validates_width_bounds():
 
 
 def test_crowbar_form_state_validates_trigger_enum():
-    for t in ("immediate", "ext_rising", "ext_falling", "ext_pulse_pos"):
+    for t in (
+        "immediate", "ext_rising", "ext_falling",
+        "ext_pulse_pos", "ext_pulse_neg",
+    ):
         CrowbarFormState(trigger=t).validate()
     with pytest.raises(ValueError):
         CrowbarFormState(trigger="bogus").validate()
