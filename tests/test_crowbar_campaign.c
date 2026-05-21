@@ -275,6 +275,55 @@ static void test_reconfigure_clears_error_state(void) {
     TEST_ASSERT_EQUAL(CROWBAR_ERR_NONE, s.err);
 }
 
+// Reproduces the operator-reported sequence:
+//   apply -> arm -> fire   (works)
+//   arm -> fire            (used to fail before the pio_deinit fix)
+//   arm -> fire            (used to fail too)
+// Pinned with the crowbar_pio_deinit() SIO-restore: each fire cycle
+// re-claims the SM cleanly and the FSM transitions WAITING again.
+static void test_two_consecutive_arm_fire_cycles(void) {
+    crowbar_config_t c = default_cfg();
+    crowbar_campaign_configure(&c);
+
+    TEST_ASSERT_TRUE(crowbar_campaign_arm());
+    TEST_ASSERT_TRUE(crowbar_campaign_fire(500));
+    hal_fake_pio_raise_irq(0, 1);
+    crowbar_campaign_tick();
+    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    TEST_ASSERT_EQUAL(CROWBAR_STATE_FIRED, s.state);
+
+    TEST_ASSERT_TRUE(crowbar_campaign_arm());
+    TEST_ASSERT_TRUE(crowbar_campaign_fire(500));
+    crowbar_campaign_get_status(&s);
+    TEST_ASSERT_EQUAL(CROWBAR_STATE_WAITING, s.state);
+    hal_fake_pio_raise_irq(0, 1);
+    crowbar_campaign_tick();
+    crowbar_campaign_get_status(&s);
+    TEST_ASSERT_EQUAL(CROWBAR_STATE_FIRED, s.state);
+
+    TEST_ASSERT_TRUE(crowbar_campaign_arm());
+    TEST_ASSERT_TRUE(crowbar_campaign_fire(500));
+    crowbar_campaign_get_status(&s);
+    TEST_ASSERT_EQUAL(CROWBAR_STATE_WAITING, s.state);
+}
+
+// Pin the invariant directly: after teardown the gate pin must be
+// re-initialised as plain SIO output (so crowbar_mosfet_set_path()
+// actually drives the line on the next arm/fire cycle). Without the
+// fix the pin stayed in GPIO_FUNC_PIO0 and gpio_put was a no-op.
+static void test_teardown_reinits_used_gate_pin_to_sio(void) {
+    crowbar_config_t c = default_cfg();
+    c.output = CROWBAR_OUT_HP;
+    crowbar_campaign_configure(&c);
+    crowbar_campaign_arm();
+    crowbar_campaign_fire(500);
+    uint32_t before = hal_fake_gpio_states[BOARD_GP_CROWBAR_HP].init_calls;
+    hal_fake_pio_raise_irq(0, 1);
+    crowbar_campaign_tick();    // -> FIRED runs teardown
+    uint32_t after = hal_fake_gpio_states[BOARD_GP_CROWBAR_HP].init_calls;
+    TEST_ASSERT_GREATER_THAN(before, after);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_initial_state_is_idle);
@@ -300,5 +349,7 @@ int main(void) {
     RUN_TEST(test_disarm_forces_set_path_none);
     RUN_TEST(test_arm_from_fired_back_to_armed);
     RUN_TEST(test_reconfigure_clears_error_state);
+    RUN_TEST(test_two_consecutive_arm_fire_cycles);
+    RUN_TEST(test_teardown_reinits_used_gate_pin_to_sio);
     return UNITY_END();
 }
