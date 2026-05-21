@@ -104,7 +104,7 @@ class EmfiClient(BinaryProtoClient):
         """Transition the campaign to ARMING (HV charge starts)."""
         self._raise_on_err(self._send(CMD_ARM))
 
-    def fire(self, trigger_timeout_ms: int = 1000) -> None:
+    def fire(self, trigger_timeout_ms: int = 60000) -> None:
         """Wait for trigger up to ``trigger_timeout_ms``, then PIO fires."""
         self._raise_on_err(self._send(CMD_FIRE, struct.pack("<I", trigger_timeout_ms)))
 

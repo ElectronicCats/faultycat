@@ -195,7 +195,7 @@ def arm(ctx: click.Context) -> None:
 
 
 @emfi.command()
-@click.option("--trigger-timeout-ms", type=int, default=1000, show_default=True)
+@click.option("--trigger-timeout-ms", type=int, default=60000, show_default=True)
 @click.pass_context
 def fire(ctx: click.Context, trigger_timeout_ms: int) -> None:
     """Wait for trigger and fire (PIO drives the HV pulse)."""
@@ -315,7 +315,7 @@ def crowbar_arm(ctx: click.Context) -> None:
 
 
 @crowbar.command("fire")
-@click.option("--trigger-timeout-ms", type=int, default=1000, show_default=True)
+@click.option("--trigger-timeout-ms", type=int, default=60000, show_default=True)
 @click.pass_context
 def crowbar_fire(ctx: click.Context, trigger_timeout_ms: int) -> None:
     with _crowbar_client(ctx) as cli:

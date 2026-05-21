@@ -106,7 +106,7 @@ class CrowbarClient(BinaryProtoClient):
     def arm(self) -> None:
         self._raise_on_err(self._send(CMD_ARM))
 
-    def fire(self, trigger_timeout_ms: int = 1000) -> None:
+    def fire(self, trigger_timeout_ms: int = 60000) -> None:
         self._raise_on_err(self._send(CMD_FIRE, struct.pack("<I", trigger_timeout_ms)))
 
     def disarm(self) -> None:
