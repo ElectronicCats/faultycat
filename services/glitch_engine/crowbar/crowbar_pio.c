@@ -109,6 +109,15 @@ static uint32_t compile_trigger_block(uint16_t *out, crowbar_trig_t t) {
             out[1] = OP_WAIT_1_PIN0;
             out[2] = OP_WAIT_0_PIN0;
             return 3;
+        case CROWBAR_TRIG_EXT_PULSE_NEG:
+            // Inverse of PULSE_POS: HIGH-idle, the source dips LOW
+            // briefly and comes back HIGH. The trailing rising edge
+            // is the trigger event. See crowbar_pio.h doc-comment on
+            // crowbar_trig_t for the full per-option contract.
+            out[0] = OP_WAIT_1_PIN0;
+            out[1] = OP_WAIT_0_PIN0;
+            out[2] = OP_WAIT_1_PIN0;
+            return 3;
     }
     return 0;
 }

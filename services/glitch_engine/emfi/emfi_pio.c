@@ -69,6 +69,14 @@ static uint32_t compile_trigger_block(uint16_t *out, emfi_trig_t t) {
             out[1] = OP_WAIT_1_PIN0;
             out[2] = OP_WAIT_0_PIN0;
             return 3;
+        case EMFI_TRIG_EXT_PULSE_NEG:
+            // Inverse of PULSE_POS: HIGH-idle, source dips LOW and
+            // comes back HIGH. Trailing rising edge is the trigger
+            // event. See emfi_pio.h doc-comment on emfi_trig_t.
+            out[0] = OP_WAIT_1_PIN0;
+            out[1] = OP_WAIT_0_PIN0;
+            out[2] = OP_WAIT_1_PIN0;
+            return 3;
     }
     return 0;
 }

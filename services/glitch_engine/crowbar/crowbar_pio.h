@@ -19,11 +19,31 @@
 //
 // IRQ allocation: IRQ 1 (EMFI uses IRQ 0).
 
+// Trigger polarity. The PIO program for each option is described in
+// services/glitch_engine/crowbar/crowbar_pio.c::compile_trigger_block.
+//
+//   IMMEDIATE    → no trigger; fires as soon as PIO is started.
+//   EXT_RISING   → Program: WAIT 0, WAIT 1. Last event = rising edge.
+//   EXT_FALLING  → Program: WAIT 1, WAIT 0. Last event = falling edge.
+//   EXT_PULSE_POS→ Program: WAIT 0, WAIT 1, WAIT 0. Trigger source
+//                  generates LOW→HIGH→LOW; fire after the trailing
+//                  falling edge.
+//   EXT_PULSE_NEG→ Program: WAIT 1, WAIT 0, WAIT 1. Trigger source
+//                  generates HIGH→LOW→HIGH; fire after the trailing
+//                  rising edge — inverse of PULSE_POS.
+//
+// The GP8 trigger line idle level is fixed at boot by
+// ext_trigger_init(EXT_TRIGGER_PULL_DOWN) in apps/faultycat_fw/main.c
+// — the service layer does not flip it per arm. EXT_FALLING and
+// EXT_PULSE_NEG therefore require the operator's external source to
+// hold the line HIGH between events; otherwise the leading WAIT 1
+// stalls.
 typedef enum {
     CROWBAR_TRIG_IMMEDIATE     = 0,
     CROWBAR_TRIG_EXT_RISING    = 1,
     CROWBAR_TRIG_EXT_FALLING   = 2,
     CROWBAR_TRIG_EXT_PULSE_POS = 3,
+    CROWBAR_TRIG_EXT_PULSE_NEG = 4,
 } crowbar_trig_t;
 
 typedef enum {

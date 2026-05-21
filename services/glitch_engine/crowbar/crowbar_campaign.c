@@ -40,6 +40,7 @@ static bool valid_trigger(crowbar_trig_t t) {
         case CROWBAR_TRIG_EXT_RISING:
         case CROWBAR_TRIG_EXT_FALLING:
         case CROWBAR_TRIG_EXT_PULSE_POS:
+        case CROWBAR_TRIG_EXT_PULSE_NEG:
             return true;
     }
     return false;

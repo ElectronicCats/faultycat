@@ -15,11 +15,17 @@
 // wide PIO instance convention (pio0 for glitch engines; pio1 for
 // SWD/UART/JTAG).
 
+// Trigger polarity. Mirror of crowbar_trig_t in
+// services/glitch_engine/crowbar/crowbar_pio.h — see that file for
+// the per-option WAIT sequence and idle-pull contract. Both engines
+// share the same wire-level numbering so the host can map them
+// uniformly.
 typedef enum {
     EMFI_TRIG_IMMEDIATE     = 0,
     EMFI_TRIG_EXT_RISING    = 1,
     EMFI_TRIG_EXT_FALLING   = 2,
     EMFI_TRIG_EXT_PULSE_POS = 3,
+    EMFI_TRIG_EXT_PULSE_NEG = 4,
 } emfi_trig_t;
 
 typedef struct {
