@@ -96,6 +96,22 @@ static void test_load_pulse_positive_inserts_three_waits(void) {
                            .delay_us = 1, .width_us = 5 };
     TEST_ASSERT_TRUE(emfi_pio_load(&p));
     TEST_ASSERT_EQUAL_UINT32(12u, hal_fake_pio_insts[0].program.length);
+    // PULSE_POS is `WAIT 0, WAIT 1, WAIT 0` (LOW→HIGH→LOW pulse).
+    TEST_ASSERT_EQUAL_HEX16(0x2020, hal_fake_pio_insts[0].program.instructions[2]);
+    TEST_ASSERT_EQUAL_HEX16(0x20A0, hal_fake_pio_insts[0].program.instructions[3]);
+    TEST_ASSERT_EQUAL_HEX16(0x2020, hal_fake_pio_insts[0].program.instructions[4]);
+}
+
+static void test_load_pulse_negative_inserts_three_waits(void) {
+    emfi_pio_init();
+    emfi_pio_params_t p = { .trigger = EMFI_TRIG_EXT_PULSE_NEG,
+                           .delay_us = 1, .width_us = 5 };
+    TEST_ASSERT_TRUE(emfi_pio_load(&p));
+    TEST_ASSERT_EQUAL_UINT32(12u, hal_fake_pio_insts[0].program.length);
+    // PULSE_NEG is `WAIT 1, WAIT 0, WAIT 1` — inverse of PULSE_POS.
+    TEST_ASSERT_EQUAL_HEX16(0x20A0, hal_fake_pio_insts[0].program.instructions[2]);
+    TEST_ASSERT_EQUAL_HEX16(0x2020, hal_fake_pio_insts[0].program.instructions[3]);
+    TEST_ASSERT_EQUAL_HEX16(0x20A0, hal_fake_pio_insts[0].program.instructions[4]);
 }
 
 static void test_load_attaches_emfi_pulse_to_pio(void) {
@@ -168,6 +184,7 @@ int main(void) {
     RUN_TEST(test_load_immediate_has_no_trigger_block);
     RUN_TEST(test_load_rising_edge_inserts_two_waits);
     RUN_TEST(test_load_pulse_positive_inserts_three_waits);
+    RUN_TEST(test_load_pulse_negative_inserts_three_waits);
     RUN_TEST(test_load_attaches_emfi_pulse_to_pio);
     RUN_TEST(test_load_binds_gp14_to_pio);
     RUN_TEST(test_load_configures_sm_with_correct_pins);
