@@ -99,6 +99,36 @@ init / deinit / freq / idcode / connect / read32 / write32 /
 reset action pages and the JTAG pages are also WIP and have been
 pulled from the menu.
 
+### Trigger polarity (EMFI / Crowbar)
+
+Both engines expose the same five trigger options on the wire:
+
+| Trigger          | Wire id | PIO program (WAITs)        | Last event (fires the glitch) |
+|------------------|---------|----------------------------|-------------------------------|
+| `immediate`      | 0       | (none)                     | starts immediately on `fire`  |
+| `ext_rising`     | 1       | `WAIT 0, WAIT 1`           | rising edge                   |
+| `ext_falling`    | 2       | `WAIT 1, WAIT 0`           | falling edge                  |
+| `ext_pulse_pos`  | 3       | `WAIT 0, WAIT 1, WAIT 0`   | trailing falling edge of a LOW→HIGH→LOW pulse |
+| `ext_pulse_neg`  | 4       | `WAIT 1, WAIT 0, WAIT 1`   | trailing rising edge of a HIGH→LOW→HIGH pulse |
+
+Notes:
+
+- The trigger line idle level is set once at boot by `main.c`
+  (`ext_trigger_init(EXT_TRIGGER_PULL_DOWN)`), i.e. LOW-idle
+  system-wide. The service layer does not change it per arm.
+- This means `ext_falling` and `ext_pulse_neg` require the operator's
+  physical trigger source to drive HIGH between events — the internal
+  pull-down plus the v2 board's level-shifter will otherwise hold the
+  line LOW and the leading `WAIT 1` stalls forever.
+- Firmware latency from the *trigger event* to the crowbar/EMFI pin
+  is the same in all four edge modes (~56 ns). If you measure from
+  the *start* of a pulse instead of from the trailing edge that
+  fires the glitch, you'll see the pulse width added on top — that
+  is not firmware overhead, just where the oscilloscope cursor is.
+- `ext_pulse_pos` and `ext_pulse_neg` are inverses. Pick the one
+  whose idle level matches what your trigger source generates between
+  events; otherwise the leading WAIT stalls.
+
 ### Trigger timeout (EMFI / Crowbar fire)
 
 `fire` carries a per-call `trigger_timeout_ms` that bounds how
