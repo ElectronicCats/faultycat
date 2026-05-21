@@ -40,6 +40,10 @@ class EmfiFormState:
     delay_us: int = 0
     width_us: int = 5
     charge_timeout_ms: int = 0
+    # Per-fire upper bound on how long the firmware waits for the
+    # external trigger before reporting CROWBAR_ERR_TRIGGER_TIMEOUT.
+    # 0 = wait forever (firmware semantics, see emfi_campaign.c).
+    trigger_timeout_ms: int = 60000
 
     @classmethod
     def from_dict(cls, d: dict) -> EmfiFormState:
@@ -65,6 +69,11 @@ class EmfiFormState:
         if self.charge_timeout_ms < 0:
             raise ValueError(
                 f"charge_timeout_ms must be >= 0, got {self.charge_timeout_ms}"
+            )
+        if self.trigger_timeout_ms < 0:
+            raise ValueError(
+                f"trigger_timeout_ms must be >= 0 (0 = wait forever), "
+                f"got {self.trigger_timeout_ms}"
             )
 
 
@@ -199,6 +208,10 @@ class EmfiControlModal(ModalScreen[None]):
             yield Input(
                 value=str(self.state.charge_timeout_ms), id="charge_timeout_ms"
             )
+            yield Label("trigger-timeout-ms (0 = wait forever):")
+            yield Input(
+                value=str(self.state.trigger_timeout_ms), id="trigger_timeout_ms"
+            )
             yield Static("", id="status_line")
             with Horizontal():
                 yield Button("Apply", id="apply", variant="primary")
@@ -218,12 +231,14 @@ class EmfiControlModal(ModalScreen[None]):
             d = int(self.query_one("#delay_us", Input).value or "0")
             w = int(self.query_one("#width_us", Input).value or "0")
             ct = int(self.query_one("#charge_timeout_ms", Input).value or "0")
+            tto = int(self.query_one("#trigger_timeout_ms", Input).value or "0")
         except (ValueError, KeyError):
             self._set_status("error: invalid integer in form")
             return False
         candidate = EmfiFormState(
             trigger=trig if isinstance(trig, str) else "immediate",
             delay_us=d, width_us=w, charge_timeout_ms=ct,
+            trigger_timeout_ms=tto,
         )
         try:
             candidate.validate()
@@ -544,6 +559,10 @@ class CrowbarFormState:
     output:  str = "lp"
     delay_us: int = 0
     width_ns: int = 200
+    # Per-fire upper bound on how long the firmware waits for the
+    # external trigger before reporting CROWBAR_ERR_TRIGGER_TIMEOUT.
+    # 0 = wait forever (firmware semantics, see crowbar_campaign.c).
+    trigger_timeout_ms: int = 60000
 
     @classmethod
     def from_dict(cls, d: dict) -> CrowbarFormState:
@@ -569,6 +588,11 @@ class CrowbarFormState:
             )
         if self.delay_us < 0:
             raise ValueError(f"delay_us must be >= 0, got {self.delay_us}")
+        if self.trigger_timeout_ms < 0:
+            raise ValueError(
+                f"trigger_timeout_ms must be >= 0 (0 = wait forever), "
+                f"got {self.trigger_timeout_ms}"
+            )
 
 
 class CrowbarControlModal(ModalScreen[None]):
@@ -640,6 +664,10 @@ class CrowbarControlModal(ModalScreen[None]):
             yield Input(value=str(self.state.delay_us), id="delay_us")
             yield Label("width-ns (8..50000):")
             yield Input(value=str(self.state.width_ns), id="width_ns")
+            yield Label("trigger-timeout-ms (0 = wait forever):")
+            yield Input(
+                value=str(self.state.trigger_timeout_ms), id="trigger_timeout_ms"
+            )
             yield Static("", id="status_line")
             with Horizontal():
                 yield Button("Apply", id="apply", variant="primary")
@@ -654,6 +682,7 @@ class CrowbarControlModal(ModalScreen[None]):
             out  = self.query_one("#output", Select).value
             d = int(self.query_one("#delay_us", Input).value or "0")
             w = int(self.query_one("#width_ns", Input).value or "0")
+            tto = int(self.query_one("#trigger_timeout_ms", Input).value or "0")
         except (ValueError, KeyError):
             self._set_status("error: invalid integer in form")
             return False
@@ -661,6 +690,7 @@ class CrowbarControlModal(ModalScreen[None]):
             trigger=trig if isinstance(trig, str) else "immediate",
             output=out if isinstance(out, str) else "lp",
             delay_us=d, width_ns=w,
+            trigger_timeout_ms=tto,
         )
         try:
             candidate.validate()
