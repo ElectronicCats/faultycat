@@ -307,6 +307,12 @@ static void test_two_consecutive_arm_fire_cycles(void) {
     TEST_ASSERT_EQUAL(CROWBAR_STATE_WAITING, s.state);
 }
 
+static void test_configure_accepts_pulse_neg(void) {
+    crowbar_config_t c = default_cfg();
+    c.trigger = CROWBAR_TRIG_EXT_PULSE_NEG;
+    TEST_ASSERT_TRUE(crowbar_campaign_configure(&c));
+}
+
 // Pin the invariant directly: after teardown the gate pin must be
 // re-initialised as plain SIO output (so crowbar_mosfet_set_path()
 // actually drives the line on the next arm/fire cycle). Without the
@@ -350,6 +356,7 @@ int main(void) {
     RUN_TEST(test_arm_from_fired_back_to_armed);
     RUN_TEST(test_reconfigure_clears_error_state);
     RUN_TEST(test_two_consecutive_arm_fire_cycles);
+    RUN_TEST(test_configure_accepts_pulse_neg);
     RUN_TEST(test_teardown_reinits_used_gate_pin_to_sio);
     return UNITY_END();
 }

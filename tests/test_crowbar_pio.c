@@ -90,10 +90,11 @@ static void test_load_immediate_has_no_trigger_block(void) {
                               .output   = CROWBAR_OUT_HP,
                               .delay_us = 1u, .width_ns = 200u };
     TEST_ASSERT_TRUE(crowbar_pio_load(&p));
-    // Same shape as EMFI: 2 (delay setup) + 0 (trigger) + 1 (delay
-    // loop) + 2 (width setup) + 1 (SET high) + 1 (hold loop) + 1
-    // (SET low) + 1 (IRQ) = 9.
-    TEST_ASSERT_EQUAL_UINT32(9u, hal_fake_pio_insts[0].program.length);
+    // 1 (SET PINDIRS — see crowbar_pio.c build_program note) +
+    // 2 (delay setup) + 0 (trigger) + 1 (delay loop) +
+    // 2 (width setup) + 1 (SET high) + 1 (hold loop) +
+    // 1 (SET low) + 1 (IRQ) = 10.
+    TEST_ASSERT_EQUAL_UINT32(10u, hal_fake_pio_insts[0].program.length);
 }
 
 static void test_load_rising_edge_inserts_two_waits(void) {
@@ -102,9 +103,23 @@ static void test_load_rising_edge_inserts_two_waits(void) {
                               .output   = CROWBAR_OUT_HP,
                               .delay_us = 1u, .width_ns = 200u };
     TEST_ASSERT_TRUE(crowbar_pio_load(&p));
-    TEST_ASSERT_EQUAL_UINT32(11u, hal_fake_pio_insts[0].program.length);
-    TEST_ASSERT_EQUAL_HEX16(0x2020, hal_fake_pio_insts[0].program.instructions[2]);
+    TEST_ASSERT_EQUAL_UINT32(12u, hal_fake_pio_insts[0].program.length);
+    // Trigger block starts at index 3: [0]=SET PINDIRS, [1]=PULL,
+    // [2]=OUT Y, [3..]=trigger.
+    TEST_ASSERT_EQUAL_HEX16(0x2020, hal_fake_pio_insts[0].program.instructions[3]);
+    TEST_ASSERT_EQUAL_HEX16(0x20A0, hal_fake_pio_insts[0].program.instructions[4]);
+}
+
+static void test_load_falling_edge_inserts_two_waits(void) {
+    crowbar_pio_init();
+    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_EXT_FALLING,
+                              .output   = CROWBAR_OUT_HP,
+                              .delay_us = 1u, .width_ns = 200u };
+    TEST_ASSERT_TRUE(crowbar_pio_load(&p));
+    TEST_ASSERT_EQUAL_UINT32(12u, hal_fake_pio_insts[0].program.length);
+    // FALLING is `WAIT 1, WAIT 0` — inverse of RISING.
     TEST_ASSERT_EQUAL_HEX16(0x20A0, hal_fake_pio_insts[0].program.instructions[3]);
+    TEST_ASSERT_EQUAL_HEX16(0x2020, hal_fake_pio_insts[0].program.instructions[4]);
 }
 
 static void test_load_pulse_positive_inserts_three_waits(void) {
@@ -113,7 +128,24 @@ static void test_load_pulse_positive_inserts_three_waits(void) {
                               .output   = CROWBAR_OUT_HP,
                               .delay_us = 1u, .width_ns = 200u };
     TEST_ASSERT_TRUE(crowbar_pio_load(&p));
-    TEST_ASSERT_EQUAL_UINT32(12u, hal_fake_pio_insts[0].program.length);
+    TEST_ASSERT_EQUAL_UINT32(13u, hal_fake_pio_insts[0].program.length);
+    // PULSE_POS is `WAIT 0, WAIT 1, WAIT 0` (LOW→HIGH→LOW pulse).
+    TEST_ASSERT_EQUAL_HEX16(0x2020, hal_fake_pio_insts[0].program.instructions[3]);
+    TEST_ASSERT_EQUAL_HEX16(0x20A0, hal_fake_pio_insts[0].program.instructions[4]);
+    TEST_ASSERT_EQUAL_HEX16(0x2020, hal_fake_pio_insts[0].program.instructions[5]);
+}
+
+static void test_load_pulse_negative_inserts_three_waits(void) {
+    crowbar_pio_init();
+    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_EXT_PULSE_NEG,
+                              .output   = CROWBAR_OUT_HP,
+                              .delay_us = 1u, .width_ns = 200u };
+    TEST_ASSERT_TRUE(crowbar_pio_load(&p));
+    TEST_ASSERT_EQUAL_UINT32(13u, hal_fake_pio_insts[0].program.length);
+    // PULSE_NEG is `WAIT 1, WAIT 0, WAIT 1` — inverse of PULSE_POS.
+    TEST_ASSERT_EQUAL_HEX16(0x20A0, hal_fake_pio_insts[0].program.instructions[3]);
+    TEST_ASSERT_EQUAL_HEX16(0x2020, hal_fake_pio_insts[0].program.instructions[4]);
+    TEST_ASSERT_EQUAL_HEX16(0x20A0, hal_fake_pio_insts[0].program.instructions[5]);
 }
 
 static void test_load_lp_binds_gp16_to_pio(void) {
@@ -233,7 +265,9 @@ int main(void) {
     RUN_TEST(test_load_rejects_output_none);
     RUN_TEST(test_load_immediate_has_no_trigger_block);
     RUN_TEST(test_load_rising_edge_inserts_two_waits);
+    RUN_TEST(test_load_falling_edge_inserts_two_waits);
     RUN_TEST(test_load_pulse_positive_inserts_three_waits);
+    RUN_TEST(test_load_pulse_negative_inserts_three_waits);
     RUN_TEST(test_load_lp_binds_gp16_to_pio);
     RUN_TEST(test_load_hp_binds_gp17_to_pio);
     RUN_TEST(test_load_binds_ext_trigger_as_in_pin);
