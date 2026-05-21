@@ -754,8 +754,12 @@ class FaultycmdTUI(App[None]):
         def _on_arm(_state: EmfiFormState) -> None:
             _run("arm", self.conn.emfi.arm)
 
-        def _on_fire() -> None:
-            _run("fire", self.conn.emfi.fire)
+        def _on_fire(state: EmfiFormState) -> None:
+            # Bind the form's trigger_timeout_ms into the call —
+            # firmware accepts it on every CMD_FIRE, so the operator
+            # can change it between fires without re-applying.
+            timeout = state.trigger_timeout_ms
+            _run("fire", lambda: self.conn.emfi.fire(timeout))
 
         def _on_disarm() -> None:
             _run("disarm", self.conn.emfi.disarm)
@@ -888,8 +892,12 @@ class FaultycmdTUI(App[None]):
                 self.conn.crowbar.arm()
             _run("arm", _task)
 
-        def _on_fire() -> None:
-            _run("fire", self.conn.crowbar.fire)
+        def _on_fire(state: CrowbarFormState) -> None:
+            # Bind the form's trigger_timeout_ms into the call —
+            # firmware accepts it on every CMD_FIRE, so the operator
+            # can change it between fires without re-applying.
+            timeout = state.trigger_timeout_ms
+            _run("fire", lambda: self.conn.crowbar.fire(timeout))
 
         def _on_disarm() -> None:
             _run("disarm", self.conn.crowbar.disarm)

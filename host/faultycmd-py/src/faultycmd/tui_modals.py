@@ -267,7 +267,9 @@ class EmfiControlModal(ModalScreen[None]):
         if action == "close":
             self.action_close()
             return
-        if action in ("apply", "arm"):
+        if action in ("apply", "arm", "fire"):
+            # Sync on fire too so the operator can tweak
+            # trigger-timeout-ms between fires without re-applying.
             if not self._sync_state_from_inputs():
                 return
         if action == "apply" and self.apply_cb:
@@ -284,7 +286,7 @@ class EmfiControlModal(ModalScreen[None]):
             self.confirm_arm_cb(self._do_arm_post_confirm)
         elif action == "fire" and self.fire_cb:
             try:
-                self.fire_cb()
+                self.fire_cb(self.state)
                 self._set_status("fire dispatched…")
             except Exception as e:
                 self._set_status(f"fire: {e}")
@@ -717,7 +719,9 @@ class CrowbarControlModal(ModalScreen[None]):
         if action == "close":
             self.action_close()
             return
-        if action in ("apply", "arm"):
+        if action in ("apply", "arm", "fire"):
+            # Sync on fire too so the operator can tweak
+            # trigger-timeout-ms between fires without re-applying.
             if not self._sync_state_from_inputs():
                 return
         if action == "apply" and self.apply_cb:
@@ -734,7 +738,7 @@ class CrowbarControlModal(ModalScreen[None]):
                 self._set_status(f"arm: {e}")
         elif action == "fire" and self.fire_cb:
             try:
-                self.fire_cb()
+                self.fire_cb(self.state)
                 self._set_status("fire dispatched…")
             except Exception as e:
                 self._set_status(f"fire: {e}")
