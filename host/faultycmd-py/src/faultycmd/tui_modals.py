@@ -31,7 +31,7 @@ from textual.widgets import Button, Input, Label, Select, Static
 # -----------------------------------------------------------------
 
 
-_EMFI_TRIGGERS = ("immediate", "ext_rising", "ext_falling", "ext_pulse_pos")
+_EMFI_TRIGGERS = ("immediate", "ext_rising", "ext_falling", "ext_pulse_pos", "ext_pulse_neg")
 
 
 @dataclass
@@ -551,7 +551,7 @@ class CampaignControlModal(ModalScreen[None]):
 # -----------------------------------------------------------------
 
 
-_CROWBAR_TRIGGERS = ("immediate", "ext_rising", "ext_falling", "ext_pulse_pos")
+_CROWBAR_TRIGGERS = ("immediate", "ext_rising", "ext_falling", "ext_pulse_pos", "ext_pulse_neg")
 _CROWBAR_OUTPUTS = ("lp", "hp")     # NONE excluded — form must pick a real path
 
 

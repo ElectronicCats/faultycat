@@ -38,6 +38,7 @@ class EmfiTrigger(IntEnum):
     EXT_RISING    = 1
     EXT_FALLING   = 2
     EXT_PULSE_POS = 3
+    EXT_PULSE_NEG = 4
 
 
 class EmfiState(IntEnum):
