@@ -13,6 +13,30 @@
 > The legacy v2.x firmware (in `firmware/c/`) remains on `main` and
 > keeps working on shipped devices. Pick what you need.
 >
+> **Prerequisites** — install these before running the build:
+>
+> | Tool | Purpose |
+> |---|---|
+> | `cmake` ≥ 3.20 | Build system generator |
+> | `ninja` | Build backend used by the presets |
+> | `arm-none-eabi-gcc` | ARM Cortex-M0+ cross-compiler |
+> | `libnewlib-arm-none-eabi` | Bare-metal C library (needed at link time) |
+>
+> Install commands by platform:
+> ```
+> # Debian / Ubuntu
+> sudo apt install cmake ninja-build gcc-arm-none-eabi libnewlib-arm-none-eabi
+>
+> # Fedora
+> sudo dnf install cmake ninja-build arm-none-eabi-gcc-cs arm-none-eabi-newlib
+>
+> # Arch
+> sudo pacman -S cmake ninja arm-none-eabi-gcc arm-none-eabi-newlib
+>
+> # macOS (Homebrew)
+> brew install cmake ninja && brew install --cask gcc-arm-embedded
+> ```
+>
 > Quickstart (after clone):
 > ```
 > tools/bootstrap.sh            # populate third_party/
