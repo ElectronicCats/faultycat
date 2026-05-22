@@ -37,8 +37,8 @@ void hal_pwm_set_freq_duty(hal_pwm_pin_t pin, float hz, float duty) {
 
     uint32_t clock = clock_get_hz(clk_sys);
 
-    // Ported from firmware/c/picoemp.c: divider16/16 + wrap solves for
-    // the requested frequency within the clock's resolution.
+    // divider16/16 + wrap solves for the requested frequency within
+    // the clock's resolution.
     uint32_t divider16 = (uint32_t)((float)clock / hz / 4096.0f)
                          + ((clock % (uint32_t)(hz * 4096.0f)) != 0 ? 1u : 0u);
     if (divider16 / 16u == 0u) {

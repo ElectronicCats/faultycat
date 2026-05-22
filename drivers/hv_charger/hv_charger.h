@@ -28,13 +28,12 @@
 
 typedef struct {
     // Flyback PWM frequency, Hz. Default: 2500 Hz (2.5 kHz) —
-    // matches the legacy firmware/c/picoemp.c behaviour proven on
-    // v2.x hardware.
+    // proven on v2.x hardware.
     float flyback_freq_hz;
 
-    // Flyback PWM duty, 0.0 to 1.0. Default: 0.0122 — also taken
-    // from legacy. Higher duty → faster charging but hotter
-    // transformer + MOSFET; don't raise without measuring first.
+    // Flyback PWM duty, 0.0 to 1.0. Default: 0.0122. Higher duty →
+    // faster charging but hotter transformer + MOSFET; don't raise
+    // without measuring first.
     float flyback_duty;
 
     // Auto-disarm timeout, milliseconds. 0 disables the timeout

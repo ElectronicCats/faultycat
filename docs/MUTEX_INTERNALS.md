@@ -429,33 +429,26 @@ for emfi and `b"F5"` for crowbar.
   too-small buffer = 0.
 - Constants self-check (CMD numbers + payload sizes).
 
-## 5. Reference host client (`tools/campaign_client.py`)
+## 5. Reference host client (`faultycmd campaign`)
 
-pyserial CLI mirroring `tools/{emfi,crowbar}_client.py` patterns.
+The click+Rich CLI under `host/faultycmd-py/` (entry point
+`faultycmd campaign`) is the authoritative host implementation of
+the F9-4 wire protocol. Subcommands `ping/configure/start/stop/
+status/drain/watch` mirror the firmware-side opcodes.
 
-Subcommand summary:
-
-| Cmd | Effect |
-|---|---|
-| `ping --port` | proto round-trip; reply confirms which CDC (b'F4' for EMFI / b'F5' for crowbar) |
-| `configure --port --delay START:END:STEP --width X:Y:Z --power A:B:C [--settle MS]` | encode + send 40 B CONFIG |
-| `start --port` | CONFIGURING → SWEEPING |
-| `stop --port` | halt mid-sweep |
-| `status --port` | decode 20 B STATUS reply |
-| `drain --port [--max N]` | iterate DRAIN until ring empty |
-| `watch --port [--max N] [--every MS]` | poll status + drain in a loop until DONE / STOPPED / ERROR |
-
-Axis syntax: `START:END:STEP` (each int) or `START` (collapses the
-axis to one value via step=0). Engine implied by `--port`:
-`/dev/ttyACM0` for EMFI, `/dev/ttyACM<crowbar>` for crowbar.
+Axis syntax for `configure`: `START:END:STEP` (each int) or `START`
+(collapses the axis to one value via step=0). Engine is selected
+with `--engine emfi` or `--engine crowbar`; the CLI resolves the
+right CDC via `faultycmd.usb.cdc_for`.
 
 The watch loop has a documented 30 ms gap between STATUS and DRAIN
-requests in each iteration. Without it the firmware's executor-wait-
-loop + pump-driven dispatch occasionally orders the two replies in
-a way the host's read window misses the drain bytes. 30 ms is well
-below a useful poll period and removes the race in practice;
-long-term cleanup belongs in a future async refactor of the
-executor.
+requests in each iteration (`CampaignClient.watch(..., gap_ms=30)`
+in `protocols/campaign.py`). Without it the firmware's executor-
+wait-loop + pump-driven dispatch occasionally orders the two
+replies in a way the host's read window misses the drain bytes.
+30 ms is well below a useful poll period and removes the race in
+practice; long-term cleanup belongs in a future async refactor of
+the executor.
 
 ## 6. Mutual exclusion contract — full picture (F8 + F9)
 

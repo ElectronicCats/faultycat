@@ -222,11 +222,10 @@ class CampaignClient(BinaryProtoClient):
         """Yield ``(status, results_drained_this_iter)`` until DONE /
         STOPPED / ERROR.
 
-        The ``gap_ms`` between STATUS and DRAIN exists for the same
-        reason ``tools/campaign_client.py`` does: when the firmware's
-        executor is mid-step, dispatch ordering of two back-to-back
-        replies can race. 30 ms is well below a useful poll period.
-        See ``docs/MUTEX_INTERNALS.md §5``.
+        The ``gap_ms`` between STATUS and DRAIN exists because when
+        the firmware's executor is mid-step, dispatch ordering of
+        two back-to-back replies can race. 30 ms is well below a
+        useful poll period. See ``docs/MUTEX_INTERNALS.md §5``.
         """
         while True:
             st = self.status()

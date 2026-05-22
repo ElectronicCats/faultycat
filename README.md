@@ -10,8 +10,11 @@
 > map in [`docs/HARDWARE_V2.md`](docs/HARDWARE_V2.md), and the
 > legacy-vs-rewrite diff in [`docs/PORTING.md`](docs/PORTING.md).
 >
-> The legacy v2.x firmware (in `firmware/c/`) remains on `main` and
-> keeps working on shipped devices. Pick what you need.
+> The legacy v2.x firmware lives on the `main` branch (under
+> `firmware/c/`) and keeps working on shipped devices. In
+> `rewrite/v3` that legacy tree was removed during F11 cleanup —
+> only the v3 stack (`apps/`, `services/`, `drivers/`, `hal/`,
+> `host/`) ships from this branch. Pick what you need.
 >
 > Quickstart (after clone):
 > ```

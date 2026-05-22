@@ -42,5 +42,4 @@ bool ui_leds_get(ui_led_t led);
 //     remember this moment.
 //   - if false, only turn the LED off after UI_LEDS_HV_HOLD_MS
 //     elapsed since the last true-sample.
-// Ported from firmware/c/main.c::picoemp_process_charging.
 void ui_leds_hv_detected_feed(bool charged_now);

@@ -17,11 +17,10 @@ paths available in firmware —
 `drivers/crowbar_mosfet`. There is no analog switch between paths and
 no third-party mux IC to configure.
 
-The legacy `firmware/c/glitcher/glitcher.c` defines `PIN_MUX0`,
-`PIN_MUX1`, `PIN_MUX2` as GP1 / GP2 / GP3, but those are **upstream
-faultier relics** that collide with the v2.x scanner channels and are
-deliberately **not** ported to v3 (see `docs/PORTING.md` and
-`docs/HARDWARE_V2.md` §4 *Known legacy quirks*).
+Upstream faultier code defined `PIN_MUX0`, `PIN_MUX1`, `PIN_MUX2` as
+GP1 / GP2 / GP3, but those are **relics** that collide with the v2.x
+scanner channels and are deliberately **not** ported to v3 (see
+`docs/PORTING.md` and `docs/HARDWARE_V2.md` §4 *Known legacy quirks*).
 
 Confirmed by the maintainer (Sabas, Electronic Cats) on 2026-04-23.
 

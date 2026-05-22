@@ -6,10 +6,8 @@
 // services/glitch_engine/emfi/emfi_capture — 8 KB ADC DMA ring on
 // GP29 (ADC ch 3), 8-bit samples at full ADC speed.
 //
-// Ported in spirit (and in PCB-specific constants) from the legacy
-// firmware/c/glitcher/glitcher.c::prepare_adc — FaultyCat-origin code,
-// BSD-3 clean. Upgraded to use hal/adc + hal/dma rather than pico-sdk
-// directly.
+// Uses hal/adc + hal/dma rather than pico-sdk directly. PCB-specific
+// constants validated on v2.x hardware.
 //
 // Lifecycle:
 //   emfi_capture_init   → claim DMA channel, configure, leave idle

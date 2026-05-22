@@ -2,11 +2,8 @@
 
 // FaultyCat HW v2.x pin map — authoritative single source of truth.
 //
-// Every driver and every app consumes this header. It replaces the
-// legacy `firmware/c/board_config.h`, which was Pico-module-oriented
-// and carried stale faultier relics (PIN_EXT1 = 27 collided with the
-// charge LED). See docs/HARDWARE_V2.md for full context and
-// verification notes.
+// Every driver and every app consumes this header. See
+// docs/HARDWARE_V2.md for full context and verification notes.
 //
 // Production target: v2.2 (v2.1 → v2.2 = label changes only, no nets).
 // All `BOARD_GP_*` values are RP2040 GPIO numbers.

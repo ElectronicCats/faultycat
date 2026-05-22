@@ -12,11 +12,10 @@
 // plastic shield and a mounted coil are MANDATORY — see docs/SAFETY.md.
 //
 // F2b scope — CPU-timed manual fire only
-//   Ports firmware/c/picoemp.c::picoemp_pulse verbatim: disable
-//   interrupts, drive GP14 high, busy-wait, drive low, restore
-//   interrupts. Simple, deterministic, proven on v2.x. This is
-//   enough for visual scope validation with an EMFI coil absorbing
-//   the pulse.
+//   Pulse path: disable interrupts, drive GP14 high, busy-wait,
+//   drive low, restore interrupts. Simple, deterministic, proven
+//   on v2.x. This is enough for visual scope validation with an
+//   EMFI coil absorbing the pulse.
 //
 //   Sub-µs triggered fire via PIO is deferred to F4 (glitch_engine
 //   service), where it integrates with the campaign manager, the

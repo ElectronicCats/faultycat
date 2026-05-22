@@ -111,7 +111,7 @@ static void diag_banner(void) {
                 EMFI_MANUAL_WIDTH_US);
     diag_printf("                auto-disarms after fire\n");
     diag_printf(" CROWBAR      : controlled via CDC1 (crowbar_proto)\n");
-    diag_printf("                — `tools/crowbar_client.py ping` to verify\n");
+    diag_printf("                — `faultycmd crowbar ping` to verify\n");
     diag_printf(" EMFI         : controlled via CDC0 (emfi_proto)\n");
     diag_printf(" SCANNER      : line-buffered shell on this CDC (CDC2)\n");
     diag_printf("                type `?` for the command list\n");
@@ -124,8 +124,8 @@ static void diag_banner(void) {
 //
 // Tiny line-buffered text parser shared by all the v3 debug services.
 // Lets the operator drive everything from a serial terminal or from
-// tools/{swd,jtag,scanner}_diag.py without needing a host-side
-// CMSIS-DAP stack (that lands in F7). The shell shares CDC2 with the
+// `faultycmd scanner` without needing a host-side CMSIS-DAP stack
+// (that lands in F7). The shell shares CDC2 with the
 // diag snapshot stream — outputs use a service prefix so the
 // host-side filters can demux:
 //
@@ -338,8 +338,8 @@ static FW_WIP_UNUSED void cmd_reset(int argc, char **argv) {
 // F8-1 JTAG sub-shell — `jtag <subcmd>`
 //
 // Same dispatcher style as the SWD section above. Output prefix is
-// "JTAG:" so a host-side parser (tools/jtag_diag.py, F8-G1) can demux
-// SWD vs JTAG replies on the shared CDC2 stream.
+// "JTAG:" so a host-side parser can demux SWD vs JTAG replies on the
+// shared CDC2 stream.
 // -----------------------------------------------------------------------------
 
 static FW_WIP_UNUSED void cmd_jtag_init(int argc, char **argv) {
@@ -544,9 +544,9 @@ static void process_scan_subcmd(int argc, char **argv) {
 // These emit a stable error shape today so:
 //   1. The parser dispatch table is in place — F8-4 / F8-5 just
 //      replace the placeholder with the real binary-mode pump.
-//   2. tools/jtag_diag.py and friends can probe whether the firmware
-//      already supports a given mode by sending the `enter` command
-//      and inspecting the prefix.
+//   2. A host-side probe can detect whether the firmware already
+//      supports a given mode by sending the `enter` command and
+//      inspecting the prefix.
 //   3. The help text doesn't lie — operators see the planned modes
 //      and a clear "not yet" status.
 // -----------------------------------------------------------------------------
