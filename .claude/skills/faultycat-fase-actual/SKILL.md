@@ -17,7 +17,7 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 | F11-0a EMFI control modal | ✓ smoke verde | `876124f` + `24b38b4` (fix) |
 | F11-0b Crowbar control modal + SharedSerial CDC1 race fix | ✓ smoke verde | `135b32f` |
 | F11-0c Campaign control modal MVP (engine=crowbar) | ✓ code+tests; smoke pendiente | `9640656` |
-| F11-0d Scanner control modal | pending | — |
+| F11-0d Scanner control modal + Windows enum fix | ✓ Windows enum verde (2026-05-25); modal scanner sigue pending | — |
 | F11-0e Target UART panel CDC3 | pending | — |
 | F11-0f Reflash via magic baud 1200 | pending | — |
 | F11-0g Help modal `?` | pending | — |

@@ -1253,6 +1253,17 @@ static void pump_crowbar_cdc(void) {
 int main(void) {
     usb_composite_init();
 
+    // Service USB SETUP packets that arrive while the rest of the
+    // drivers come up. Windows hosts can fire GET_DESCRIPTOR within
+    // a few ms of bus reset; if tud_task() doesn't run until after
+    // all 13 driver inits below, those early SETUPs sit unanswered
+    // long enough for Windows to abort enumeration with Code 43
+    // (Linux retries longer and recovers).
+    for (int i = 0; i < 50; i++) {
+        usb_composite_task();
+        hal_busy_wait_us(100);
+    }
+
     ui_leds_init();
     ui_buttons_init();
     target_monitor_init();
@@ -1342,6 +1353,14 @@ int main(void) {
             last_snapshot_ms = now;
         }
 
-        hal_sleep_ms(BUTTON_POLL_PERIOD_MS);
+        // Cooperative sleep: pump usb_composite_task every 1 ms instead
+        // of blocking BUTTON_POLL_PERIOD_MS straight. sleep_ms() in
+        // pico-sdk is a busy-wait that does NOT service tud_task, so
+        // Windows SETUPs arriving during that 20 ms window pile up
+        // and trigger Code 43 / DEVICE_DESCRIPTOR_FAILURE.
+        for (uint32_t i = 0; i < BUTTON_POLL_PERIOD_MS; i++) {
+            usb_composite_task();
+            hal_busy_wait_us(1000);
+        }
     }
 }

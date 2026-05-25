@@ -33,9 +33,13 @@
 static const tusb_desc_device_t s_device_desc = {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    // bcdUSB 2.01 advertises BOS descriptor support so Windows
-    // queries the MS OS 2.0 descriptor set we provide.
-    .bcdUSB             = 0x0201,
+    // bcdUSB 2.1.0 — correct BCD for USB 2.1 (BOS support).
+    // 0x0201 was a typo (USB-IF has no "USB 2.0.1" revision); Windows
+    // accepted it but used a fallback parser that didn't recurse into
+    // the CDC interfaces, so usbser.sys never bound and the 4 COM
+    // ports were invisible (only WinUSB bound to the vendor IF).
+    // Same value debugprobe uses.
+    .bcdUSB             = 0x0210,
     .bDeviceClass       = TUSB_CLASS_MISC,
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
@@ -145,7 +149,10 @@ static const uint8_t s_config_desc[] = {
         /* interface count */ ITF_TOTAL,
         /* string index */ 0,
         /* total length */ CONFIG_TOTAL_LEN,
-        /* attributes */ TUSB_DESC_CONFIG_ATT_SELF_POWERED | TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP,
+        // Bus-powered (RP2040 + HV boost both run from VBUS). No
+        // remote-wakeup implementation. Misdeclaring SELF_POWERED
+        // can make Windows reject the device on enumeration.
+        /* attributes */ 0,
         /* power (mA) */ 100
     ),
 

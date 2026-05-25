@@ -712,7 +712,7 @@ description: Contexto activo del rewrite FaultyCat v3 sobre HW v2.x. Consultar a
 ## En qué estamos
 Descriptor USB composite con 4 CDC + vendor + HID.
 CDC emfi y CDC crowbar pasan echo. CDC scanner y target-uart pendientes.
-Issue abierto: Windows no enumera bien el 4to CDC — investigar IAD order.
+~~Issue abierto: Windows no enumera bien el 4to CDC — investigar IAD order.~~ → Cerrado durante F11-0d (2026-05-25). Causa raíz NO era IAD order: era una combinación de (1) `bcdUSB=0x0201` (revisión USB-IF inexistente — Windows entraba a un parser fallback que no recorría los IADs, así `usbser.sys` nunca se bindaba; corregido a `0x0210`); (2) `SELF_POWERED | REMOTE_WAKEUP` declarados sin implementar (la placa es bus-powered — cambiado a `attributes=0`); (3) `usb_composite_init()` arrancaba TinyUSB pero los 13 driver inits a continuación bloqueaban el main thread antes del primer `tud_task()`, así Windows hacía timeout en el primer GET_DESCRIPTOR (`Code 43` / `DEVICE_DESCRIPTOR_FAILURE`); (4) el `hal_sleep_ms(20)` al final de cada iteración del main loop era `sleep_ms()` busy-wait sin `tud_task()`, otro starvation point. Fixes en `usb/src/usb_descriptors.c` (bcdUSB + attributes) y `apps/faultycat_fw/main.c` (50× `tud_task` con `busy_wait_us(100)` post-`usb_composite_init` + cooperative sleep que llama `tud_task` cada 1 ms en lugar del `sleep_ms` bloqueante). Linux toleraba todo lo anterior por su tolerancia a timeouts/parser quirks.
 
 ## Qué NO tocar
 - services/glitch_engine/ (F4–F5)
@@ -722,7 +722,7 @@ Issue abierto: Windows no enumera bien el 4to CDC — investigar IAD order.
 ## Salida de F3
 [x] lsusb -v muestra 10 interfaces
 [x] ttyACM0..3 aparecen en Linux
-[ ] COM0..3 aparecen en Windows
+[x] COM0..3 aparecen en Windows (cerrado F11-0d 2026-05-25)
 [ ] /dev/cu.usbmodem*×4 en macOS
 [ ] openocd responde a DAP_Info
 [ ] docs/USB_COMPOSITE.md completo
