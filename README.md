@@ -106,7 +106,46 @@ Faulty Cat based in PicoEMP is a community-focused project, with major contribut
 
 ### Programming the Faulty Cat
 
-Follow the steps in the [Bootloader mode section](https://github.com/ElectronicCats/faultycat/wiki/1.-Understanding-Faulty-Cat#bootloader-mode) of the Faulty Cat wiki in order to program it.  You can run other tasks on the microcontroller as well.
+Two flashing paths are supported on firmware **v3**:
+
+1. **Physical BOOTSEL button.** Hold the BOOTSEL button while plugging
+   the USB cable; the RP2040 enumerates as a USB mass-storage device
+   (`RPI-RP2`). Drag the `.uf2` onto it, or run `tools/flash.sh` which
+   handles the copy automatically.
+2. **Magic baud 1200 — remote BOOTSEL.** Open any of the four CDC ports
+   exposed by the v3 firmware at **1200 baud** and the device reboots
+   into the bootrom mass-storage mode without touching the button.
+   `tools/flash.sh` uses this when the device is already enumerated.
+   From `faultycmd` the equivalent is `faultycmd reflash <path-to.uf2>`
+   (F11-0f).
+
+Background on the bootrom mode and the button location lives in the
+legacy
+[Bootloader mode section](https://github.com/ElectronicCats/faultycat/wiki/1.-Understanding-Faulty-Cat#bootloader-mode)
+of the wiki (the **mechanism** is the same in v3 — only the firmware
+on top changed).
+
+### Documentation
+
+Everything that explains how the project is built, how to install
+the host tool, and the safety/operational contracts is collected
+here. Click through for the full document:
+
+| Document | What it covers |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Layering (HAL → drivers → services → apps), tree map, USB composite layout, `faultycmd` host-side module map. |
+| [`docs/HARDWARE_V2.md`](docs/HARDWARE_V2.md) | GPIO → function map for the v2.1 / v2.2 board the v3 firmware runs on. |
+| [`docs/PORTING.md`](docs/PORTING.md) | Per-file legacy→rewrite migration table (what was rewritten, what was discarded, what survives as reference). |
+| [`docs/SAFETY.md`](docs/SAFETY.md) | High-voltage safety contract for the EMFI / crowbar drivers (signed by maintainer before each HV-touching commit). |
+| [`docs/MUTEX_INTERNALS.md`](docs/MUTEX_INTERNALS.md) | SWD bus cooperative mutex + Campaign manager wire stack (F9). |
+| [`docs/JTAG_INTERNALS.md`](docs/JTAG_INTERNALS.md) | JTAG/SWD scanner, BusPirate-compat shell, flashrom serprog (F8). |
+| [`host/faultycmd-py/README.md`](host/faultycmd-py/README.md) | **Install + usage of the `faultycmd` CLI and TUI** — venv setup on Linux, Windows (PowerShell / CMD / Git Bash), macOS. Hotkeys, trigger polarity, trigger timeout. |
+| [`LICENSES/README.md`](LICENSES/README.md) | License overview for vendored code (pico-sdk, debugprobe, blueTag, faultier, Unity). |
+
+If you only want to flash a board and drive it from the host tool,
+the path is: this README → `host/faultycmd-py/README.md` (install
++ quickstart) → `docs/SAFETY.md` (read once before the first HV
+fire).
 
 
 ### Useful References
