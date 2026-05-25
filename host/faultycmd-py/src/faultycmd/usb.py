@@ -1,12 +1,15 @@
 """Port → CDC interface mapping helper.
 
-Linux primary: walks ``/dev/ttyACM*`` and uses ``udevadm info`` to
-identify which interface number each ACM node maps to within the
-FaultyCat v3 composite device (VID 0x1209 / PID 0xFA17).
+Cross-platform: uses ``pyserial.tools.list_ports`` so the same code
+works on Linux (``/dev/ttyACM*``), Windows (``COM*``), and macOS
+(``/dev/cu.usbmodem*``). Each port carries its VID/PID and either
+a location string (Linux/macOS) or an ``MI_xx`` token in its hwid
+(Windows) from which we recover the interface number inside the
+composite.
 
-Windows / macOS support is a TODO of F11 release polish; the helper
-falls back to a heuristic that scans a list of candidate device
-nodes if udevadm isn't available.
+On Linux ``udevadm`` is kept as a fallback for systems where
+pyserial's location parsing misses the interface number (older
+pyserial, weird kernel).
 
 The composite layout (frozen in F3 — see
 ``docs/ARCHITECTURE.md::USB composite``):
@@ -22,18 +25,20 @@ IF 8                Vendor — CMSIS-DAP v2 (no /dev node)
 IF 9                HID — CMSIS-DAP v1    (no /dev node)
 ==================  ====================  =======================
 
-The trailing /dev/ttyACM<N> numbers are NOT stable across reboots
-or when other USB-CDC devices share the namespace, so this module
-always re-discovers via udevadm.
+OS-stable port names (``/dev/ttyACMx`` numbering, ``COM<n>`` index)
+shuffle across reboots / hot-plugs, so this module always
+re-discovers by VID:PID and interface number rather than caching.
 """
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Literal
+
+from serial.tools import list_ports
 
 log = logging.getLogger(__name__)
 
@@ -56,67 +61,81 @@ class FaultyCatPort:
     """One CDC interface of the FaultyCat composite."""
 
     interface: int
-    device: str   # e.g. "/dev/ttyACM3"
+    device: str   # "/dev/ttyACMx" on Linux, "COMx" on Windows
 
 
 class PortDiscoveryError(LookupError):
     """No FaultyCat CDC matched the requested role."""
 
 
-def _udev_props(device: str) -> dict[str, str]:
-    """Return the relevant udev properties for `device`, or {} on failure."""
-    if not shutil.which("udevadm"):
-        return {}
-    try:
-        out = subprocess.check_output(
-            ["udevadm", "info", "--query=property", device],
-            stderr=subprocess.DEVNULL,
-            text=True,
-        )
-    except (subprocess.CalledProcessError, OSError):
-        return {}
-    props: dict[str, str] = {}
-    for line in out.splitlines():
-        if "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        props[key.strip()] = value.strip()
-    return props
+# Windows hwid carries the interface number as "MI_XX" (hex).
+_WIN_MI_RE = re.compile(r"MI_([0-9A-Fa-f]{2})")
+
+# pyserial's `location` field carries the interface number as the
+# last ".<n>" segment:
+#   Linux:   "1-3:1.4"   → 4
+#   Windows: "1-3:x.6"   → 6  (yes, literal 'x' — config index is
+#                              unknown on Windows so pyserial fills it
+#                              with that placeholder)
+#   macOS:   "<addr>.<n>" → n
+_LOCATION_IFACE_RE = re.compile(r"\.(\d+)\s*$")
+
+
+def _interface_from_port(port) -> int | None:
+    """Best-effort interface-number extraction from a ListPortInfo.
+
+    Tries (in order):
+      1. ``MI_XX`` in ``hwid`` (Windows convention).
+      2. Trailing ``.<n>`` in ``location`` (Linux/macOS pyserial).
+      3. ``udevadm info`` for ``ID_USB_INTERFACE_NUM`` (Linux fallback).
+    """
+    hwid = port.hwid or ""
+    m = _WIN_MI_RE.search(hwid)
+    if m:
+        return int(m.group(1), 16)
+
+    loc = port.location or ""
+    m = _LOCATION_IFACE_RE.search(loc)
+    if m:
+        return int(m.group(1))
+
+    if shutil.which("udevadm"):
+        try:
+            out = subprocess.check_output(
+                ["udevadm", "info", "--query=property", port.device],
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+            for line in out.splitlines():
+                if line.startswith("ID_USB_INTERFACE_NUM="):
+                    return int(line.partition("=")[2].strip())
+        except (subprocess.CalledProcessError, OSError):
+            pass
+
+    return None
 
 
 def discover() -> list[FaultyCatPort]:
-    """Walk ``/dev/ttyACM*`` and return ports owned by the FaultyCat
-    composite, sorted by interface number.
-
-    Returns an empty list on platforms without ``/dev/ttyACM*`` or
-    without ``udevadm`` (Windows / macOS — TODO F11).
-    """
+    """Return all FaultyCat composite CDC ports, sorted by interface."""
     found: list[FaultyCatPort] = []
-    for dev_path in sorted(Path("/dev").glob("ttyACM*")):
-        props = _udev_props(str(dev_path))
-        if not props:
+    for port in list_ports.comports():
+        if port.vid != VID_FAULTYCAT or port.pid != PID_FAULTYCAT:
             continue
-        try:
-            vid = int(props.get("ID_VENDOR_ID", "0"), 16)
-            pid = int(props.get("ID_MODEL_ID", "0"), 16)
-            iface_raw = props.get("ID_USB_INTERFACE_NUM")
-        except ValueError:
+        iface = _interface_from_port(port)
+        if iface is None:
+            log.warning(
+                "found FaultyCat CDC at %s but could not determine its "
+                "interface number (hwid=%r, location=%r) — skipping",
+                port.device, port.hwid, port.location,
+            )
             continue
-        if vid != VID_FAULTYCAT or pid != PID_FAULTYCAT:
-            continue
-        if iface_raw is None:
-            continue
-        try:
-            iface = int(iface_raw)
-        except ValueError:
-            continue
-        found.append(FaultyCatPort(interface=iface, device=str(dev_path)))
+        found.append(FaultyCatPort(interface=iface, device=port.device))
     found.sort(key=lambda p: p.interface)
     return found
 
 
 def cdc_for(role: Role) -> str:
-    """Return the ``/dev/ttyACM<N>`` matching the requested CDC role.
+    """Return the device path/name matching the requested CDC role.
 
     Raises:
         ValueError: ``role`` not in INTERFACE_NUMBERS.
