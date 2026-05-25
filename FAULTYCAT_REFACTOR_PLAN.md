@@ -499,7 +499,7 @@ Cada driver expone comando `diag <driver>` por UART serial (temporal, antes de U
 **Stack:**
 - `pyproject.toml` estándar — operator elige su tooling (uv / poetry / hatch / plain pip).
 - Python 3.10+ baseline.
-- USB enum: `pyserial` + `udevadm` helper (Linux primary; Windows/macOS = TODO de F11 polish).
+- USB enum: `pyserial` `list_ports.comports()` cross-platform (Linux, Windows, macOS) — el interface number sale del trailing `.N` del campo `port.location` (Linux `1-3:1.N` / Windows `1-3:x.N`) o del token `MI_XX` en `port.hwid` (Windows). `udevadm` se conserva como fallback Linux. Soporte Windows cerrado durante F11-0d junto con los descriptor fixes (`bcdUSB=0x0210`, attributes bus-powered, init order que sirve `tud_task` durante los driver inits, y cooperative sleep en el main loop que cambió `sleep_ms(20)` por `tud_task` cada 1 ms).
 
 **Criterio:** TUI interactiva cubre 100% del faultycmd viejo + campañas + switch entre EMFI/crowbar/scanner. CLI cubre 100% de los 4 reference Python clients (estos quedan como deprecated reference hasta F11 archive).
 

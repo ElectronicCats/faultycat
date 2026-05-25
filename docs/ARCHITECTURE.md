@@ -407,7 +407,15 @@ changed.
 
 ```
 faultycmd.framing               — CRC16-CCITT helper + frame builder
-faultycmd.usb                   — port → CDC mapping (udevadm helper)
+faultycmd.usb                   — port → CDC mapping. Cross-platform
+                                  via pyserial list_ports on Linux,
+                                  Windows, macOS; udevadm kept as a
+                                  Linux fallback. Interface number
+                                  pulled from the trailing ".N" of
+                                  `port.location` (works for both
+                                  Linux "1-3:1.N" and Windows
+                                  "1-3:x.N" pyserial outputs) or
+                                  "MI_XX" in the Windows hwid.
 faultycmd.persistence           — XDG last-config store, one slot per
                                   engine: emfi / crowbar / campaign /
                                   scanner

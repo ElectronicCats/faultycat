@@ -18,7 +18,9 @@ scripts and the four reference clients under `tools/` with a single
 ```
 faultycmd/
 ├── framing.py              CRC16-CCITT + frame builder/parser
-├── usb.py                  port → CDC mapping helper (udevadm wrapped)
+├── usb.py                  port → CDC mapping helper (cross-platform:
+│                           pyserial list_ports on Linux/Windows/macOS,
+│                           udevadm as Linux fallback)
 ├── persistence.py          XDG last-config store (one slot per engine:
 │                           emfi / crowbar / campaign / scanner)
 ├── protocols/
