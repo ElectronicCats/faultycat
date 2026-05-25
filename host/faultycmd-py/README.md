@@ -49,11 +49,64 @@ faultycmd/
 
 ## Quick start
 
-```bash
-# Install (editable while developing)
-pip install -e '.[dev]'
+### 1. Crear y activar el venv
 
-# Run the CLI
+```bash
+# Crear el entorno virtual dentro de host/faultycmd-py/
+python -m venv venv
+
+# Activar (Linux / macOS / Git Bash / WSL)
+source venv/bin/activate
+
+# Activar (Windows PowerShell)
+# Si PowerShell rechaza el script por la Execution Policy,
+# desbloquéalo SOLO para la sesión actual (no toca el resto
+# del sistema):
+#   Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
+# Luego:
+.\venv\Scripts\Activate.ps1
+
+# Activar (Windows Command Prompt / CMD)
+venv\Scripts\activate.bat
+```
+
+> **Nota Windows — consolas y Execution Policy.** Dependiendo de la
+> consola que uses, el comando de activación varía:
+> - **PowerShell**: `.\venv\Scripts\Activate.ps1`
+> - **CMD**: `venv\Scripts\activate.bat` (o solo `venv\Scripts\activate`)
+> - **Git Bash / WSL / MSYS**: `source venv/bin/activate`
+>
+> Por defecto Windows bloquea scripts PowerShell no firmados (medida
+> de seguridad contra scripts maliciosos). `Activate.ps1` no está
+> firmado, así que PowerShell lo rechaza con `running scripts is
+> disabled on this system`. La solución, válida solo para la sesión
+> actual:
+>
+> ```powershell
+> Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
+> ```
+>
+> `-Scope Process` es clave: al cerrar la terminal, la política
+> restrictiva vuelve. No requiere admin y no toca el sistema.
+
+> **El venv queda atado a su ruta absoluta.** `python -m venv`
+> graba el path absoluto del intérprete dentro de
+> `venv/bin/activate` (Linux/macOS), `venv\Scripts\Activate.ps1`
+> (Windows) y `venv/pyvenv.cfg`. Si mueves o renombras la carpeta
+> `host/faultycmd-py/` (o el venv), el venv deja de funcionar y
+> `faultycmd` deja de resolverse. Solución: borrar `venv/` y
+> recrearlo con `python -m venv venv` en la nueva ubicación.
+
+### 2. Instalar el paquete
+
+```bash
+# Editable + dev tools (pytest, ruff)
+pip install -e '.[dev]'
+```
+
+### 3. Usar la CLI
+
+```bash
 faultycmd --help
 faultycmd emfi ping
 faultycmd campaign configure --engine crowbar \
@@ -69,10 +122,31 @@ faultycmd campaign watch
 # follow-up init is offered.
 faultycmd scanner scan-swd
 faultycmd scanner scan-swd --targetsel 01002927 --timeout-s 60
+```
 
-# Run the TUI
+### 4. Lanzar la TUI
+
+```bash
 faultycmd tui
 ```
+
+### Plataformas soportadas
+
+| Sistema | Estado | Notas |
+|---|---|---|
+| Linux  | ✓ verificado | `/dev/ttyACM*`. Si `Permission denied`, `sudo usermod -aG dialout $USER` + relogin. |
+| Windows 10/11 | ✓ verificado (2026-05-25) | `COM*` enumerados vía `usbser.sys` (inbox). Requiere firmware `v3.0-f11-0d` o posterior — versiones previas no enumeraban por bugs de descriptor / init order. |
+| macOS | ⚠ no validado | La lógica cross-platform (parser pyserial) debería funcionar pero falta hardware para confirmar. |
+
+### Sesiones siguientes
+
+```bash
+cd /ruta/a/host/faultycmd-py
+# Activar el venv (ver paso 1 según tu consola)
+faultycmd tui
+```
+
+Para salir del venv: `deactivate`.
 
 ### TUI hotkeys
 
