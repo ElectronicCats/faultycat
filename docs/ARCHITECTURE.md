@@ -62,9 +62,12 @@ Current tree health:
 - **9 drivers** implemented (8 active + `voltage_mux` stub) under `drivers/`.
 - **USB composite** up on VID:PID `1209:fa17`. 10 interfaces
   (4×CDC + Vendor + HID). 16/16 endpoints used (hard RP2040 limit).
-  BOS + MS OS 2.0 descriptors for Windows WinUSB auto-bind.
-  Magic baud 1200 on any CDC → `reset_usb_boot()` (remote BOOTSEL).
-  CDC0 now owned by `host_proto/emfi_proto`.
+  `bcdUSB=0x0210` + BOS + MS OS 2.0 descriptors for Windows WinUSB
+  auto-bind on the vendor IF; the 4 CDCs bind to `usbser.sys` (Linux:
+  `cdc_acm`). Config descriptor declares bus-powered with no
+  remote-wakeup (attributes=0). Magic baud 1200 on any CDC →
+  `reset_usb_boot()` (remote BOOTSEL). CDC0 now owned by
+  `host_proto/emfi_proto`.
 - **HAL** headers live: `gpio`, `time` (+busy_wait +irq ctl), `adc`,
   `pwm`, `pio` ✓ F4-1, `dma` ✓ F4-2. `usb` stays `#error` stub
   (won't be lifted — TinyUSB is the abstraction).
@@ -404,7 +407,15 @@ changed.
 
 ```
 faultycmd.framing               — CRC16-CCITT helper + frame builder
-faultycmd.usb                   — port → CDC mapping (udevadm helper)
+faultycmd.usb                   — port → CDC mapping. Cross-platform
+                                  via pyserial list_ports on Linux,
+                                  Windows, macOS; udevadm kept as a
+                                  Linux fallback. Interface number
+                                  pulled from the trailing ".N" of
+                                  `port.location` (works for both
+                                  Linux "1-3:1.N" and Windows
+                                  "1-3:x.N" pyserial outputs) or
+                                  "MI_XX" in the Windows hwid.
 faultycmd.persistence           — XDG last-config store, one slot per
                                   engine: emfi / crowbar / campaign /
                                   scanner

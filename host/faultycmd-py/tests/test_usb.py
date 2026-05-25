@@ -1,116 +1,156 @@
 """Unit tests for faultycmd.usb — port discovery + role mapping.
 
-Tests mock subprocess + Path.glob so they pass on any platform
-(don't depend on a real udevadm or /dev/ttyACM*).
+Mocks pyserial's list_ports.comports() so tests pass on any
+platform (don't depend on a real /dev/ttyACM* or COMx).
 """
 from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Optional
 
 import pytest
 
 from faultycmd import usb
 
 
-def _udev_text(vid: str, pid: str, iface: str) -> str:
-    return (
-        f"ID_VENDOR_ID={vid}\n"
-        f"ID_MODEL_ID={pid}\n"
-        f"ID_USB_INTERFACE_NUM={iface}\n"
+@dataclass
+class FakePort:
+    """Minimal stand-in for pyserial's ListPortInfo."""
+
+    device: str
+    vid: Optional[int]
+    pid: Optional[int]
+    hwid: str = ""
+    location: Optional[str] = None
+
+
+def _linux_port(dev: str, vid: int, pid: int, iface: int) -> FakePort:
+    return FakePort(
+        device=dev,
+        vid=vid,
+        pid=pid,
+        hwid=f"USB VID:PID={vid:04X}:{pid:04X}",
+        location=f"1-3:1.{iface}",
+    )
+
+
+def _windows_port(dev: str, vid: int, pid: int, iface: int) -> FakePort:
+    # Real Windows pyserial output for usbser.sys-backed composite CDCs
+    # exposes the interface number via the location's trailing ".N".
+    # The hwid string has the same VID:PID=... LOCATION=... shape as
+    # Linux (no MI_XX token), so we rely on location parsing.
+    return FakePort(
+        device=dev,
+        vid=vid,
+        pid=pid,
+        hwid=(
+            f"USB VID:PID={vid:04X}:{pid:04X} SER=FLT3-XXXX "
+            f"LOCATION=1-3:x.{iface}"
+        ),
+        location=f"1-3:x.{iface}",
     )
 
 
 @pytest.fixture
-def fake_environment(monkeypatch):
-    """Pretend /dev/ttyACM0..3 belong to FaultyCat at IF 0/2/4/6, ttyACM4 belongs to a different vendor."""
-    fake_devs = ["ttyACM0", "ttyACM1", "ttyACM2", "ttyACM3", "ttyACM4"]
-    udev_table = {
-        "/dev/ttyACM0": _udev_text("1209", "fa17", "00"),
-        "/dev/ttyACM1": _udev_text("1209", "fa17", "02"),
-        "/dev/ttyACM2": _udev_text("1209", "fa17", "04"),
-        "/dev/ttyACM3": _udev_text("1209", "fa17", "06"),
-        "/dev/ttyACM4": _udev_text("0403", "6001", "00"),  # FTDI cable
-    }
-
-    class FakePath:
-        def __init__(self, p: str):
-            self.p = p
-
-        def __str__(self) -> str:
-            return self.p
-
-        def __lt__(self, other) -> bool:
-            return self.p < other.p
-
-    def fake_glob(self, pattern):
-        if pattern == "ttyACM*":
-            return [FakePath(f"/dev/{d}") for d in fake_devs]
-        return []
-
-    def fake_check_output(cmd, **kwargs):
-        if not (isinstance(cmd, list) and "udevadm" in cmd[0]):
-            raise FileNotFoundError
-        device = cmd[-1]
-        text = udev_table.get(device)
-        if text is None:
-            raise __import__("subprocess").CalledProcessError(1, cmd)
-        return text
-
-    monkeypatch.setattr("pathlib.Path.glob", fake_glob)
-    monkeypatch.setattr("subprocess.check_output", fake_check_output)
-    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/udevadm" if name == "udevadm" else None)
-    return udev_table
+def linux_environment(monkeypatch):
+    """ttyACM0..3 belong to FaultyCat at IF 0/2/4/6, ttyACM4 is FTDI."""
+    ports = [
+        _linux_port("/dev/ttyACM0", 0x1209, 0xFA17, 0x00),
+        _linux_port("/dev/ttyACM1", 0x1209, 0xFA17, 0x02),
+        _linux_port("/dev/ttyACM2", 0x1209, 0xFA17, 0x04),
+        _linux_port("/dev/ttyACM3", 0x1209, 0xFA17, 0x06),
+        _linux_port("/dev/ttyACM4", 0x0403, 0x6001, 0x00),
+    ]
+    monkeypatch.setattr("faultycmd.usb.list_ports.comports", lambda: ports)
+    monkeypatch.setattr("shutil.which", lambda _name: None)
+    return ports
 
 
-def test_discover_finds_only_faultycat(fake_environment):
+@pytest.fixture
+def windows_environment(monkeypatch):
+    """COM3..6 belong to FaultyCat at IF 0/2/4/6, COM7 is a USB-UART."""
+    ports = [
+        _windows_port("COM3", 0x1209, 0xFA17, 0x00),
+        _windows_port("COM4", 0x1209, 0xFA17, 0x02),
+        _windows_port("COM5", 0x1209, 0xFA17, 0x04),
+        _windows_port("COM6", 0x1209, 0xFA17, 0x06),
+        _windows_port("COM7", 0x10C4, 0xEA60, 0x00),  # CP2102
+    ]
+    monkeypatch.setattr("faultycmd.usb.list_ports.comports", lambda: ports)
+    monkeypatch.setattr("shutil.which", lambda _name: None)
+    return ports
+
+
+def test_discover_linux_finds_only_faultycat(linux_environment):
     ports = usb.discover()
     assert len(ports) == 4
     assert {p.interface for p in ports} == {0, 2, 4, 6}
-    # FTDI device on ACM4 must NOT appear.
     assert all("ttyACM4" not in p.device for p in ports)
 
 
-def test_discover_sorted_by_interface(fake_environment):
+def test_discover_windows_finds_only_faultycat(windows_environment):
     ports = usb.discover()
-    interfaces = [p.interface for p in ports]
-    assert interfaces == sorted(interfaces)
+    assert len(ports) == 4
+    assert {p.interface for p in ports} == {0, 2, 4, 6}
+    assert all(p.device != "COM7" for p in ports)
 
 
-def test_cdc_for_emfi(fake_environment):
+def test_discover_sorted_by_interface(linux_environment):
+    ports = usb.discover()
+    assert [p.interface for p in ports] == [0, 2, 4, 6]
+
+
+def test_cdc_for_emfi_linux(linux_environment):
     assert usb.cdc_for("emfi") == "/dev/ttyACM0"
 
 
-def test_cdc_for_crowbar(fake_environment):
+def test_cdc_for_crowbar_linux(linux_environment):
     assert usb.cdc_for("crowbar") == "/dev/ttyACM1"
 
 
-def test_cdc_for_scanner(fake_environment):
+def test_cdc_for_scanner_linux(linux_environment):
     assert usb.cdc_for("scanner") == "/dev/ttyACM2"
 
 
-def test_cdc_for_target(fake_environment):
+def test_cdc_for_target_linux(linux_environment):
     assert usb.cdc_for("target") == "/dev/ttyACM3"
 
 
-def test_cdc_for_unknown_role_raises(fake_environment):
+def test_cdc_for_emfi_windows(windows_environment):
+    assert usb.cdc_for("emfi") == "COM3"
+
+
+def test_cdc_for_crowbar_windows(windows_environment):
+    assert usb.cdc_for("crowbar") == "COM4"
+
+
+def test_cdc_for_scanner_windows(windows_environment):
+    assert usb.cdc_for("scanner") == "COM5"
+
+
+def test_cdc_for_target_windows(windows_environment):
+    assert usb.cdc_for("target") == "COM6"
+
+
+def test_cdc_for_unknown_role_raises(linux_environment):
     with pytest.raises(ValueError):
         usb.cdc_for("dap")  # type: ignore[arg-type]
 
 
 def test_cdc_for_no_match_raises(monkeypatch):
-    # Empty environment — discover() returns nothing.
-    monkeypatch.setattr("pathlib.Path.glob", lambda self, pat: [])
-    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.setattr("faultycmd.usb.list_ports.comports", lambda: [])
+    monkeypatch.setattr("shutil.which", lambda _name: None)
     with pytest.raises(usb.PortDiscoveryError):
         usb.cdc_for("emfi")
 
 
-def test_no_udevadm_returns_empty(monkeypatch):
-    monkeypatch.setattr("shutil.which", lambda name: None)
+def test_no_devices_returns_empty(monkeypatch):
+    monkeypatch.setattr("faultycmd.usb.list_ports.comports", lambda: [])
+    monkeypatch.setattr("shutil.which", lambda _name: None)
     assert usb.discover() == []
 
 
 def test_interface_numbers_match_firmware_spec():
-    # Sanity check — the IF 0/2/4/6 layout was frozen at F3 (USB
-    # composite). Drift would mis-map every CDC.
     assert usb.INTERFACE_NUMBERS == {
         "emfi": 0x00,
         "crowbar": 0x02,
