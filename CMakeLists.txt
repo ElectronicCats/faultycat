@@ -68,12 +68,3 @@ if(FAULTYCAT_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
-
-# -----------------------------------------------------------------------------
-# third_party/faultier  — REFERENCE ONLY, NEVER BUILT.
-#
-# Upstream has no LICENSE file. See LICENSES/NOTICE-faultier.md. It stays
-# in the tree so humans can read the code while we reimplement the
-# glitcher architecture from scratch in services/glitch_engine/crowbar/.
-# -----------------------------------------------------------------------------
-# (deliberately no add_subdirectory)
