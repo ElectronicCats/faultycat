@@ -38,6 +38,7 @@ dev = [
     "pytest>=7.0",
     "pytest-mock>=3.10",
     "ruff>=0.1",
+    "pre-commit>=3.0",
 ]
 build-binary = [
     "pyinstaller>=6.0",
