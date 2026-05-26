@@ -138,10 +138,9 @@ HV driver lands.)
 
 ## 4. Known legacy quirks (won't be ported as-is)
 
-- `firmware/c/glitcher/glitcher.c` defines `PIN_EXT1 = 27`, which
-  **collides** with `PIN_LED_CHARGE_ON = 27`. On v2.x, GP27 is the
-  charge-on LED (confirmed by the maintainer on 2026-04-23). The
-  legacy constant is a stale upstream faultier relic; v3 does not port
+- The legacy v2.x firmware defined `PIN_EXT1 = 27`, which **collides**
+  with `PIN_LED_CHARGE_ON = 27`. On v2.x, GP27 is the charge-on LED
+  (confirmed by the maintainer on 2026-04-23). v3 does not port
   `PIN_EXT1` at all. Crowbar uses GP16 (`HPGLITCH2`).
 - `firmware/c/board_config.h` has `PIN_LED_STATUS = 25`, but on v2.x
   **GP25 is not connected to anything** — the Pico-module assumption
