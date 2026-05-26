@@ -1,0 +1,46 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+# Indent / width
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 4
+ColumnLimit: 100
+
+# Braces — K&R / attach
+BreakBeforeBraces: Attach
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+
+# Switch — indent `case:` one level inside the switch body.
+IndentCaseLabels: true
+
+# Alignment — preserve aligned `#define` columns and struct-initializer
+# `=`. Do NOT align declarations: that was padding function prototypes
+# between return type and name; we want a single space there.
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: true
+AlignTrailingComments: true
+AlignAfterOpenBracket: Align
+
+# Pointers / refs
+PointerAlignment: Left
+DerivePointerAlignment: false
+
+# Includes — keep author-chosen grouping; do not re-sort.
+SortIncludes: false
+IncludeBlocks: Preserve
+
+# Misc
+SpacesBeforeTrailingComments: 1
+SpaceAfterCStyleCast: false
+SpaceBeforeParens: ControlStatements
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 2
+ReflowComments: false

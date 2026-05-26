@@ -1,0 +1,52 @@
+# See https://pre-commit.com for documentation.
+#
+# CI runs these hooks via .github/workflows/.pre-commit.yml.
+# To run them locally before pushing:
+#   pip install pre-commit
+#   pre-commit install
+#   pre-commit run --all-files
+
+exclude: |
+  (?x)^(
+    third_party/.*|
+    Hardware/.*|
+    build/.*|
+    .*\.uf2$|
+    .*\.bin$|
+    .*\.elf$
+  )$
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-case-conflict
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix, --config=host/faultycmd-py/pyproject.toml]
+        files: ^host/faultycmd-py/.*\.py$
+      - id: ruff-format
+        args: [--config=host/faultycmd-py/pyproject.toml]
+        files: ^host/faultycmd-py/.*\.py$
+
+  # C / C++ — RP2040 firmware (apps/ services/ drivers/ hal/ usb/ tests/).
+  # Style lives in .clang-format at the repo root.
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v18.1.8
+    hooks:
+      - id: clang-format
+        types_or: [c, c++]
+        files: ^(apps|services|drivers|hal|usb|tests)/.*\.(c|h|cpp|hpp)$
