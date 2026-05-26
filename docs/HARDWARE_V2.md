@@ -13,13 +13,18 @@
 > describe the **pinout and electrical contract** — they remain
 > the authoritative reference for when v3.1 re-exposes the verbs.
 
-Authoritative sources used for this map:
+Authoritative sources used to build this map (historic — the legacy
+v2.x C firmware was removed in F11 cleanup, see commit `a42131c`):
 
-- `firmware/c/board_config.h` (the current v2.x firmware, proven in the
-  field).
-- `firmware/c/glitcher/glitcher.c` (for `GlitchOutput_{LP,HP,EMP}` →
-  GPIO mapping, with legacy-quirk annotations).
+- `firmware/c/board_config.h` of the legacy v2.x firmware (proven in
+  the field).
+- `firmware/c/glitcher/glitcher.c` of the legacy v2.x firmware (for
+  `GlitchOutput_{LP,HP,EMP}` → GPIO mapping, with legacy-quirk
+  annotations).
 - `Hardware/FaultyCat.kicad_sch` (net labels cross-referenced).
+
+The live cross-reference in the v3 tree is now `drivers/include/board_v2.h`
+plus each driver's `*_init()`. The schematic stays the schematic.
 
 ## 1. GPIO → function map (RP2040 QFN-56)
 
