@@ -118,7 +118,7 @@ static void test_tick_does_not_disarm_before_timeout(void) {
     hv_charger_init();
     hv_charger_arm();
 
-    hal_fake_time_advance_us(59u * 1000u * 1000u);  // 59 s elapsed
+    hal_fake_time_advance_us(59u * 1000u * 1000u); // 59 s elapsed
     hv_charger_tick();
     TEST_ASSERT_TRUE(hv_charger_is_armed());
 }
@@ -127,7 +127,7 @@ static void test_tick_disarms_exactly_at_timeout(void) {
     hv_charger_init();
     hv_charger_arm();
 
-    hal_fake_time_advance_us(60u * 1000u * 1000u);  // exactly 60 s
+    hal_fake_time_advance_us(60u * 1000u * 1000u); // exactly 60 s
     hv_charger_tick();
     TEST_ASSERT_FALSE(hv_charger_is_armed());
 }
@@ -136,7 +136,7 @@ static void test_tick_disarms_past_timeout(void) {
     hv_charger_init();
     hv_charger_arm();
 
-    hal_fake_time_advance_us(120u * 1000u * 1000u);  // 2 minutes — well past
+    hal_fake_time_advance_us(120u * 1000u * 1000u); // 2 minutes — well past
     hv_charger_tick();
     TEST_ASSERT_FALSE(hv_charger_is_armed());
 }
@@ -152,8 +152,7 @@ static void test_tick_is_noop_when_disarmed(void) {
 
     TEST_ASSERT_FALSE(hv_charger_is_armed());
     // Tick on a disarmed charger MUST not add any further disables.
-    TEST_ASSERT_EQUAL_UINT32(baseline_disable,
-                             hal_fake_pwm_states[BOARD_GP_HV_PWM].disable_calls);
+    TEST_ASSERT_EQUAL_UINT32(baseline_disable, hal_fake_pwm_states[BOARD_GP_HV_PWM].disable_calls);
 }
 
 static void test_arm_resets_timeout_window(void) {
@@ -162,7 +161,7 @@ static void test_arm_resets_timeout_window(void) {
 
     // Almost-timeout, then re-arm.
     hal_fake_time_advance_us(55u * 1000u * 1000u);
-    hv_charger_arm();   // restart the clock
+    hv_charger_arm(); // restart the clock
 
     // 55 s past the *original* arm, but 0 s past the re-arm.
     hv_charger_tick();
@@ -184,12 +183,12 @@ static void test_timeout_of_zero_disables_auto_disarm(void) {
     hv_charger_config_t cfg = {
         .flyback_freq_hz = 2500.0f,
         .flyback_duty    = 0.01f,
-        .auto_disarm_ms  = 0u,  // explicitly disabled
+        .auto_disarm_ms  = 0u, // explicitly disabled
     };
     hv_charger_configure(&cfg);
     hv_charger_arm();
 
-    hal_fake_time_advance_us(10u * 60u * 1000u * 1000u);  // 10 minutes
+    hal_fake_time_advance_us(10u * 60u * 1000u * 1000u); // 10 minutes
     hv_charger_tick();
     TEST_ASSERT_TRUE(hv_charger_is_armed());
 }
@@ -209,7 +208,7 @@ static void test_configure_overrides_next_arm_values(void) {
     hv_charger_arm();
 
     TEST_ASSERT_EQUAL_FLOAT(5000.0f, hal_fake_pwm_states[BOARD_GP_HV_PWM].last_freq);
-    TEST_ASSERT_EQUAL_FLOAT(0.02f,   hal_fake_pwm_states[BOARD_GP_HV_PWM].last_duty);
+    TEST_ASSERT_EQUAL_FLOAT(0.02f, hal_fake_pwm_states[BOARD_GP_HV_PWM].last_duty);
 }
 
 int main(void) {

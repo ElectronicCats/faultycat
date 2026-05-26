@@ -8,10 +8,10 @@
 #define HAL_FAKE_PWM_MAX_PINS 32
 
 typedef struct {
-    bool     initialized;
-    float    last_freq;
-    float    last_duty;
-    bool     enabled;
+    bool initialized;
+    float last_freq;
+    float last_duty;
+    bool enabled;
     uint32_t init_calls;
     uint32_t set_calls;
     uint32_t enable_calls;

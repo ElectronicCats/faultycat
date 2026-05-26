@@ -12,9 +12,9 @@
 #include "hal_fake_pio.h"
 #include "swd_phy.h"
 
-static const uint8_t SWCLK = BOARD_GP_SCANNER_CH0;   // GP0 default
-static const uint8_t SWDIO = BOARD_GP_SCANNER_CH1;   // GP1 default
-static const uint8_t NRST  = BOARD_GP_SCANNER_CH2;   // GP2 default
+static const uint8_t SWCLK = BOARD_GP_SCANNER_CH0; // GP0 default
+static const uint8_t SWDIO = BOARD_GP_SCANNER_CH1; // GP1 default
+static const uint8_t NRST  = BOARD_GP_SCANNER_CH2; // GP2 default
 
 void setUp(void) {
     hal_fake_pio_reset();
@@ -69,11 +69,11 @@ static void test_init_program_opcode_signature(void) {
 
 static void test_init_configures_wrap_and_shift_right(void) {
     swd_phy_init(SWCLK, SWDIO, NRST);
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[1].sm[0];
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[1].sm[0];
     // wrap fields are stored RELATIVE in the cfg per the new HAL
     // contract (F6-2 extension). The rp2040 backend adds the load
     // offset; the fake just records the raw cfg.
-    TEST_ASSERT_EQUAL_UINT32(3u,  sm->last_cfg.wrap_target);
+    TEST_ASSERT_EQUAL_UINT32(3u, sm->last_cfg.wrap_target);
     TEST_ASSERT_EQUAL_UINT32(10u, sm->last_cfg.wrap_end);
     TEST_ASSERT_TRUE(sm->last_cfg.out_shift_right);
     TEST_ASSERT_TRUE(sm->last_cfg.in_shift_right);
@@ -81,7 +81,7 @@ static void test_init_configures_wrap_and_shift_right(void) {
 
 static void test_init_binds_pins_correctly(void) {
     swd_phy_init(SWCLK, SWDIO, NRST);
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[1].sm[0];
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[1].sm[0];
     TEST_ASSERT_EQUAL_UINT32(SWDIO, sm->last_cfg.set_pin_base);
     TEST_ASSERT_EQUAL_UINT32(SWDIO, sm->last_cfg.out_pin_base);
     TEST_ASSERT_EQUAL_UINT32(SWDIO, sm->last_cfg.in_pin_base);
@@ -98,7 +98,7 @@ static void test_init_binds_pins_correctly(void) {
 
 static void test_init_bootstraps_with_jmp_to_dispatcher(void) {
     swd_phy_init(SWCLK, SWDIO, NRST);
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[1].sm[0];
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[1].sm[0];
     // Init now runs two execs: SET PINS,0 (preset SWDIO output to
     // 0 for the open-drain emulation) followed by JMP to dispatcher.
     TEST_ASSERT_EQUAL_UINT32(2u, sm->exec_calls);
@@ -146,7 +146,7 @@ static void test_set_clk_khz_default_divider(void) {
     // The init float clk_div is what configure() saw; the integer
     // divider path is exercised by an explicit set_clk_khz call.
     swd_phy_set_clk_khz(1000u);
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[1].sm[0];
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[1].sm[0];
     TEST_ASSERT_EQUAL_UINT32(1u, sm->set_clkdiv_int_calls);
     // ceil(125000/1000)=125; +3 then /4 = 32.
     TEST_ASSERT_EQUAL_UINT32(32u, sm->last_clkdiv_int);
@@ -154,16 +154,16 @@ static void test_set_clk_khz_default_divider(void) {
 
 static void test_set_clk_khz_clamps_to_min(void) {
     swd_phy_init(SWCLK, SWDIO, NRST);
-    swd_phy_set_clk_khz(10u);   // below SWD_PHY_CLK_MIN_KHZ (100)
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[1].sm[0];
+    swd_phy_set_clk_khz(10u); // below SWD_PHY_CLK_MIN_KHZ (100)
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[1].sm[0];
     // ceil(125000/100)=1250; +3 then /4 = 313.
     TEST_ASSERT_EQUAL_UINT32(313u, sm->last_clkdiv_int);
 }
 
 static void test_set_clk_khz_clamps_to_max(void) {
     swd_phy_init(SWCLK, SWDIO, NRST);
-    swd_phy_set_clk_khz(100000u);   // above SWD_PHY_CLK_MAX_KHZ (24 MHz)
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[1].sm[0];
+    swd_phy_set_clk_khz(100000u); // above SWD_PHY_CLK_MAX_KHZ (24 MHz)
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[1].sm[0];
     // ceil(125000/24000)=6; +3 then /4 = 2.
     TEST_ASSERT_EQUAL_UINT32(2u, sm->last_clkdiv_int);
 }
@@ -183,23 +183,29 @@ static void test_set_clk_khz_no_op_without_init(void) {
 //   bits 7..0  : bit_count - 1
 // Helper that decodes the count and dir for tests so the assertions
 // don't repeat the bit math.
-static uint32_t cmd_count(uint32_t word) { return (word & 0xFFu) + 1u; }
-static bool     cmd_dir  (uint32_t word) { return (word >> 8) & 1u; }
-static uint32_t cmd_pc   (uint32_t word) { return (word >> 9) & 0x1Fu; }
+static uint32_t cmd_count(uint32_t word) {
+    return (word & 0xFFu) + 1u;
+}
+static bool cmd_dir(uint32_t word) {
+    return (word >> 8) & 1u;
+}
+static uint32_t cmd_pc(uint32_t word) {
+    return (word >> 9) & 0x1Fu;
+}
 
 static void test_write_bits_emits_cmd_then_data(void) {
     swd_phy_init(SWCLK, SWDIO, NRST);
-    hal_fake_pio_insts[1].sm[0].tx_count = 0;   // ignore bootstrap entries
+    hal_fake_pio_insts[1].sm[0].tx_count = 0; // ignore bootstrap entries
     swd_phy_write_bits(8u, 0x55u);
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[1].sm[0];
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[1].sm[0];
     TEST_ASSERT_EQUAL_UINT32(2u, sm->tx_count);
     TEST_ASSERT_EQUAL_UINT32(8u, cmd_count(sm->tx_fifo[0]));
     TEST_ASSERT_TRUE(cmd_dir(sm->tx_fifo[0]));
-    TEST_ASSERT_EQUAL_UINT32(0u, cmd_pc(sm->tx_fifo[0]));   // write_cmd at 0
+    TEST_ASSERT_EQUAL_UINT32(0u, cmd_pc(sm->tx_fifo[0])); // write_cmd at 0
     // Open-drain emulation: data is XOR-inverted before push so the
     // PIO bitloop's `out pindirs, 1` produces the wire pattern the
     // caller intended (push-pull semantics).
-    TEST_ASSERT_EQUAL_HEX32(0xFFFFFFAAu, sm->tx_fifo[1]);   // ~0x55
+    TEST_ASSERT_EQUAL_HEX32(0xFFFFFFAAu, sm->tx_fifo[1]); // ~0x55
 }
 
 static void test_write_bits_rejects_zero_and_overflow(void) {
@@ -219,29 +225,29 @@ static void test_read_bits_emits_cmd_and_shifts_result(void) {
     hal_fake_pio_push_rx(1, 0, 0xAB000000u);
     uint32_t got = swd_phy_read_bits(8u);
     TEST_ASSERT_EQUAL_HEX32(0xABu, got);
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[1].sm[0];
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[1].sm[0];
     TEST_ASSERT_EQUAL_UINT32(1u, sm->tx_count);
     TEST_ASSERT_EQUAL_UINT32(8u, cmd_count(sm->tx_fifo[0]));
     TEST_ASSERT_FALSE(cmd_dir(sm->tx_fifo[0]));
-    TEST_ASSERT_EQUAL_UINT32(8u, cmd_pc(sm->tx_fifo[0]));   // read_cmd at 8
+    TEST_ASSERT_EQUAL_UINT32(8u, cmd_pc(sm->tx_fifo[0])); // read_cmd at 8
 }
 
 static void test_read_mode_sends_skip_with_dir_off(void) {
     swd_phy_init(SWCLK, SWDIO, NRST);
     hal_fake_pio_insts[1].sm[0].tx_count = 0;
     swd_phy_read_mode();
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[1].sm[0];
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[1].sm[0];
     TEST_ASSERT_EQUAL_UINT32(1u, sm->tx_count);
     TEST_ASSERT_EQUAL_UINT32(1u, cmd_count(sm->tx_fifo[0]));
     TEST_ASSERT_FALSE(cmd_dir(sm->tx_fifo[0]));
-    TEST_ASSERT_EQUAL_UINT32(3u, cmd_pc(sm->tx_fifo[0]));   // get_next_cmd at 3
+    TEST_ASSERT_EQUAL_UINT32(3u, cmd_pc(sm->tx_fifo[0])); // get_next_cmd at 3
 }
 
 static void test_write_mode_sends_skip_with_dir_on(void) {
     swd_phy_init(SWCLK, SWDIO, NRST);
     hal_fake_pio_insts[1].sm[0].tx_count = 0;
     swd_phy_write_mode();
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[1].sm[0];
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[1].sm[0];
     TEST_ASSERT_EQUAL_UINT32(1u, sm->tx_count);
     TEST_ASSERT_TRUE(cmd_dir(sm->tx_fifo[0]));
     TEST_ASSERT_EQUAL_UINT32(3u, cmd_pc(sm->tx_fifo[0]));
@@ -251,11 +257,11 @@ static void test_hiz_clocks_emits_turnaround_zero_data(void) {
     swd_phy_init(SWCLK, SWDIO, NRST);
     hal_fake_pio_insts[1].sm[0].tx_count = 0;
     swd_phy_hiz_clocks(8u);
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[1].sm[0];
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[1].sm[0];
     TEST_ASSERT_EQUAL_UINT32(2u, sm->tx_count);
     TEST_ASSERT_FALSE(cmd_dir(sm->tx_fifo[0]));
-    TEST_ASSERT_EQUAL_UINT32(0u, cmd_pc(sm->tx_fifo[0]));   // turnaround_cmd at 0
-    TEST_ASSERT_EQUAL_UINT32(0u, sm->tx_fifo[1]);            // dummy data
+    TEST_ASSERT_EQUAL_UINT32(0u, cmd_pc(sm->tx_fifo[0])); // turnaround_cmd at 0
+    TEST_ASSERT_EQUAL_UINT32(0u, sm->tx_fifo[1]);         // dummy data
 }
 
 // -----------------------------------------------------------------------------

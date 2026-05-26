@@ -22,5 +22,4 @@
 // Handle a single CMSIS-DAP request packet. `req_len` is the exact
 // number of bytes in the packet; `resp` must be at least 64 bytes.
 // Returns the number of bytes to send back.
-size_t dap_stub_handle(const uint8_t *req, size_t req_len,
-                       uint8_t *resp, size_t resp_capacity);
+size_t dap_stub_handle(const uint8_t* req, size_t req_len, uint8_t* resp, size_t resp_capacity);

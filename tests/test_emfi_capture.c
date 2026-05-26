@@ -20,7 +20,8 @@ static void test_init_claims_one_dma_channel(void) {
     TEST_ASSERT_TRUE(emfi_capture_init());
     int used = 0;
     for (int i = 0; i < HAL_FAKE_DMA_CHANNELS; i++) {
-        if (hal_fake_dma_channels[i].claimed) used++;
+        if (hal_fake_dma_channels[i].claimed)
+            used++;
     }
     TEST_ASSERT_EQUAL_INT(1, used);
 }
@@ -45,8 +46,7 @@ static void test_start_configures_fifo_for_8bit_dma(void) {
     TEST_ASSERT_TRUE(hal_fake_adc_extra.fifo_setup_called);
     TEST_ASSERT_TRUE(hal_fake_adc_extra.last_fifo_cfg.enable_dma);
     TEST_ASSERT_TRUE(hal_fake_adc_extra.last_fifo_cfg.shift_to_8bit);
-    TEST_ASSERT_EQUAL_UINT32(1u,
-        hal_fake_adc_extra.last_fifo_cfg.dreq_threshold);
+    TEST_ASSERT_EQUAL_UINT32(1u, hal_fake_adc_extra.last_fifo_cfg.dreq_threshold);
 }
 
 static void test_start_sets_full_speed_clkdiv(void) {
@@ -71,7 +71,8 @@ static void test_start_arms_dma_and_runs_adc(void) {
     // One claimed channel is now busy.
     int busy_count = 0;
     for (int i = 0; i < HAL_FAKE_DMA_CHANNELS; i++) {
-        if (hal_fake_dma_channels[i].busy) busy_count++;
+        if (hal_fake_dma_channels[i].busy)
+            busy_count++;
     }
     TEST_ASSERT_EQUAL_INT(1, busy_count);
     TEST_ASSERT_TRUE(hal_fake_adc_extra.running);
@@ -82,7 +83,10 @@ static void test_start_configures_ring_mode_8192_bytes(void) {
     emfi_capture_start();
     int ch = -1;
     for (int i = 0; i < HAL_FAKE_DMA_CHANNELS; i++) {
-        if (hal_fake_dma_channels[i].claimed) { ch = i; break; }
+        if (hal_fake_dma_channels[i].claimed) {
+            ch = i;
+            break;
+        }
     }
     TEST_ASSERT_NOT_EQUAL(-1, ch);
     TEST_ASSERT_EQUAL_UINT32(13u, hal_fake_dma_channels[ch].cfg.ring_bits);
@@ -104,11 +108,11 @@ static void test_stop_halts_adc_and_aborts_dma(void) {
 
 static void test_buffer_pointer_is_stable(void) {
     emfi_capture_init();
-    const uint8_t *a = emfi_capture_buffer();
+    const uint8_t* a = emfi_capture_buffer();
     emfi_capture_start();
-    const uint8_t *b = emfi_capture_buffer();
+    const uint8_t* b = emfi_capture_buffer();
     emfi_capture_stop();
-    const uint8_t *c = emfi_capture_buffer();
+    const uint8_t* c = emfi_capture_buffer();
     TEST_ASSERT_EQUAL_PTR(a, b);
     TEST_ASSERT_EQUAL_PTR(b, c);
 }
@@ -118,7 +122,10 @@ static void test_fill_saturates_at_8192(void) {
     emfi_capture_start();
     int ch = -1;
     for (int i = 0; i < HAL_FAKE_DMA_CHANNELS; i++) {
-        if (hal_fake_dma_channels[i].claimed) { ch = i; break; }
+        if (hal_fake_dma_channels[i].claimed) {
+            ch = i;
+            break;
+        }
     }
     // Simulate 1000 samples pushed.
     hal_fake_dma_set_transfer_count(ch, 0xFFFFFFFFu - 1000u);
@@ -130,10 +137,11 @@ static void test_fill_saturates_at_8192(void) {
 
 static void test_init_idempotent(void) {
     TEST_ASSERT_TRUE(emfi_capture_init());
-    TEST_ASSERT_TRUE(emfi_capture_init());  // no second claim
+    TEST_ASSERT_TRUE(emfi_capture_init()); // no second claim
     int used = 0;
     for (int i = 0; i < HAL_FAKE_DMA_CHANNELS; i++) {
-        if (hal_fake_dma_channels[i].claimed) used++;
+        if (hal_fake_dma_channels[i].claimed)
+            used++;
     }
     TEST_ASSERT_EQUAL_INT(1, used);
 }

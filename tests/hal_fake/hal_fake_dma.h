@@ -8,15 +8,15 @@
 #define HAL_FAKE_DMA_CHANNELS 12
 
 typedef struct {
-    bool           claimed;
-    bool           busy;
-    hal_dma_cfg_t  cfg;
-    volatile void *dst;
-    const volatile void *src;
-    uint32_t       transfer_count;
-    uint32_t       configure_calls;
-    uint32_t       start_calls;
-    uint32_t       abort_calls;
+    bool claimed;
+    bool busy;
+    hal_dma_cfg_t cfg;
+    volatile void* dst;
+    const volatile void* src;
+    uint32_t transfer_count;
+    uint32_t configure_calls;
+    uint32_t start_calls;
+    uint32_t abort_calls;
 } hal_fake_dma_state_t;
 
 extern hal_fake_dma_state_t hal_fake_dma_channels[HAL_FAKE_DMA_CHANNELS];

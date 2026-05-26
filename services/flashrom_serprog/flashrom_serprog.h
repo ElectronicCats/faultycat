@@ -46,36 +46,36 @@
 //      simulating a hal_fake_pio FIFO.
 
 typedef struct {
-    void    (*write_byte)(uint8_t b, void *user);
-    void    (*spi_cs_set)(bool low, void *user);
-    uint8_t (*spi_xfer_byte)(uint8_t out, void *user);
-    void    (*yield)(void *user);     // optional — called every 128 bytes
-                                      // during long SPIOP read/write to keep
-                                      // the cooperative main loop alive.
-    void    (*on_exit)(void *user);   // F8-5 has no protocol exit byte;
-                                      // disconnect detection in main.c
-                                      // calls this when CDC2 drops.
-    void *user;
+    void (*write_byte)(uint8_t b, void* user);
+    void (*spi_cs_set)(bool low, void* user);
+    uint8_t (*spi_xfer_byte)(uint8_t out, void* user);
+    void (*yield)(void* user);   // optional — called every 128 bytes
+                                 // during long SPIOP read/write to keep
+                                 // the cooperative main loop alive.
+    void (*on_exit)(void* user); // F8-5 has no protocol exit byte;
+                                 // disconnect detection in main.c
+                                 // calls this when CDC2 drops.
+    void* user;
 } flashrom_serprog_callbacks_t;
 
-void flashrom_serprog_init(const flashrom_serprog_callbacks_t *cb);
+void flashrom_serprog_init(const flashrom_serprog_callbacks_t* cb);
 void flashrom_serprog_feed_byte(uint8_t b);
 
 typedef enum {
-    FLASHROM_SP_IDLE             = 0,
-    FLASHROM_SP_S_BUSTYPE_1      = 1,
-    FLASHROM_SP_S_SPI_FREQ_1     = 2,
-    FLASHROM_SP_S_SPI_FREQ_2     = 3,
-    FLASHROM_SP_S_SPI_FREQ_3     = 4,
-    FLASHROM_SP_S_SPI_FREQ_4     = 5,
-    FLASHROM_SP_O_SPIOP_WL_LO    = 6,
-    FLASHROM_SP_O_SPIOP_WL_MID   = 7,
-    FLASHROM_SP_O_SPIOP_WL_HI    = 8,
-    FLASHROM_SP_O_SPIOP_RL_LO    = 9,
-    FLASHROM_SP_O_SPIOP_RL_MID   = 10,
-    FLASHROM_SP_O_SPIOP_RL_HI    = 11,
-    FLASHROM_SP_O_SPIOP_WBYTES   = 12,
-    FLASHROM_SP_S_PIN_STATE_1    = 13,
+    FLASHROM_SP_IDLE           = 0,
+    FLASHROM_SP_S_BUSTYPE_1    = 1,
+    FLASHROM_SP_S_SPI_FREQ_1   = 2,
+    FLASHROM_SP_S_SPI_FREQ_2   = 3,
+    FLASHROM_SP_S_SPI_FREQ_3   = 4,
+    FLASHROM_SP_S_SPI_FREQ_4   = 5,
+    FLASHROM_SP_O_SPIOP_WL_LO  = 6,
+    FLASHROM_SP_O_SPIOP_WL_MID = 7,
+    FLASHROM_SP_O_SPIOP_WL_HI  = 8,
+    FLASHROM_SP_O_SPIOP_RL_LO  = 9,
+    FLASHROM_SP_O_SPIOP_RL_MID = 10,
+    FLASHROM_SP_O_SPIOP_RL_HI  = 11,
+    FLASHROM_SP_O_SPIOP_WBYTES = 12,
+    FLASHROM_SP_S_PIN_STATE_1  = 13,
 } flashrom_serprog_state_t;
 
 flashrom_serprog_state_t flashrom_serprog_get_state(void);

@@ -16,6 +16,7 @@ These modules are kept ``Pilot``-free — see ``test_tui_modals.py``
 docstring for the rationale (Pilot conflicts with our daemon-
 thread shutdown machinery; we test data state, not rendered output).
 """
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, fields
@@ -57,19 +58,13 @@ class EmfiFormState:
 
     def validate(self) -> None:
         if self.trigger not in _EMFI_TRIGGERS:
-            raise ValueError(
-                f"trigger must be one of {_EMFI_TRIGGERS}, got {self.trigger!r}"
-            )
+            raise ValueError(f"trigger must be one of {_EMFI_TRIGGERS}, got {self.trigger!r}")
         if not 1 <= self.width_us <= 50:
-            raise ValueError(
-                f"width_us out of range 1..50 µs (driver-bounded): {self.width_us}"
-            )
+            raise ValueError(f"width_us out of range 1..50 µs (driver-bounded): {self.width_us}")
         if self.delay_us < 0:
             raise ValueError(f"delay_us must be >= 0, got {self.delay_us}")
         if self.charge_timeout_ms < 0:
-            raise ValueError(
-                f"charge_timeout_ms must be >= 0, got {self.charge_timeout_ms}"
-            )
+            raise ValueError(f"charge_timeout_ms must be >= 0, got {self.charge_timeout_ms}")
         if self.trigger_timeout_ms < 0:
             raise ValueError(
                 f"trigger_timeout_ms must be >= 0 (0 = wait forever), "
@@ -205,13 +200,9 @@ class EmfiControlModal(ModalScreen[None]):
             yield Label("width-us (1..50):")
             yield Input(value=str(self.state.width_us), id="width_us")
             yield Label("charge-timeout-ms (0 = use 60 s budget):")
-            yield Input(
-                value=str(self.state.charge_timeout_ms), id="charge_timeout_ms"
-            )
+            yield Input(value=str(self.state.charge_timeout_ms), id="charge_timeout_ms")
             yield Label("trigger-timeout-ms (0 = wait forever):")
-            yield Input(
-                value=str(self.state.trigger_timeout_ms), id="trigger_timeout_ms"
-            )
+            yield Input(value=str(self.state.trigger_timeout_ms), id="trigger_timeout_ms")
             yield Static("", id="status_line")
             with Horizontal():
                 yield Button("Apply", id="apply", variant="primary")
@@ -237,7 +228,9 @@ class EmfiControlModal(ModalScreen[None]):
             return False
         candidate = EmfiFormState(
             trigger=trig if isinstance(trig, str) else "immediate",
-            delay_us=d, width_us=w, charge_timeout_ms=ct,
+            delay_us=d,
+            width_us=w,
+            charge_timeout_ms=ct,
             trigger_timeout_ms=tto,
         )
         try:
@@ -324,7 +317,7 @@ class EmfiControlModal(ModalScreen[None]):
 # -----------------------------------------------------------------
 
 
-_CAMPAIGN_ENGINES = ("crowbar",)   # F11-0c MVP — emfi multiplex deferred
+_CAMPAIGN_ENGINES = ("crowbar",)  # F11-0c MVP — emfi multiplex deferred
 
 
 def parse_triplet(s: str) -> tuple[int, int, int]:
@@ -336,25 +329,21 @@ def parse_triplet(s: str) -> tuple[int, int, int]:
         n = int(parts[0])
         return (n, n, 0)
     if len(parts) != 3:
-        raise ValueError(
-            f"triplet must be 'START:END:STEP' or single 'N', got {s!r}"
-        )
+        raise ValueError(f"triplet must be 'START:END:STEP' or single 'N', got {s!r}")
     start, end, step = (int(p) for p in parts)
     if start > end:
         raise ValueError(f"triplet start ({start}) must be <= end ({end})")
     if start != end and step <= 0:
-        raise ValueError(
-            f"triplet step must be > 0 when start ({start}) != end ({end})"
-        )
+        raise ValueError(f"triplet step must be > 0 when start ({start}) != end ({end})")
     return (start, end, step)
 
 
 @dataclass
 class CampaignFormState:
-    engine:    str = "crowbar"
-    delay:     str = "1000:3000:1000"   # µs (text triplet, parsed on validate)
-    width:     str = "200:300:100"      # ns for crowbar, µs for emfi
-    power:     str = "1:1:0"            # crowbar 1=LP / 2=HP
+    engine: str = "crowbar"
+    delay: str = "1000:3000:1000"  # µs (text triplet, parsed on validate)
+    width: str = "200:300:100"  # ns for crowbar, µs for emfi
+    power: str = "1:1:0"  # crowbar 1=LP / 2=HP
     settle_ms: int = 50
 
     @classmethod
@@ -366,9 +355,7 @@ class CampaignFormState:
     def to_dict(self) -> dict:
         return asdict(self)
 
-    def parse(self) -> tuple[
-        tuple[int, int, int], tuple[int, int, int], tuple[int, int, int], int
-    ]:
+    def parse(self) -> tuple[tuple[int, int, int], tuple[int, int, int], tuple[int, int, int], int]:
         """Resolve the text triplets to wire-level tuples. Raises
         ValueError on any axis-parse failure."""
         return (
@@ -380,13 +367,9 @@ class CampaignFormState:
 
     def validate(self) -> None:
         if self.engine not in _CAMPAIGN_ENGINES:
-            raise ValueError(
-                f"engine must be one of {_CAMPAIGN_ENGINES}, got {self.engine!r}"
-            )
+            raise ValueError(f"engine must be one of {_CAMPAIGN_ENGINES}, got {self.engine!r}")
         if not 0 <= self.settle_ms <= 60000:
-            raise ValueError(
-                f"settle_ms out of range 0..60000, got {self.settle_ms}"
-            )
+            raise ValueError(f"settle_ms out of range 0..60000, got {self.settle_ms}")
         # Trip every axis through parse to surface a malformed
         # triplet at validate time (not deep inside configure).
         self.parse()
@@ -476,16 +459,19 @@ class CampaignControlModal(ModalScreen[None]):
     def _sync_state_from_inputs(self) -> bool:
         try:
             engine = self.query_one("#engine", Select).value
-            delay  = self.query_one("#delay", Input).value or ""
-            width  = self.query_one("#width", Input).value or ""
-            power  = self.query_one("#power", Input).value or ""
+            delay = self.query_one("#delay", Input).value or ""
+            width = self.query_one("#width", Input).value or ""
+            power = self.query_one("#power", Input).value or ""
             settle = int(self.query_one("#settle_ms", Input).value or "0")
         except (ValueError, KeyError):
             self._set_status("error: invalid integer in form")
             return False
         candidate = CampaignFormState(
             engine=engine if isinstance(engine, str) else "crowbar",
-            delay=delay, width=width, power=power, settle_ms=settle,
+            delay=delay,
+            width=width,
+            power=power,
+            settle_ms=settle,
         )
         try:
             candidate.validate()
@@ -552,13 +538,13 @@ class CampaignControlModal(ModalScreen[None]):
 
 
 _CROWBAR_TRIGGERS = ("immediate", "ext_rising", "ext_falling", "ext_pulse_pos", "ext_pulse_neg")
-_CROWBAR_OUTPUTS = ("lp", "hp")     # NONE excluded — form must pick a real path
+_CROWBAR_OUTPUTS = ("lp", "hp")  # NONE excluded — form must pick a real path
 
 
 @dataclass
 class CrowbarFormState:
     trigger: str = "immediate"
-    output:  str = "lp"
+    output: str = "lp"
     delay_us: int = 0
     width_ns: int = 200
     # Per-fire upper bound on how long the firmware waits for the
@@ -577,17 +563,11 @@ class CrowbarFormState:
 
     def validate(self) -> None:
         if self.trigger not in _CROWBAR_TRIGGERS:
-            raise ValueError(
-                f"trigger must be one of {_CROWBAR_TRIGGERS}, got {self.trigger!r}"
-            )
+            raise ValueError(f"trigger must be one of {_CROWBAR_TRIGGERS}, got {self.trigger!r}")
         if self.output not in _CROWBAR_OUTPUTS:
-            raise ValueError(
-                f"output must be one of {_CROWBAR_OUTPUTS}, got {self.output!r}"
-            )
+            raise ValueError(f"output must be one of {_CROWBAR_OUTPUTS}, got {self.output!r}")
         if not 8 <= self.width_ns <= 50000:
-            raise ValueError(
-                f"width_ns out of range 8..50000 ns (driver-bounded): {self.width_ns}"
-            )
+            raise ValueError(f"width_ns out of range 8..50000 ns (driver-bounded): {self.width_ns}")
         if self.delay_us < 0:
             raise ValueError(f"delay_us must be >= 0, got {self.delay_us}")
         if self.trigger_timeout_ms < 0:
@@ -667,9 +647,7 @@ class CrowbarControlModal(ModalScreen[None]):
             yield Label("width-ns (8..50000):")
             yield Input(value=str(self.state.width_ns), id="width_ns")
             yield Label("trigger-timeout-ms (0 = wait forever):")
-            yield Input(
-                value=str(self.state.trigger_timeout_ms), id="trigger_timeout_ms"
-            )
+            yield Input(value=str(self.state.trigger_timeout_ms), id="trigger_timeout_ms")
             yield Static("", id="status_line")
             with Horizontal():
                 yield Button("Apply", id="apply", variant="primary")
@@ -681,7 +659,7 @@ class CrowbarControlModal(ModalScreen[None]):
     def _sync_state_from_inputs(self) -> bool:
         try:
             trig = self.query_one("#trigger", Select).value
-            out  = self.query_one("#output", Select).value
+            out = self.query_one("#output", Select).value
             d = int(self.query_one("#delay_us", Input).value or "0")
             w = int(self.query_one("#width_ns", Input).value or "0")
             tto = int(self.query_one("#trigger_timeout_ms", Input).value or "0")
@@ -691,7 +669,8 @@ class CrowbarControlModal(ModalScreen[None]):
         candidate = CrowbarFormState(
             trigger=trig if isinstance(trig, str) else "immediate",
             output=out if isinstance(out, str) else "lp",
-            delay_us=d, width_ns=w,
+            delay_us=d,
+            width_ns=w,
             trigger_timeout_ms=tto,
         )
         try:
@@ -823,17 +802,14 @@ class ScannerControlModal(ModalScreen[None]):
         with Vertical():
             yield Label("Scanner / SWD control")
             yield Label("[dim]CDC2 · F8-2 scan swd[/dim]")
+            yield Label("[bold]scan swd[/bold] — bus-wide discovery (timeout 30 s)")
             yield Label(
-                "[bold]scan swd[/bold] — bus-wide discovery (timeout 30 s)"
-            )
-            yield Label(
-                "[dim]JTAG and direct-SWD verbs are WIP and hidden in "
-                "this release.[/dim]"
+                "[dim]JTAG and direct-SWD verbs are WIP and hidden in " "this release.[/dim]"
             )
             yield Static("", id="status_line")
             with Horizontal():
                 yield Button("Scan SWD", id="apply_scan_swd", variant="primary")
-                yield Button("Close",    id="close")
+                yield Button("Close", id="close")
 
     def _set_status(self, msg: str) -> None:
         try:

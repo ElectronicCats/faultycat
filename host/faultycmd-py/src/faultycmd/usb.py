@@ -29,6 +29,7 @@ OS-stable port names (``/dev/ttyACMx`` numbering, ``COM<n>`` index)
 shuffle across reboots / hot-plugs, so this module always
 re-discovers by VID:PID and interface number rather than caching.
 """
+
 from __future__ import annotations
 
 import logging
@@ -47,10 +48,10 @@ PID_FAULTYCAT = 0xFA17
 
 #: Role → control-interface number. Data interfaces are control + 1.
 INTERFACE_NUMBERS: dict[str, int] = {
-    "emfi":     0x00,
-    "crowbar":  0x02,
-    "scanner":  0x04,
-    "target":   0x06,
+    "emfi": 0x00,
+    "crowbar": 0x02,
+    "scanner": 0x04,
+    "target": 0x06,
 }
 
 Role = Literal["emfi", "crowbar", "scanner", "target"]
@@ -61,7 +62,7 @@ class FaultyCatPort:
     """One CDC interface of the FaultyCat composite."""
 
     interface: int
-    device: str   # "/dev/ttyACMx" on Linux, "COMx" on Windows
+    device: str  # "/dev/ttyACMx" on Linux, "COMx" on Windows
 
 
 class PortDiscoveryError(LookupError):
@@ -126,7 +127,9 @@ def discover() -> list[FaultyCatPort]:
             log.warning(
                 "found FaultyCat CDC at %s but could not determine its "
                 "interface number (hwid=%r, location=%r) — skipping",
-                port.device, port.hwid, port.location,
+                port.device,
+                port.hwid,
+                port.location,
             )
             continue
         found.append(FaultyCatPort(interface=iface, device=port.device))
@@ -143,9 +146,7 @@ def cdc_for(role: Role) -> str:
             interface (board not enumerated, or different VID/PID).
     """
     if role not in INTERFACE_NUMBERS:
-        raise ValueError(
-            f"unknown role {role!r}; expected one of {sorted(INTERFACE_NUMBERS)}"
-        )
+        raise ValueError(f"unknown role {role!r}; expected one of {sorted(INTERFACE_NUMBERS)}")
     target_iface = INTERFACE_NUMBERS[role]
     ports = discover()
     for port in ports:

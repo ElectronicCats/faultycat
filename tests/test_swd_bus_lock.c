@@ -9,7 +9,8 @@ void setUp(void) {
     swd_bus_lock_init();
 }
 
-void tearDown(void) {}
+void tearDown(void) {
+}
 
 // -----------------------------------------------------------------------------
 // Init / state
@@ -82,14 +83,14 @@ static void test_acquire_as_idle_rejects(void) {
 // -----------------------------------------------------------------------------
 
 static void test_release_when_idle_is_safe(void) {
-    swd_bus_release(SWD_BUS_OWNER_CAMPAIGN);   // wrong owner — no-op
+    swd_bus_release(SWD_BUS_OWNER_CAMPAIGN); // wrong owner — no-op
     TEST_ASSERT_EQUAL(SWD_BUS_OWNER_IDLE, swd_bus_owner());
     TEST_ASSERT_FALSE(swd_bus_is_held());
 }
 
 static void test_release_wrong_owner_no_op(void) {
     TEST_ASSERT_TRUE(swd_bus_try_acquire(SWD_BUS_OWNER_CAMPAIGN));
-    swd_bus_release(SWD_BUS_OWNER_SCANNER);    // wrong owner
+    swd_bus_release(SWD_BUS_OWNER_SCANNER); // wrong owner
     // Bus stays held by CAMPAIGN — wrong-owner release is silent.
     TEST_ASSERT_EQUAL(SWD_BUS_OWNER_CAMPAIGN, swd_bus_owner());
     TEST_ASSERT_TRUE(swd_bus_is_held());
@@ -98,7 +99,7 @@ static void test_release_wrong_owner_no_op(void) {
 static void test_double_release_safe(void) {
     TEST_ASSERT_TRUE(swd_bus_try_acquire(SWD_BUS_OWNER_DAPLINK));
     swd_bus_release(SWD_BUS_OWNER_DAPLINK);
-    swd_bus_release(SWD_BUS_OWNER_DAPLINK);    // second call — no-op
+    swd_bus_release(SWD_BUS_OWNER_DAPLINK); // second call — no-op
     TEST_ASSERT_EQUAL(SWD_BUS_OWNER_IDLE, swd_bus_owner());
 }
 
@@ -112,7 +113,7 @@ static void test_each_owner_can_acquire(void) {
         SWD_BUS_OWNER_SCANNER,
         SWD_BUS_OWNER_DAPLINK,
     };
-    for (size_t i = 0; i < sizeof(owners)/sizeof(owners[0]); i++) {
+    for (size_t i = 0; i < sizeof(owners) / sizeof(owners[0]); i++) {
         TEST_ASSERT_TRUE(swd_bus_try_acquire(owners[i]));
         TEST_ASSERT_EQUAL(owners[i], swd_bus_owner());
         swd_bus_release(owners[i]);

@@ -6,10 +6,10 @@ shutdown setup, see `fix(F10-polish)`). These tests inspect data
 state, not rendered output. Real-device smoke against a live
 FaultyCat covers the visual side.
 """
+
 from __future__ import annotations
 
 import pytest
-
 from faultycmd.tui_modals import (
     CampaignControlModal,
     CampaignFormState,
@@ -22,6 +22,7 @@ from faultycmd.tui_modals import (
 )
 
 # -- EmfiFormState (the dataclass that drives the form) -----------
+
 
 def test_emfi_form_state_defaults():
     s = EmfiFormState()
@@ -47,8 +48,7 @@ def test_emfi_form_state_from_dict_ignores_unknown_keys():
 
 
 def test_emfi_form_state_to_dict_roundtrip():
-    s = EmfiFormState(trigger="ext_pulse_pos", delay_us=1200, width_us=10,
-                      charge_timeout_ms=500)
+    s = EmfiFormState(trigger="ext_pulse_pos", delay_us=1200, width_us=10, charge_timeout_ms=500)
     d = s.to_dict()
     s2 = EmfiFormState.from_dict(d)
     assert s == s2
@@ -67,8 +67,11 @@ def test_emfi_form_state_validates_width_bounds():
 
 def test_emfi_form_state_validates_trigger_enum():
     valid = (
-        "immediate", "ext_rising", "ext_falling",
-        "ext_pulse_pos", "ext_pulse_neg",
+        "immediate",
+        "ext_rising",
+        "ext_falling",
+        "ext_pulse_pos",
+        "ext_pulse_neg",
     )
     for t in valid:
         EmfiFormState(trigger=t).validate()
@@ -78,6 +81,7 @@ def test_emfi_form_state_validates_trigger_enum():
 
 # -- EmfiControlModal construction --------------------------------
 
+
 def test_emfi_modal_construction_with_no_last_config():
     modal = EmfiControlModal(initial=EmfiFormState())
     assert modal.state.trigger == "immediate"
@@ -85,11 +89,13 @@ def test_emfi_modal_construction_with_no_last_config():
 
 
 def test_emfi_modal_construction_prefills_from_last_config():
-    initial = EmfiFormState.from_dict({
-        "trigger": "ext_rising",
-        "delay_us": 1500,
-        "width_us": 8,
-    })
+    initial = EmfiFormState.from_dict(
+        {
+            "trigger": "ext_rising",
+            "delay_us": 1500,
+            "width_us": 8,
+        }
+    )
     modal = EmfiControlModal(initial=initial)
     assert modal.state.trigger == "ext_rising"
     assert modal.state.delay_us == 1500
@@ -97,6 +103,7 @@ def test_emfi_modal_construction_prefills_from_last_config():
 
 
 # -- Action gating: Arm requires HV confirm, Fire does not --------
+
 
 def test_emfi_modal_arm_requires_hv_confirm():
     """The intent: pressing 'Arm' should NOT directly invoke the
@@ -130,6 +137,7 @@ def test_emfi_modal_apply_does_not_require_hv_confirm():
 
 # -- HvConfirmModal -----------------------------------------------
 
+
 def test_hv_confirm_modal_carries_action_label():
     m = HvConfirmModal(action_label="Arm EMFI")
     assert m.action_label == "Arm EMFI"
@@ -144,6 +152,7 @@ def test_hv_confirm_modal_default_decision_is_no():
 
 
 # -- form ↔ wire-protocol mapping ---------------------------------
+
 
 def test_emfi_form_trigger_strings_all_map_to_emfi_trigger_enum():
     """Regression: every trigger string the form exposes must
@@ -164,6 +173,7 @@ def test_emfi_form_trigger_strings_all_map_to_emfi_trigger_enum():
 
 
 # -- CrowbarFormState ---------------------------------------------
+
 
 def test_crowbar_form_state_defaults():
     s = CrowbarFormState()
@@ -187,8 +197,7 @@ def test_crowbar_form_state_from_dict_ignores_unknown():
 
 
 def test_crowbar_form_state_to_dict_roundtrip():
-    s = CrowbarFormState(trigger="ext_rising", output="hp",
-                         delay_us=2500, width_ns=500)
+    s = CrowbarFormState(trigger="ext_rising", output="hp", delay_us=2500, width_ns=500)
     s2 = CrowbarFormState.from_dict(s.to_dict())
     assert s == s2
 
@@ -205,8 +214,11 @@ def test_crowbar_form_state_validates_width_bounds():
 
 def test_crowbar_form_state_validates_trigger_enum():
     for t in (
-        "immediate", "ext_rising", "ext_falling",
-        "ext_pulse_pos", "ext_pulse_neg",
+        "immediate",
+        "ext_rising",
+        "ext_falling",
+        "ext_pulse_pos",
+        "ext_pulse_neg",
     ):
         CrowbarFormState(trigger=t).validate()
     with pytest.raises(ValueError):
@@ -224,6 +236,7 @@ def test_crowbar_form_state_validates_output_enum():
 
 
 # -- CrowbarControlModal ------------------------------------------
+
 
 def test_crowbar_modal_construction_defaults():
     m = CrowbarControlModal(initial=CrowbarFormState())
@@ -250,6 +263,7 @@ def test_crowbar_modal_no_action_requires_hv_confirm():
 
 # -- form ↔ wire-protocol drift guards (mirror EMFI guards) -------
 
+
 def test_crowbar_form_strings_all_map_to_wire_enums():
     """Mirror of `test_emfi_form_trigger_strings_all_map...`. Every
     UI string for trigger AND output must round-trip through the
@@ -273,22 +287,22 @@ def test_crowbar_client_method_signatures_unchanged():
 
     sigs = {
         "configure": {"trigger", "output", "delay_us", "width_ns"},
-        "arm":       set(),
-        "fire":      {"trigger_timeout_ms"},
-        "disarm":    set(),
-        "status":    set(),
-        "ping":      set(),
+        "arm": set(),
+        "fire": {"trigger_timeout_ms"},
+        "disarm": set(),
+        "status": set(),
+        "ping": set(),
     }
     for method, expected in sigs.items():
         sig = inspect.signature(getattr(CrowbarClient, method))
         params = {p for p in sig.parameters if p != "self"}
         assert expected.issubset(params), (
-            f"CrowbarClient.{method} lost kwargs: "
-            f"expected {expected}, got {params}"
+            f"CrowbarClient.{method} lost kwargs: " f"expected {expected}, got {params}"
         )
 
 
 # -- parse_triplet ------------------------------------------------
+
 
 def test_parse_triplet_three_part():
     assert parse_triplet("1000:3000:1000") == (1000, 3000, 1000)
@@ -301,12 +315,12 @@ def test_parse_triplet_single_int_collapses_axis():
 
 def test_parse_triplet_rejects_non_monotonic():
     with pytest.raises(ValueError):
-        parse_triplet("3000:1000:100")   # start > end
+        parse_triplet("3000:1000:100")  # start > end
 
 
 def test_parse_triplet_rejects_zero_step_with_span():
     with pytest.raises(ValueError):
-        parse_triplet("100:200:0")   # step must be > 0 if start != end
+        parse_triplet("100:200:0")  # step must be > 0 if start != end
 
 
 def test_parse_triplet_allows_zero_step_when_start_eq_end():
@@ -321,6 +335,7 @@ def test_parse_triplet_rejects_garbage():
 
 # -- CampaignFormState --------------------------------------------
 
+
 def test_campaign_form_state_defaults():
     s = CampaignFormState()
     assert s.engine == "crowbar"
@@ -332,19 +347,17 @@ def test_campaign_form_state_from_dict_partial():
     s = CampaignFormState.from_dict({"width": "100:500:100", "settle_ms": 25})
     assert s.width == "100:500:100"
     assert s.settle_ms == 25
-    assert s.engine == "crowbar"   # default
+    assert s.engine == "crowbar"  # default
 
 
 def test_campaign_form_state_to_dict_roundtrip():
-    s = CampaignFormState(delay="500:5000:500", width="100:200:50",
-                          power="1:2:1", settle_ms=20)
+    s = CampaignFormState(delay="500:5000:500", width="100:200:50", power="1:2:1", settle_ms=20)
     s2 = CampaignFormState.from_dict(s.to_dict())
     assert s == s2
 
 
 def test_campaign_form_state_parse_emits_triplets():
-    s = CampaignFormState(delay="1000:3000:1000",
-                          width="200:300:100", power="1:1:0", settle_ms=50)
+    s = CampaignFormState(delay="1000:3000:1000", width="200:300:100", power="1:1:0", settle_ms=50)
     delay, width, power, settle = s.parse()
     assert delay == (1000, 3000, 1000)
     assert width == (200, 300, 100)
@@ -354,7 +367,7 @@ def test_campaign_form_state_parse_emits_triplets():
 
 def test_campaign_form_state_validates_engine():
     with pytest.raises(ValueError):
-        CampaignFormState(engine="emfi").validate()   # F-future MVP gate
+        CampaignFormState(engine="emfi").validate()  # F-future MVP gate
     with pytest.raises(ValueError):
         CampaignFormState(engine="bogus").validate()
 
@@ -375,6 +388,7 @@ def test_campaign_form_state_validate_surfaces_triplet_error():
 
 # -- CampaignControlModal -----------------------------------------
 
+
 def test_campaign_modal_construction_defaults():
     m = CampaignControlModal(initial=CampaignFormState())
     assert m.state.engine == "crowbar"
@@ -383,9 +397,7 @@ def test_campaign_modal_construction_defaults():
 
 def test_campaign_modal_construction_prefills():
     m = CampaignControlModal(
-        initial=CampaignFormState.from_dict(
-            {"delay": "100:5000:100", "settle_ms": 25}
-        ),
+        initial=CampaignFormState.from_dict({"delay": "100:5000:100", "settle_ms": 25}),
     )
     assert m.state.delay == "100:5000:100"
     assert m.state.settle_ms == 25
@@ -409,17 +421,16 @@ def test_campaign_client_method_signatures_unchanged():
 
     sigs = {
         "configure": {"delay", "width", "power", "settle_ms"},
-        "start":     set(),
-        "stop":      set(),
-        "drain":     {"max_count"},
-        "status":    set(),
+        "start": set(),
+        "stop": set(),
+        "drain": {"max_count"},
+        "status": set(),
     }
     for method, expected in sigs.items():
         sig = inspect.signature(getattr(CampaignClient, method))
         params = {p for p in sig.parameters if p != "self"}
         assert expected.issubset(params), (
-            f"CampaignClient.{method} lost kwargs: "
-            f"expected {expected}, got {params}"
+            f"CampaignClient.{method} lost kwargs: " f"expected {expected}, got {params}"
         )
 
 
@@ -436,18 +447,17 @@ def test_emfi_client_method_signatures_unchanged():
 
     sigs = {
         "configure": {"trigger", "delay_us", "width_us", "charge_timeout_ms"},
-        "arm":       set(),
-        "fire":      {"trigger_timeout_ms"},
-        "disarm":    set(),
-        "capture":   {"offset", "length"},
-        "status":    set(),
-        "ping":      set(),
+        "arm": set(),
+        "fire": {"trigger_timeout_ms"},
+        "disarm": set(),
+        "capture": {"offset", "length"},
+        "status": set(),
+        "ping": set(),
     }
     for method, expected_kwargs in sigs.items():
         sig = inspect.signature(getattr(EmfiClient, method))
         # Drop `self`.
         params = {p for p in sig.parameters if p != "self"}
         assert expected_kwargs.issubset(params), (
-            f"EmfiClient.{method} lost kwargs: "
-            f"expected {expected_kwargs}, got {params}"
+            f"EmfiClient.{method} lost kwargs: " f"expected {expected_kwargs}, got {params}"
         )

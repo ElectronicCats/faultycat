@@ -5,10 +5,10 @@ modals can prefill from the last successful submit. The store is
 JSON at `$XDG_CONFIG_HOME/faultycmd/last_config.json` (defaulting
 to `~/.config/faultycmd/last_config.json`).
 """
+
 from __future__ import annotations
 
 import pytest
-
 from faultycmd.persistence import LastConfig
 
 

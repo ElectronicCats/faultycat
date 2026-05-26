@@ -1,10 +1,10 @@
 """Unit tests for faultycmd.framing — CRC, build_frame, read_frame."""
+
 from __future__ import annotations
 
 import struct
 
 import pytest
-
 from faultycmd.framing import (
     FrameCRCError,
     FrameTimeout,
@@ -17,6 +17,7 @@ from faultycmd.framing import (
 # crc16_ccitt — known-vector tests cross-checked against the firmware
 # (services/host_proto/emfi_proto/emfi_proto.c::emfi_proto_crc16).
 # -----------------------------------------------------------------------------
+
 
 def test_crc_empty():
     # The init value 0xFFFF is the result for no data.
@@ -48,19 +49,20 @@ def test_crc_bit_diffusion():
 # build_frame — shape + CRC integrity
 # -----------------------------------------------------------------------------
 
+
 def test_build_frame_shape_no_payload():
     frame = build_frame(0x01)
-    assert frame[0] == 0xFA          # SOF
-    assert frame[1] == 0x01          # CMD
+    assert frame[0] == 0xFA  # SOF
+    assert frame[1] == 0x01  # CMD
     assert frame[2:4] == b"\x00\x00"  # LEN = 0
-    assert len(frame) == 6           # SOF + 3 hdr + 2 CRC
+    assert len(frame) == 6  # SOF + 3 hdr + 2 CRC
     # CRC covers the 3 header bytes.
     crc = struct.unpack("<H", frame[4:6])[0]
     assert crc == crc16_ccitt(frame[1:4])
 
 
 def test_build_frame_shape_with_payload():
-    payload = b"\xDE\xAD\xBE\xEF"
+    payload = b"\xde\xad\xbe\xef"
     frame = build_frame(0x10, payload)
     assert frame[0] == 0xFA
     assert frame[1] == 0x10
@@ -81,6 +83,7 @@ def test_build_frame_rejects_out_of_range_cmd():
 # -----------------------------------------------------------------------------
 # read_frame — happy path + edge cases
 # -----------------------------------------------------------------------------
+
 
 class FakeReader:
     """Minimal `.read(size)` stub returning scripted bytes one chunk
@@ -114,7 +117,7 @@ def test_read_frame_no_payload():
 def test_read_frame_resyncs_on_noise():
     # Junk before SOF should be skipped.
     frame = build_frame(0x10, b"OK")
-    reader = FakeReader(b"\x00\x99\xAB" + frame)
+    reader = FakeReader(b"\x00\x99\xab" + frame)
     cmd, payload = read_frame(reader, timeout=1.0)
     assert cmd == 0x10
     assert payload == b"OK"
@@ -136,7 +139,7 @@ def test_read_frame_crc_mismatch_raises():
 
 
 def test_read_frame_round_trip_large_payload():
-    payload = bytes(range(256))[:200]   # 200 bytes
+    payload = bytes(range(256))[:200]  # 200 bytes
     frame = build_frame(0x24, payload)
     reader = FakeReader(frame)
     cmd, got = read_frame(reader, timeout=1.0)

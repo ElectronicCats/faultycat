@@ -33,9 +33,10 @@ static void test_init_fails_if_sm1_already_claimed(void) {
 
 static void test_deinit_unclaims_and_drops_program(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 10u, .width_ns = 200u };
+                              .delay_us = 10u,
+                              .width_ns = 200u};
     TEST_ASSERT_TRUE(crowbar_pio_load(&p));
     crowbar_pio_deinit();
     TEST_ASSERT_FALSE(hal_fake_pio_insts[0].sm[1].claimed);
@@ -44,51 +45,55 @@ static void test_deinit_unclaims_and_drops_program(void) {
 
 static void test_load_rejects_zero_width(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 0u, .width_ns = 0u };
+                              .delay_us = 0u,
+                              .width_ns = 0u};
     TEST_ASSERT_FALSE(crowbar_pio_load(&p));
 }
 
 static void test_load_rejects_width_below_min(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 0u, .width_ns = 7u };
+                              .delay_us = 0u,
+                              .width_ns = 7u};
     TEST_ASSERT_FALSE(crowbar_pio_load(&p));
 }
 
 static void test_load_rejects_width_above_max(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_HP,
                               .delay_us = 0u,
-                              .width_ns = CROWBAR_PIO_WIDTH_NS_MAX + 1u };
+                              .width_ns = CROWBAR_PIO_WIDTH_NS_MAX + 1u};
     TEST_ASSERT_FALSE(crowbar_pio_load(&p));
 }
 
 static void test_load_rejects_delay_above_max(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_HP,
                               .delay_us = CROWBAR_PIO_DELAY_US_MAX + 1u,
-                              .width_ns = 200u };
+                              .width_ns = 200u};
     TEST_ASSERT_FALSE(crowbar_pio_load(&p));
 }
 
 static void test_load_rejects_output_none(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_NONE,
-                              .delay_us = 0u, .width_ns = 200u };
+                              .delay_us = 0u,
+                              .width_ns = 200u};
     TEST_ASSERT_FALSE(crowbar_pio_load(&p));
 }
 
 static void test_load_immediate_has_no_trigger_block(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 1u, .width_ns = 200u };
+                              .delay_us = 1u,
+                              .width_ns = 200u};
     TEST_ASSERT_TRUE(crowbar_pio_load(&p));
     // 1 (SET PINDIRS — see crowbar_pio.c build_program note) +
     // 2 (delay setup) + 0 (trigger) + 1 (delay loop) +
@@ -99,9 +104,10 @@ static void test_load_immediate_has_no_trigger_block(void) {
 
 static void test_load_rising_edge_inserts_two_waits(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_EXT_RISING,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_EXT_RISING,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 1u, .width_ns = 200u };
+                              .delay_us = 1u,
+                              .width_ns = 200u};
     TEST_ASSERT_TRUE(crowbar_pio_load(&p));
     TEST_ASSERT_EQUAL_UINT32(12u, hal_fake_pio_insts[0].program.length);
     // Trigger block starts at index 3: [0]=SET PINDIRS, [1]=PULL,
@@ -112,9 +118,10 @@ static void test_load_rising_edge_inserts_two_waits(void) {
 
 static void test_load_falling_edge_inserts_two_waits(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_EXT_FALLING,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_EXT_FALLING,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 1u, .width_ns = 200u };
+                              .delay_us = 1u,
+                              .width_ns = 200u};
     TEST_ASSERT_TRUE(crowbar_pio_load(&p));
     TEST_ASSERT_EQUAL_UINT32(12u, hal_fake_pio_insts[0].program.length);
     // FALLING is `WAIT 1, WAIT 0` — inverse of RISING.
@@ -124,9 +131,10 @@ static void test_load_falling_edge_inserts_two_waits(void) {
 
 static void test_load_pulse_positive_inserts_three_waits(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_EXT_PULSE_POS,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_EXT_PULSE_POS,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 1u, .width_ns = 200u };
+                              .delay_us = 1u,
+                              .width_ns = 200u};
     TEST_ASSERT_TRUE(crowbar_pio_load(&p));
     TEST_ASSERT_EQUAL_UINT32(13u, hal_fake_pio_insts[0].program.length);
     // PULSE_POS is `WAIT 0, WAIT 1, WAIT 0` (LOW→HIGH→LOW pulse).
@@ -137,9 +145,10 @@ static void test_load_pulse_positive_inserts_three_waits(void) {
 
 static void test_load_pulse_negative_inserts_three_waits(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_EXT_PULSE_NEG,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_EXT_PULSE_NEG,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 1u, .width_ns = 200u };
+                              .delay_us = 1u,
+                              .width_ns = 200u};
     TEST_ASSERT_TRUE(crowbar_pio_load(&p));
     TEST_ASSERT_EQUAL_UINT32(13u, hal_fake_pio_insts[0].program.length);
     // PULSE_NEG is `WAIT 1, WAIT 0, WAIT 1` — inverse of PULSE_POS.
@@ -150,33 +159,34 @@ static void test_load_pulse_negative_inserts_three_waits(void) {
 
 static void test_load_lp_binds_gp16_to_pio(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_LP,
-                              .delay_us = 1u, .width_ns = 200u };
+                              .delay_us = 1u,
+                              .width_ns = 200u};
     TEST_ASSERT_TRUE(crowbar_pio_load(&p));
-    TEST_ASSERT_TRUE(hal_fake_pio_insts[0].gpio_init_bitmap
-                     & (1u << BOARD_GP_CROWBAR_LP));
+    TEST_ASSERT_TRUE(hal_fake_pio_insts[0].gpio_init_bitmap & (1u << BOARD_GP_CROWBAR_LP));
     TEST_ASSERT_EQUAL_UINT32(BOARD_GP_CROWBAR_LP,
                              hal_fake_pio_insts[0].sm[1].last_cfg.set_pin_base);
 }
 
 static void test_load_hp_binds_gp17_to_pio(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 1u, .width_ns = 200u };
+                              .delay_us = 1u,
+                              .width_ns = 200u};
     TEST_ASSERT_TRUE(crowbar_pio_load(&p));
-    TEST_ASSERT_TRUE(hal_fake_pio_insts[0].gpio_init_bitmap
-                     & (1u << BOARD_GP_CROWBAR_HP));
+    TEST_ASSERT_TRUE(hal_fake_pio_insts[0].gpio_init_bitmap & (1u << BOARD_GP_CROWBAR_HP));
     TEST_ASSERT_EQUAL_UINT32(BOARD_GP_CROWBAR_HP,
                              hal_fake_pio_insts[0].sm[1].last_cfg.set_pin_base);
 }
 
 static void test_load_binds_ext_trigger_as_in_pin(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_EXT_RISING,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_EXT_RISING,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 1u, .width_ns = 200u };
+                              .delay_us = 1u,
+                              .width_ns = 200u};
     TEST_ASSERT_TRUE(crowbar_pio_load(&p));
     TEST_ASSERT_EQUAL_UINT32(BOARD_GP_EXT_TRIGGER,
                              hal_fake_pio_insts[0].sm[1].last_cfg.in_pin_base);
@@ -184,38 +194,38 @@ static void test_load_binds_ext_trigger_as_in_pin(void) {
 
 static void test_load_uses_irq1_opcode(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 0u, .width_ns = 200u };
+                              .delay_us = 0u,
+                              .width_ns = 200u};
     TEST_ASSERT_TRUE(crowbar_pio_load(&p));
     uint32_t len = hal_fake_pio_insts[0].program.length;
     // Last instruction is the IRQ — must be 0xC001 (IRQ index 1) so
     // crowbar does not collide with EMFI's IRQ 0.
-    TEST_ASSERT_EQUAL_HEX16(0xC001,
-                            hal_fake_pio_insts[0].program.instructions[len - 1]);
+    TEST_ASSERT_EQUAL_HEX16(0xC001, hal_fake_pio_insts[0].program.instructions[len - 1]);
 }
 
 static void test_start_pushes_delay_then_width_ticks(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 10u, .width_ns = 400u };
+                              .delay_us = 10u,
+                              .width_ns = 400u};
     crowbar_pio_load(&p);
     TEST_ASSERT_TRUE(crowbar_pio_start());
     TEST_ASSERT_EQUAL_UINT32(2u, hal_fake_pio_insts[0].sm[1].tx_count);
-    TEST_ASSERT_EQUAL_UINT32(10u * 125u,
-                             hal_fake_pio_insts[0].sm[1].tx_fifo[0]);
+    TEST_ASSERT_EQUAL_UINT32(10u * 125u, hal_fake_pio_insts[0].sm[1].tx_fifo[0]);
     // 400 ns / 8 ns per tick = 50 ticks.
-    TEST_ASSERT_EQUAL_UINT32(50u,
-                             hal_fake_pio_insts[0].sm[1].tx_fifo[1]);
+    TEST_ASSERT_EQUAL_UINT32(50u, hal_fake_pio_insts[0].sm[1].tx_fifo[1]);
     TEST_ASSERT_TRUE(hal_fake_pio_insts[0].sm[1].enabled);
 }
 
 static void test_start_width_rounds_up_for_fractional_tick(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 0u, .width_ns = 9u };
+                              .delay_us = 0u,
+                              .width_ns = 9u};
     crowbar_pio_load(&p);
     crowbar_pio_start();
     // 9 ns rounds up to 2 ticks (16 ns) — never floors to 1.
@@ -224,9 +234,10 @@ static void test_start_width_rounds_up_for_fractional_tick(void) {
 
 static void test_start_width_at_min_is_one_tick(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 0u, .width_ns = 8u };
+                              .delay_us = 0u,
+                              .width_ns = 8u};
     crowbar_pio_load(&p);
     crowbar_pio_start();
     TEST_ASSERT_EQUAL_UINT32(1u, hal_fake_pio_insts[0].sm[1].tx_fifo[1]);
@@ -234,9 +245,10 @@ static void test_start_width_at_min_is_one_tick(void) {
 
 static void test_is_done_polls_irq1(void) {
     crowbar_pio_init();
-    crowbar_pio_params_t p = { .trigger  = CROWBAR_TRIG_IMMEDIATE,
+    crowbar_pio_params_t p = {.trigger  = CROWBAR_TRIG_IMMEDIATE,
                               .output   = CROWBAR_OUT_HP,
-                              .delay_us = 1u, .width_ns = 200u };
+                              .delay_us = 1u,
+                              .width_ns = 200u};
     crowbar_pio_load(&p);
     crowbar_pio_start();
     TEST_ASSERT_FALSE(crowbar_pio_is_done());

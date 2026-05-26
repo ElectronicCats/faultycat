@@ -55,48 +55,51 @@ static void test_initial_state_is_idle(void) {
 }
 
 static void test_configure_rejects_zero_width(void) {
-    emfi_config_t c = { .trigger = EMFI_TRIG_IMMEDIATE,
-                        .delay_us = 0, .width_us = 0, .charge_timeout_ms = 1000 };
+    emfi_config_t c = {
+        .trigger = EMFI_TRIG_IMMEDIATE, .delay_us = 0, .width_us = 0, .charge_timeout_ms = 1000};
     TEST_ASSERT_FALSE(emfi_campaign_configure(&c));
 }
 
 static void test_configure_rejects_width_above_50(void) {
-    emfi_config_t c = { .trigger = EMFI_TRIG_IMMEDIATE,
-                        .delay_us = 0, .width_us = 51, .charge_timeout_ms = 1000 };
+    emfi_config_t c = {
+        .trigger = EMFI_TRIG_IMMEDIATE, .delay_us = 0, .width_us = 51, .charge_timeout_ms = 1000};
     TEST_ASSERT_FALSE(emfi_campaign_configure(&c));
 }
 
 static void test_arm_without_configure_errors(void) {
     TEST_ASSERT_FALSE(emfi_campaign_arm());
-    emfi_status_t s; emfi_campaign_get_status(&s);
+    emfi_status_t s;
+    emfi_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(EMFI_STATE_ERROR, s.state);
     TEST_ASSERT_EQUAL(EMFI_ERR_BAD_CONFIG, s.err);
 }
 
 static void test_arm_transitions_to_arming_and_powers_hv(void) {
-    emfi_config_t c = { .trigger = EMFI_TRIG_IMMEDIATE,
-                        .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000 };
+    emfi_config_t c = {
+        .trigger = EMFI_TRIG_IMMEDIATE, .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000};
     emfi_campaign_configure(&c);
     TEST_ASSERT_TRUE(emfi_campaign_arm());
-    emfi_status_t s; emfi_campaign_get_status(&s);
+    emfi_status_t s;
+    emfi_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(EMFI_STATE_ARMING, s.state);
     TEST_ASSERT_TRUE(hv_charger_is_armed());
 }
 
 static void test_tick_promotes_arming_to_charged_on_sense(void) {
-    emfi_config_t c = { .trigger = EMFI_TRIG_IMMEDIATE,
-                        .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000 };
+    emfi_config_t c = {
+        .trigger = EMFI_TRIG_IMMEDIATE, .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000};
     emfi_campaign_configure(&c);
     emfi_campaign_arm();
     set_charged(true);
     emfi_campaign_tick();
-    emfi_status_t s; emfi_campaign_get_status(&s);
+    emfi_status_t s;
+    emfi_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(EMFI_STATE_CHARGED, s.state);
 }
 
 static void test_charge_timeout_flips_to_error(void) {
-    emfi_config_t c = { .trigger = EMFI_TRIG_IMMEDIATE,
-                        .delay_us = 10, .width_us = 5, .charge_timeout_ms = 100 };
+    emfi_config_t c = {
+        .trigger = EMFI_TRIG_IMMEDIATE, .delay_us = 10, .width_us = 5, .charge_timeout_ms = 100};
     emfi_campaign_configure(&c);
     emfi_campaign_arm();
     // Never assert CHARGED. Default fake GPIO level is 0 which the
@@ -105,29 +108,31 @@ static void test_charge_timeout_flips_to_error(void) {
     set_charged(false);
     advance_ms(150);
     emfi_campaign_tick();
-    emfi_status_t s; emfi_campaign_get_status(&s);
+    emfi_status_t s;
+    emfi_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(EMFI_STATE_ERROR, s.state);
     TEST_ASSERT_EQUAL(EMFI_ERR_HV_NOT_CHARGED, s.err);
-    TEST_ASSERT_FALSE(hv_charger_is_armed());   // teardown disarmed.
+    TEST_ASSERT_FALSE(hv_charger_is_armed()); // teardown disarmed.
 }
 
 static void test_fire_from_charged_enters_waiting_and_starts_pio(void) {
-    emfi_config_t c = { .trigger = EMFI_TRIG_IMMEDIATE,
-                        .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000 };
+    emfi_config_t c = {
+        .trigger = EMFI_TRIG_IMMEDIATE, .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000};
     emfi_campaign_configure(&c);
     emfi_campaign_arm();
     set_charged(true);
     emfi_campaign_tick();
     TEST_ASSERT_TRUE(emfi_campaign_fire(500));
-    emfi_status_t s; emfi_campaign_get_status(&s);
+    emfi_status_t s;
+    emfi_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(EMFI_STATE_WAITING, s.state);
     TEST_ASSERT_TRUE(hal_fake_pio_insts[0].sm[0].enabled);
     TEST_ASSERT_TRUE(hal_fake_adc_extra.running);
 }
 
 static void test_hv_stale_100ms_invariant_blocks_fire(void) {
-    emfi_config_t c = { .trigger = EMFI_TRIG_IMMEDIATE,
-                        .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000 };
+    emfi_config_t c = {
+        .trigger = EMFI_TRIG_IMMEDIATE, .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000};
     emfi_campaign_configure(&c);
     emfi_campaign_arm();
     set_charged(true);
@@ -136,14 +141,15 @@ static void test_hv_stale_100ms_invariant_blocks_fire(void) {
     set_charged(false);
     advance_ms(150);
     TEST_ASSERT_FALSE(emfi_campaign_fire(500));
-    emfi_status_t s; emfi_campaign_get_status(&s);
+    emfi_status_t s;
+    emfi_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(EMFI_STATE_ERROR, s.state);
     TEST_ASSERT_EQUAL(EMFI_ERR_HV_NOT_CHARGED, s.err);
 }
 
 static void test_waiting_completes_on_pio_irq0(void) {
-    emfi_config_t c = { .trigger = EMFI_TRIG_IMMEDIATE,
-                        .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000 };
+    emfi_config_t c = {
+        .trigger = EMFI_TRIG_IMMEDIATE, .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000};
     emfi_campaign_configure(&c);
     emfi_campaign_arm();
     set_charged(true);
@@ -152,14 +158,15 @@ static void test_waiting_completes_on_pio_irq0(void) {
     // Simulate PIO finishing.
     hal_fake_pio_raise_irq(0, 0);
     emfi_campaign_tick();
-    emfi_status_t s; emfi_campaign_get_status(&s);
+    emfi_status_t s;
+    emfi_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(EMFI_STATE_FIRED, s.state);
     TEST_ASSERT_FALSE(hv_charger_is_armed());
 }
 
 static void test_waiting_times_out_if_pio_never_signals(void) {
-    emfi_config_t c = { .trigger = EMFI_TRIG_EXT_RISING,
-                        .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000 };
+    emfi_config_t c = {
+        .trigger = EMFI_TRIG_EXT_RISING, .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000};
     emfi_campaign_configure(&c);
     emfi_campaign_arm();
     set_charged(true);
@@ -167,21 +174,23 @@ static void test_waiting_times_out_if_pio_never_signals(void) {
     emfi_campaign_fire(50);
     advance_ms(100);
     emfi_campaign_tick();
-    emfi_status_t s; emfi_campaign_get_status(&s);
+    emfi_status_t s;
+    emfi_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(EMFI_STATE_ERROR, s.state);
     TEST_ASSERT_EQUAL(EMFI_ERR_TRIGGER_TIMEOUT, s.err);
 }
 
 static void test_disarm_from_any_state_returns_to_idle(void) {
-    emfi_config_t c = { .trigger = EMFI_TRIG_IMMEDIATE,
-                        .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000 };
+    emfi_config_t c = {
+        .trigger = EMFI_TRIG_IMMEDIATE, .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000};
     emfi_campaign_configure(&c);
     emfi_campaign_arm();
     set_charged(true);
     emfi_campaign_tick();
     emfi_campaign_fire(500);
     emfi_campaign_disarm();
-    emfi_status_t s; emfi_campaign_get_status(&s);
+    emfi_status_t s;
+    emfi_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(EMFI_STATE_IDLE, s.state);
     TEST_ASSERT_FALSE(hv_charger_is_armed());
     TEST_ASSERT_FALSE(emfi_pulse_is_attached_to_pio());
@@ -191,17 +200,18 @@ static void test_reconfigure_clears_error_state(void) {
     // First, drive into ERROR via arm-without-configure.
     TEST_ASSERT_FALSE(emfi_campaign_arm());
     // Now configure a valid one.
-    emfi_config_t c = { .trigger = EMFI_TRIG_IMMEDIATE,
-                        .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000 };
+    emfi_config_t c = {
+        .trigger = EMFI_TRIG_IMMEDIATE, .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000};
     TEST_ASSERT_TRUE(emfi_campaign_configure(&c));
-    emfi_status_t s; emfi_campaign_get_status(&s);
+    emfi_status_t s;
+    emfi_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(EMFI_STATE_IDLE, s.state);
     TEST_ASSERT_EQUAL(EMFI_ERR_NONE, s.err);
 }
 
 static void test_fire_records_capture_fill(void) {
-    emfi_config_t c = { .trigger = EMFI_TRIG_IMMEDIATE,
-                        .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000 };
+    emfi_config_t c = {
+        .trigger = EMFI_TRIG_IMMEDIATE, .delay_us = 10, .width_us = 5, .charge_timeout_ms = 1000};
     emfi_campaign_configure(&c);
     emfi_campaign_arm();
     set_charged(true);
@@ -217,7 +227,8 @@ static void test_fire_records_capture_fill(void) {
     }
     hal_fake_pio_raise_irq(0, 0);
     emfi_campaign_tick();
-    emfi_status_t s; emfi_campaign_get_status(&s);
+    emfi_status_t s;
+    emfi_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(EMFI_STATE_FIRED, s.state);
     TEST_ASSERT_EQUAL_UINT32(2048u, s.capture_fill);
 }

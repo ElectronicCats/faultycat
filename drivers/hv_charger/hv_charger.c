@@ -19,7 +19,7 @@ static hv_charger_config_t s_cfg = {
     .auto_disarm_ms  = HV_CHARGER_DEFAULT_AUTODISARM_MS,
 };
 
-static bool     s_armed;
+static bool s_armed;
 static uint32_t s_armed_at_ms;
 
 static void force_pwm_off_and_pin_low(void) {
@@ -48,14 +48,14 @@ void hv_charger_init(void) {
     s_armed_at_ms = 0;
 }
 
-void hv_charger_configure(const hv_charger_config_t *cfg) {
+void hv_charger_configure(const hv_charger_config_t* cfg) {
     if (cfg == NULL) {
         return;
     }
     s_cfg = *cfg;
 }
 
-void hv_charger_get_config(hv_charger_config_t *out) {
+void hv_charger_get_config(hv_charger_config_t* out) {
     if (out == NULL) {
         return;
     }
@@ -67,8 +67,7 @@ void hv_charger_arm(void) {
     // the pin's function from plain GPIO to PWM happens inside
     // hal_pwm_init.
     hal_pwm_init(BOARD_GP_HV_PWM);
-    hal_pwm_set_freq_duty(BOARD_GP_HV_PWM, s_cfg.flyback_freq_hz,
-                          s_cfg.flyback_duty);
+    hal_pwm_set_freq_duty(BOARD_GP_HV_PWM, s_cfg.flyback_freq_hz, s_cfg.flyback_duty);
     hal_pwm_enable(BOARD_GP_HV_PWM);
 
     s_armed       = true;

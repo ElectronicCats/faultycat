@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "crowbar_pio.h"   // for crowbar_trig_t, crowbar_out_t
+#include "crowbar_pio.h" // for crowbar_trig_t, crowbar_out_t
 
 // services/glitch_engine/crowbar/crowbar_campaign — orchestrates the
 // crowbar fire path end-to-end. Owns the state machine and enforces
@@ -26,19 +26,19 @@
 
 typedef struct {
     crowbar_trig_t trigger;
-    crowbar_out_t  output;       // CROWBAR_OUT_LP or CROWBAR_OUT_HP
-    uint32_t       delay_us;     // 0..CROWBAR_PIO_DELAY_US_MAX
-    uint32_t       width_ns;     // CROWBAR_PIO_WIDTH_NS_MIN..MAX
+    crowbar_out_t output; // CROWBAR_OUT_LP or CROWBAR_OUT_HP
+    uint32_t delay_us;    // 0..CROWBAR_PIO_DELAY_US_MAX
+    uint32_t width_ns;    // CROWBAR_PIO_WIDTH_NS_MIN..MAX
 } crowbar_config_t;
 
 typedef enum {
-    CROWBAR_STATE_IDLE    = 0,
-    CROWBAR_STATE_ARMING  = 1,   // reserved — never visited today; left in
-                                 // the wire enum for future async setup
-                                 // (e.g. settling delay) without breaking
-                                 // the host_proto STATUS reply layout.
+    CROWBAR_STATE_IDLE   = 0,
+    CROWBAR_STATE_ARMING = 1, // reserved — never visited today; left in
+                              // the wire enum for future async setup
+                              // (e.g. settling delay) without breaking
+                              // the host_proto STATUS reply layout.
     CROWBAR_STATE_ARMED   = 2,
-    CROWBAR_STATE_WAITING = 3,   // PIO running; trigger wait + pulse
+    CROWBAR_STATE_WAITING = 3, // PIO running; trigger wait + pulse
     CROWBAR_STATE_FIRED   = 4,
     CROWBAR_STATE_ERROR   = 5,
 } crowbar_state_t;
@@ -49,22 +49,22 @@ typedef enum {
     CROWBAR_ERR_TRIGGER_TIMEOUT   = 2,
     CROWBAR_ERR_PIO_FAULT         = 3,
     CROWBAR_ERR_INTERNAL          = 4,
-    CROWBAR_ERR_PATH_NOT_SELECTED = 5,   // fire requested with OUT_NONE
+    CROWBAR_ERR_PATH_NOT_SELECTED = 5, // fire requested with OUT_NONE
 } crowbar_err_t;
 
 typedef struct {
     crowbar_state_t state;
-    crowbar_err_t   err;
-    uint32_t        last_fire_at_ms;
-    uint32_t        pulse_width_ns_actual;
-    uint32_t        delay_us_actual;
-    crowbar_out_t   output;             // gate used by the most recent fire
+    crowbar_err_t err;
+    uint32_t last_fire_at_ms;
+    uint32_t pulse_width_ns_actual;
+    uint32_t delay_us_actual;
+    crowbar_out_t output; // gate used by the most recent fire
 } crowbar_status_t;
 
 bool crowbar_campaign_init(void);
-bool crowbar_campaign_configure(const crowbar_config_t *cfg);
+bool crowbar_campaign_configure(const crowbar_config_t* cfg);
 bool crowbar_campaign_arm(void);
 bool crowbar_campaign_fire(uint32_t trigger_timeout_ms);
 void crowbar_campaign_disarm(void);
 void crowbar_campaign_tick(void);
-void crowbar_campaign_get_status(crowbar_status_t *out);
+void crowbar_campaign_get_status(crowbar_status_t* out);

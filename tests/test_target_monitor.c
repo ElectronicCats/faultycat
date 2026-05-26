@@ -25,7 +25,8 @@ static void test_init_enables_only_our_channel(void) {
     TEST_ASSERT_EQUAL_UINT32(1, hal_fake_adc_channels[BOARD_TARGET_ADC_CHANNEL].enable_calls);
 
     for (uint8_t ch = 0; ch < HAL_FAKE_ADC_MAX_CHANNELS; ch++) {
-        if (ch == BOARD_TARGET_ADC_CHANNEL) continue;
+        if (ch == BOARD_TARGET_ADC_CHANNEL)
+            continue;
         TEST_ASSERT_FALSE(hal_fake_adc_channels[ch].enabled);
     }
 }
@@ -53,7 +54,8 @@ static void test_read_only_reads_target_channel(void) {
 
     TEST_ASSERT_EQUAL_UINT32(2, hal_fake_adc_channels[BOARD_TARGET_ADC_CHANNEL].read_calls);
     for (uint8_t ch = 0; ch < HAL_FAKE_ADC_MAX_CHANNELS; ch++) {
-        if (ch == BOARD_TARGET_ADC_CHANNEL) continue;
+        if (ch == BOARD_TARGET_ADC_CHANNEL)
+            continue;
         TEST_ASSERT_EQUAL_UINT32(0, hal_fake_adc_channels[ch].read_calls);
     }
 }

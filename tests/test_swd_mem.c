@@ -63,13 +63,13 @@ static void push_read_response(swd_dp_ack_t a, uint32_t v) {
 // FIFO so the bitloop's open-drain `out pindirs, 1` produces the
 // caller's intended push-pull wire pattern (TXS0108E workaround).
 // This helper inverts back so callers see "wire pattern" semantics.
-static uint32_t collect_request_bytes(uint8_t *out, uint32_t cap) {
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
-    uint32_t n = 0;
+static uint32_t collect_request_bytes(uint8_t* out, uint32_t cap) {
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    uint32_t n                  = 0;
     for (uint32_t i = 0; i + 1 < sm->tx_count && n < cap; i++) {
         uint32_t bit_count = (sm->tx_fifo[i] & 0xFFu) + 1u;
         if (bit_count == 8u) {
-            out[n++] = (uint8_t)~(uint8_t)sm->tx_fifo[i + 1];
+            out[n++] = (uint8_t) ~(uint8_t)sm->tx_fifo[i + 1];
         }
     }
     return n;
@@ -82,26 +82,26 @@ static uint32_t collect_request_bytes(uint8_t *out, uint32_t cap) {
 //   AP read  DRW    (addr 0x0C): 0x9F
 //   AP write DRW    (addr 0x0C): 0xBB
 //   DP read  RDBUFF (addr 0x0C): 0xBD
-#define REQ_DP_WRITE_SELECT  0xB1u
-#define REQ_AP_WRITE_CSW     0xA3u
-#define REQ_AP_WRITE_TAR     0x8Bu
-#define REQ_AP_READ_DRW      0x9Fu
-#define REQ_AP_WRITE_DRW     0xBBu
-#define REQ_DP_READ_RDBUFF   0xBDu
+#define REQ_DP_WRITE_SELECT 0xB1u
+#define REQ_AP_WRITE_CSW    0xA3u
+#define REQ_AP_WRITE_TAR    0x8Bu
+#define REQ_AP_READ_DRW     0x9Fu
+#define REQ_AP_WRITE_DRW    0xBBu
+#define REQ_DP_READ_RDBUFF  0xBDu
 
 // -----------------------------------------------------------------------------
 // init
 // -----------------------------------------------------------------------------
 
 static void test_init_writes_select_then_csw(void) {
-    push_ack(SWD_ACK_OK);  // SELECT write ack
-    push_ack(SWD_ACK_OK);  // CSW write ack
+    push_ack(SWD_ACK_OK); // SELECT write ack
+    push_ack(SWD_ACK_OK); // CSW write ack
     TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_mem_init());
     uint8_t reqs[8];
     uint32_t n = collect_request_bytes(reqs, 8u);
     TEST_ASSERT_GREATER_OR_EQUAL_UINT32(2u, n);
     TEST_ASSERT_EQUAL_HEX8(REQ_DP_WRITE_SELECT, reqs[0]);
-    TEST_ASSERT_EQUAL_HEX8(REQ_AP_WRITE_CSW,    reqs[1]);
+    TEST_ASSERT_EQUAL_HEX8(REQ_AP_WRITE_CSW, reqs[1]);
 }
 
 static void test_init_propagates_select_failure(void) {
@@ -110,8 +110,8 @@ static void test_init_propagates_select_failure(void) {
 }
 
 static void test_init_propagates_csw_failure(void) {
-    push_ack(SWD_ACK_OK);     // SELECT ok
-    push_ack(SWD_ACK_WAIT);   // CSW wait
+    push_ack(SWD_ACK_OK);   // SELECT ok
+    push_ack(SWD_ACK_WAIT); // CSW wait
     TEST_ASSERT_EQUAL(SWD_ACK_WAIT, swd_mem_init());
 }
 
@@ -120,18 +120,18 @@ static void test_init_propagates_csw_failure(void) {
 // -----------------------------------------------------------------------------
 
 static void test_read32_emits_tar_then_drw_then_rdbuff(void) {
-    push_ack(SWD_ACK_OK);                                // TAR write
-    push_read_response(SWD_ACK_OK, 0xCAFEBABEu);         // AP read DRW (garbage discarded)
-    push_read_response(SWD_ACK_OK, 0xDEADBEEFu);         // RDBUFF read (real data)
+    push_ack(SWD_ACK_OK);                        // TAR write
+    push_read_response(SWD_ACK_OK, 0xCAFEBABEu); // AP read DRW (garbage discarded)
+    push_read_response(SWD_ACK_OK, 0xDEADBEEFu); // RDBUFF read (real data)
     uint32_t v = 0u;
     TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_mem_read32(0x20000000u, &v));
     TEST_ASSERT_EQUAL_HEX32(0xDEADBEEFu, v);
     uint8_t reqs[8];
     uint32_t n = collect_request_bytes(reqs, 8u);
     TEST_ASSERT_GREATER_OR_EQUAL_UINT32(3u, n);
-    TEST_ASSERT_EQUAL_HEX8(REQ_AP_WRITE_TAR,    reqs[0]);
-    TEST_ASSERT_EQUAL_HEX8(REQ_AP_READ_DRW,     reqs[1]);
-    TEST_ASSERT_EQUAL_HEX8(REQ_DP_READ_RDBUFF,  reqs[2]);
+    TEST_ASSERT_EQUAL_HEX8(REQ_AP_WRITE_TAR, reqs[0]);
+    TEST_ASSERT_EQUAL_HEX8(REQ_AP_READ_DRW, reqs[1]);
+    TEST_ASSERT_EQUAL_HEX8(REQ_DP_READ_RDBUFF, reqs[2]);
 }
 
 static void test_read32_writes_tar_with_requested_address(void) {
@@ -139,21 +139,21 @@ static void test_read32_writes_tar_with_requested_address(void) {
     push_read_response(SWD_ACK_OK, 0u);
     push_read_response(SWD_ACK_OK, 0u);
     uint32_t v = 0u;
-    swd_mem_read32(0xE000ED00u, &v);   // SCB->CPUID address
+    swd_mem_read32(0xE000ED00u, &v); // SCB->CPUID address
     // The TAR data word is the 32-bit entry that follows the
     // (count=32, dir=1) command immediately after the AP_WRITE_TAR
     // request byte.
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
-    bool found_tar = false;
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    bool found_tar              = false;
     for (uint32_t i = 0; i + 3 < sm->tx_count; i++) {
-        if ((sm->tx_fifo[i] & 0xFFu) + 1u == 8u
-         && (uint8_t)~(uint8_t)sm->tx_fifo[i + 1] == REQ_AP_WRITE_TAR) {
+        if ((sm->tx_fifo[i] & 0xFFu) + 1u == 8u &&
+            (uint8_t) ~(uint8_t)sm->tx_fifo[i + 1] == REQ_AP_WRITE_TAR) {
             // Walk forward to the count=32 with dir=1 entry. swd_phy
             // XOR-inverts the data before pushing (open-drain
             // emulation), so undo that here.
             for (uint32_t j = i + 2; j + 1 < sm->tx_count; j++) {
                 uint32_t bc = (sm->tx_fifo[j] & 0xFFu) + 1u;
-                bool dir   = (sm->tx_fifo[j] >> 8) & 1u;
+                bool dir    = (sm->tx_fifo[j] >> 8) & 1u;
                 if (bc == 32u && dir) {
                     TEST_ASSERT_EQUAL_HEX32(0xE000ED00u, ~sm->tx_fifo[j + 1]);
                     found_tar = true;
@@ -174,17 +174,17 @@ static void test_read32_propagates_tar_failure(void) {
 }
 
 static void test_read32_propagates_drw_failure(void) {
-    push_ack(SWD_ACK_OK);          // TAR ok
-    push_ack(SWD_ACK_WAIT);        // AP read DRW WAIT — short-circuits before parity
+    push_ack(SWD_ACK_OK);   // TAR ok
+    push_ack(SWD_ACK_WAIT); // AP read DRW WAIT — short-circuits before parity
     uint32_t v = 0xBBu;
     TEST_ASSERT_EQUAL(SWD_ACK_WAIT, swd_mem_read32(0u, &v));
     TEST_ASSERT_EQUAL_HEX32(0xBBu, v);
 }
 
 static void test_read32_propagates_rdbuff_failure(void) {
-    push_ack(SWD_ACK_OK);                          // TAR ok
-    push_read_response(SWD_ACK_OK, 0u);            // DRW garbage
-    push_ack(SWD_ACK_FAULT);                       // RDBUFF FAULT
+    push_ack(SWD_ACK_OK);               // TAR ok
+    push_read_response(SWD_ACK_OK, 0u); // DRW garbage
+    push_ack(SWD_ACK_FAULT);            // RDBUFF FAULT
     uint32_t v = 0xCCu;
     TEST_ASSERT_EQUAL(SWD_ACK_FAULT, swd_mem_read32(0u, &v));
     TEST_ASSERT_EQUAL_HEX32(0xCCu, v);
@@ -197,8 +197,7 @@ static void test_read32_propagates_rdbuff_failure(void) {
 static void test_write32_emits_tar_then_drw(void) {
     push_ack(SWD_ACK_OK);
     push_ack(SWD_ACK_OK);
-    TEST_ASSERT_EQUAL(SWD_ACK_OK,
-        swd_mem_write32(0x20001000u, 0xFEEDC0DEu));
+    TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_mem_write32(0x20001000u, 0xFEEDC0DEu));
     uint8_t reqs[8];
     uint32_t n = collect_request_bytes(reqs, 8u);
     TEST_ASSERT_GREATER_OR_EQUAL_UINT32(2u, n);

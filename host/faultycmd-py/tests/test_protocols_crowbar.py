@@ -1,10 +1,10 @@
 """Unit tests for faultycmd.protocols.crowbar."""
+
 from __future__ import annotations
 
 import struct
 
 import pytest
-
 from faultycmd.protocols import CrowbarClient, EngineError
 from faultycmd.protocols.crowbar import (
     CMD_CONFIGURE,
@@ -16,6 +16,7 @@ from faultycmd.protocols.crowbar import (
     CrowbarState,
     CrowbarTrigger,
 )
+
 from tests.conftest import FakeSerial, make_fake_factory
 
 
@@ -66,9 +67,11 @@ def test_fire_packs_timeout():
 
 
 def test_status_decodes_full_struct():
-    payload = bytes([CrowbarState.FIRED, CrowbarErr.NONE]) + struct.pack(
-        "<III", 99999, 250, 2000
-    ) + bytes([CrowbarOutput.HP])
+    payload = (
+        bytes([CrowbarState.FIRED, CrowbarErr.NONE])
+        + struct.pack("<III", 99999, 250, 2000)
+        + bytes([CrowbarOutput.HP])
+    )
     fake = FakeSerial()
     fake.queue_reply(CMD_STATUS, payload)
     with _client(fake) as cli:

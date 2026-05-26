@@ -93,9 +93,9 @@ static void test_hv_refresh_resets_the_hold_timer(void) {
     ui_leds_hv_detected_feed(true);
 
     hal_fake_time_advance_us(400u * 1000u);
-    ui_leds_hv_detected_feed(true);    // refresh — timer resets to now
+    ui_leds_hv_detected_feed(true); // refresh — timer resets to now
     hal_fake_time_advance_us(400u * 1000u);
-    ui_leds_hv_detected_feed(false);   // 400 ms since refresh → still inside hold
+    ui_leds_hv_detected_feed(false); // 400 ms since refresh → still inside hold
     TEST_ASSERT_TRUE(ui_leds_get(UI_LED_HV_DETECTED));
 }
 

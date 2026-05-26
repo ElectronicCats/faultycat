@@ -72,14 +72,18 @@
 // can be active at a time on this board (8 scanner channels shared
 // with swd_phy). F9 promotes ownership to a mutex_t.
 static jtag_pinout_t s_pins;
-static bool          s_inited = false;
+static bool s_inited = false;
 
 // -----------------------------------------------------------------------------
 // Internal bit-bang primitives
 // -----------------------------------------------------------------------------
 
-static inline void set_tms(bool v) { hal_gpio_put(s_pins.tms, v); }
-static inline void set_tdi(bool v) { hal_gpio_put(s_pins.tdi, v); }
+static inline void set_tms(bool v) {
+    hal_gpio_put(s_pins.tms, v);
+}
+static inline void set_tdi(bool v) {
+    hal_gpio_put(s_pins.tdi, v);
+}
 
 // Clock TCK low → high → low. TMS / TDI must be pre-set to the values
 // the target should sample on the rising edge.
@@ -103,52 +107,59 @@ static inline bool tck_pulse_read_tdo(void) {
 // enterShiftDR / enterShiftIR exactly.
 
 static void enter_shift_dr(void) {
-    set_tms(true);  tck_pulse_no_read();   // Run-Test/Idle  → Select-DR-Scan
-    set_tms(false); tck_pulse_no_read();   // Select-DR-Scan → Capture-DR
-    set_tms(false); tck_pulse_no_read();   // Capture-DR     → Shift-DR
+    set_tms(true);
+    tck_pulse_no_read(); // Run-Test/Idle  → Select-DR-Scan
+    set_tms(false);
+    tck_pulse_no_read(); // Select-DR-Scan → Capture-DR
+    set_tms(false);
+    tck_pulse_no_read(); // Capture-DR     → Shift-DR
 }
 
 static void enter_shift_ir(void) {
-    set_tms(true);  tck_pulse_no_read();   // Run-Test/Idle  → Select-DR-Scan
-    set_tms(true);  tck_pulse_no_read();   // Select-DR-Scan → Select-IR-Scan
-    set_tms(false); tck_pulse_no_read();   // Select-IR-Scan → Capture-IR
-    set_tms(false); tck_pulse_no_read();   // Capture-IR     → Shift-IR
+    set_tms(true);
+    tck_pulse_no_read(); // Run-Test/Idle  → Select-DR-Scan
+    set_tms(true);
+    tck_pulse_no_read(); // Select-DR-Scan → Select-IR-Scan
+    set_tms(false);
+    tck_pulse_no_read(); // Select-IR-Scan → Capture-IR
+    set_tms(false);
+    tck_pulse_no_read(); // Capture-IR     → Shift-IR
 }
 
 // Shift-{DR,IR} → Exit1-{DR,IR} → Update-{DR,IR} → Run-Test/Idle.
 static void exit_shift_to_run_test_idle(void) {
-    set_tms(true);  tck_pulse_no_read();   // Shift-*   → Exit1-*
-    set_tms(true);  tck_pulse_no_read();   // Exit1-*   → Update-*
-    set_tms(false); tck_pulse_no_read();   // Update-*  → Run-Test/Idle
+    set_tms(true);
+    tck_pulse_no_read(); // Shift-*   → Exit1-*
+    set_tms(true);
+    tck_pulse_no_read(); // Exit1-*   → Update-*
+    set_tms(false);
+    tck_pulse_no_read(); // Update-*  → Run-Test/Idle
 }
 
 // -----------------------------------------------------------------------------
 // Public API
 // -----------------------------------------------------------------------------
 
-bool jtag_init(const jtag_pinout_t *pins) {
-    if (s_inited || pins == NULL) return false;
+bool jtag_init(const jtag_pinout_t* pins) {
+    if (s_inited || pins == NULL)
+        return false;
 
     // Bound check + uniqueness. RP2040 has 30 GPIOs but the v2.x
     // scanner header only exposes GP0..GP7; we accept any GP0..GP29
     // here so future board revs / loopback rigs aren't blocked.
-    if (pins->tdi >= 30u || pins->tdo >= 30u
-     || pins->tms >= 30u || pins->tck >= 30u) {
+    if (pins->tdi >= 30u || pins->tdo >= 30u || pins->tms >= 30u || pins->tck >= 30u) {
         return false;
     }
-    if (pins->trst != JTAG_PIN_TRST_NONE
-     && (pins->trst < 0 || pins->trst >= 30)) {
+    if (pins->trst != JTAG_PIN_TRST_NONE && (pins->trst < 0 || pins->trst >= 30)) {
         return false;
     }
-    if (pins->tdi == pins->tdo || pins->tdi == pins->tms
-     || pins->tdi == pins->tck || pins->tdo == pins->tms
-     || pins->tdo == pins->tck || pins->tms == pins->tck) {
+    if (pins->tdi == pins->tdo || pins->tdi == pins->tms || pins->tdi == pins->tck ||
+        pins->tdo == pins->tms || pins->tdo == pins->tck || pins->tms == pins->tck) {
         return false;
     }
     if (pins->trst != JTAG_PIN_TRST_NONE) {
         uint8_t t = (uint8_t)pins->trst;
-        if (t == pins->tdi || t == pins->tdo
-         || t == pins->tms || t == pins->tck) {
+        if (t == pins->tdi || t == pins->tdo || t == pins->tms || t == pins->tck) {
             return false;
         }
     }
@@ -166,15 +177,15 @@ bool jtag_init(const jtag_pinout_t *pins) {
     hal_gpio_set_pulls(s_pins.tdo, true, false);
 
     hal_gpio_put(s_pins.tdi, false);
-    hal_gpio_put(s_pins.tms, true);   // start with TMS high so the first
-                                      // edge of jtag_reset_to_run_test_idle
-                                      // already advances toward TLR.
+    hal_gpio_put(s_pins.tms, true); // start with TMS high so the first
+                                    // edge of jtag_reset_to_run_test_idle
+                                    // already advances toward TLR.
     hal_gpio_put(s_pins.tck, false);
 
     if (s_pins.trst != JTAG_PIN_TRST_NONE) {
         uint8_t t = (uint8_t)s_pins.trst;
         hal_gpio_init(t, HAL_GPIO_DIR_OUT);
-        hal_gpio_put(t, true);        // deasserted (TRST is active-low)
+        hal_gpio_put(t, true); // deasserted (TRST is active-low)
     }
 
     s_inited = true;
@@ -182,7 +193,8 @@ bool jtag_init(const jtag_pinout_t *pins) {
 }
 
 void jtag_deinit(void) {
-    if (!s_inited) return;
+    if (!s_inited)
+        return;
     hal_gpio_init(s_pins.tdi, HAL_GPIO_DIR_IN);
     hal_gpio_init(s_pins.tms, HAL_GPIO_DIR_IN);
     hal_gpio_init(s_pins.tck, HAL_GPIO_DIR_IN);
@@ -204,15 +216,18 @@ bool jtag_is_inited(void) {
 }
 
 void jtag_reset_to_run_test_idle(void) {
-    if (!s_inited) return;
+    if (!s_inited)
+        return;
     set_tms(true);
-    for (uint8_t i = 0; i < 5u; i++) tck_pulse_no_read();
+    for (uint8_t i = 0; i < 5u; i++)
+        tck_pulse_no_read();
     set_tms(false);
-    tck_pulse_no_read();   // → Run-Test/Idle
+    tck_pulse_no_read(); // → Run-Test/Idle
 }
 
 void jtag_assert_trst(void) {
-    if (!s_inited || s_pins.trst == JTAG_PIN_TRST_NONE) return;
+    if (!s_inited || s_pins.trst == JTAG_PIN_TRST_NONE)
+        return;
     uint8_t t = (uint8_t)s_pins.trst;
     hal_gpio_put(t, false);
     hal_busy_wait_us(1000u);
@@ -220,7 +235,8 @@ void jtag_assert_trst(void) {
 }
 
 bool jtag_clock_bit(bool tms, bool tdi) {
-    if (!s_inited) return false;
+    if (!s_inited)
+        return false;
     set_tms(tms);
     set_tdi(tdi);
     return tck_pulse_read_tdo();
@@ -240,22 +256,28 @@ bool jtag_idcode_is_valid(uint32_t idc) {
     // ≤ 8 (JEP106 has more banks but blueTag's vendor table only goes
     // that far and it's plenty for the scanner). Reject the floating-
     // bus sentinels.
-    if (idc == 0u || idc == 0xFFFFFFFFu) return false;
-    if ((idc & 1u) != 1u) return false;
+    if (idc == 0u || idc == 0xFFFFFFFFu)
+        return false;
+    if ((idc & 1u) != 1u)
+        return false;
     uint32_t bank = (idc >> 8) & 0xFu;
     uint32_t id   = (idc >> 1) & 0x7Fu;
-    if (id < 1u || id > 126u) return false;
-    if (bank > 8u) return false;
+    if (id < 1u || id > 126u)
+        return false;
+    if (bank > 8u)
+        return false;
     return true;
 }
 
 uint32_t jtag_permutations_count(uint32_t channels) {
-    if (channels < 4u) return 0u;
+    if (channels < 4u)
+        return 0u;
     return channels * (channels - 1u) * (channels - 2u) * (channels - 3u);
 }
 
 size_t jtag_detect_chain_length(void) {
-    if (!s_inited) return 0u;
+    if (!s_inited)
+        return 0u;
 
     jtag_reset_to_run_test_idle();
     enter_shift_ir();
@@ -271,15 +293,21 @@ size_t jtag_detect_chain_length(void) {
     // Manually walk Shift-IR → Exit1-IR → Update-IR → Select-DR-Scan
     // → Capture-DR → Shift-DR. (We don't reuse exit_shift_to_run_test_idle
     // because we want to land in Shift-DR, not Run-Test/Idle.)
-    set_tms(true);  tck_pulse_no_read();   // Shift-IR        → Exit1-IR
-    set_tms(true);  tck_pulse_no_read();   // Exit1-IR        → Update-IR (BYPASS in effect)
-    set_tms(true);  tck_pulse_no_read();   // Update-IR       → Select-DR-Scan
-    set_tms(false); tck_pulse_no_read();   // Select-DR-Scan  → Capture-DR
-    set_tms(false); tck_pulse_no_read();   // Capture-DR      → Shift-DR
+    set_tms(true);
+    tck_pulse_no_read(); // Shift-IR        → Exit1-IR
+    set_tms(true);
+    tck_pulse_no_read(); // Exit1-IR        → Update-IR (BYPASS in effect)
+    set_tms(true);
+    tck_pulse_no_read(); // Update-IR       → Select-DR-Scan
+    set_tms(false);
+    tck_pulse_no_read(); // Select-DR-Scan  → Capture-DR
+    set_tms(false);
+    tck_pulse_no_read(); // Capture-DR      → Shift-DR
 
     // Pre-load every BYPASS DR with 1.
     set_tdi(true);
-    for (uint16_t i = 0; i < JTAG_MAX_DEVICES; i++) tck_pulse_no_read();
+    for (uint16_t i = 0; i < JTAG_MAX_DEVICES; i++)
+        tck_pulse_no_read();
 
     // Now shift a single 0 in and count clocks until it propagates
     // out at TDO. The clock count == chain length.
@@ -293,16 +321,20 @@ size_t jtag_detect_chain_length(void) {
     }
 
     exit_shift_to_run_test_idle();
-    if (n > JTAG_MAX_DEVICES) n = 0u;
+    if (n > JTAG_MAX_DEVICES)
+        n = 0u;
     return n;
 }
 
-size_t jtag_read_idcodes(uint32_t *out, size_t max_devices) {
-    if (!s_inited || out == NULL || max_devices == 0u) return 0u;
+size_t jtag_read_idcodes(uint32_t* out, size_t max_devices) {
+    if (!s_inited || out == NULL || max_devices == 0u)
+        return 0u;
 
     size_t chain = jtag_detect_chain_length();
-    if (chain == 0u) return 0u;
-    if (chain > max_devices) chain = max_devices;
+    if (chain == 0u)
+        return 0u;
+    if (chain > max_devices)
+        chain = max_devices;
 
     // After a TAP reset the default DR is IDCODE for IEEE 1149.1
     // compliant devices. Walk to Shift-DR and clock 32 bits per

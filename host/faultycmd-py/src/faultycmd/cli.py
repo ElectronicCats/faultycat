@@ -19,6 +19,7 @@ this release; the underlying ``ScannerClient`` keeps them as
 underscored methods so the v3.1 unblock can re-expose them
 without re-writing the protocol layer.
 """
+
 from __future__ import annotations
 
 import click
@@ -61,8 +62,8 @@ def _parse_axis(spec: str) -> tuple[int, int, int]:
 
 def _engine_to_client(engine: str, port: str | None) -> CampaignClient:
     if port is not None:
-        return CampaignClient(port, engine=engine)   # type: ignore[arg-type]
-    return CampaignClient.discover(engine)   # type: ignore[arg-type]
+        return CampaignClient(port, engine=engine)  # type: ignore[arg-type]
+    return CampaignClient.discover(engine)  # type: ignore[arg-type]
 
 
 def _print_status_table(title: str, rows: list[tuple[str, str]]) -> None:
@@ -166,23 +167,38 @@ def status(ctx: click.Context) -> None:
 
 
 @emfi.command()
-@click.option("--trigger", type=click.Choice([t.name.lower() for t in EmfiTrigger]),
-              default="immediate", show_default=True)
+@click.option(
+    "--trigger",
+    type=click.Choice([t.name.lower() for t in EmfiTrigger]),
+    default="immediate",
+    show_default=True,
+)
 @click.option("--delay-us", type=int, default=0, show_default=True)
-@click.option("--width-us", type=int, default=5, show_default=True,
-              help="Pulse width in µs (1..50).")
-@click.option("--charge-timeout-ms", type=int, default=0, show_default=True,
-              help="Max armed time in ms (0 = 60 s default).")
+@click.option(
+    "--width-us", type=int, default=5, show_default=True, help="Pulse width in µs (1..50)."
+)
+@click.option(
+    "--charge-timeout-ms",
+    type=int,
+    default=0,
+    show_default=True,
+    help="Max armed time in ms (0 = 60 s default).",
+)
 @click.pass_context
 def configure(
     ctx: click.Context,
-    trigger: str, delay_us: int, width_us: int, charge_timeout_ms: int,
+    trigger: str,
+    delay_us: int,
+    width_us: int,
+    charge_timeout_ms: int,
 ) -> None:
     """Configure the parameters for the next EMFI fire."""
     trig = EmfiTrigger[trigger.upper()]
     with _emfi_client(ctx) as cli:
         cli.configure(trig, delay_us, width_us, charge_timeout_ms)
-    console.print(f"[green]configured[/green] trigger={trig.name} delay={delay_us}us width={width_us}us")
+    console.print(
+        f"[green]configured[/green] trigger={trig.name} delay={delay_us}us width={width_us}us"
+    )
 
 
 @emfi.command()
@@ -195,8 +211,13 @@ def arm(ctx: click.Context) -> None:
 
 
 @emfi.command()
-@click.option("--trigger-timeout-ms", type=int, default=60000, show_default=True,
-              help="Max time to wait for the trigger in ms.")
+@click.option(
+    "--trigger-timeout-ms",
+    type=int,
+    default=60000,
+    show_default=True,
+    help="Max time to wait for the trigger in ms.",
+)
 @click.pass_context
 def fire(ctx: click.Context, trigger_timeout_ms: int) -> None:
     """Wait for the trigger and fire the EMFI pulse."""
@@ -215,16 +236,29 @@ def disarm(ctx: click.Context) -> None:
 
 
 @emfi.command()
-@click.option("--offset", type=int, default=0, show_default=True,
-              help="Start position within the buffer.")
-@click.option("--length", type=int, default=512, show_default=True,
-              help="Bytes to read (max 512 per request).")
-@click.option("--out", "out_file", type=click.Path(dir_okay=False, writable=True),
-              default=None, help="Output file (if omitted, prints as hex).")
+@click.option(
+    "--offset", type=int, default=0, show_default=True, help="Start position within the buffer."
+)
+@click.option(
+    "--length",
+    type=int,
+    default=512,
+    show_default=True,
+    help="Bytes to read (max 512 per request).",
+)
+@click.option(
+    "--out",
+    "out_file",
+    type=click.Path(dir_okay=False, writable=True),
+    default=None,
+    help="Output file (if omitted, prints as hex).",
+)
 @click.pass_context
 def capture(
     ctx: click.Context,
-    offset: int, length: int, out_file: str | None,
+    offset: int,
+    length: int,
+    out_file: str | None,
 ) -> None:
     """Read the analog capture from the last fire."""
     with _emfi_client(ctx) as cli:
@@ -284,19 +318,33 @@ def crowbar_status(ctx: click.Context) -> None:
 
 
 @crowbar.command("configure")
-@click.option("--trigger", type=click.Choice([t.name.lower() for t in CrowbarTrigger]),
-              default="immediate", show_default=True)
-@click.option("--output", "output_str",
-              type=click.Choice(["lp", "hp"]), default="hp", show_default=True,
-              help="lp = low power, hp = high power (real glitch).")
-@click.option("--delay-us", type=int, default=0, show_default=True,
-              help="Delay after the trigger in µs.")
-@click.option("--width-ns", type=int, default=200, show_default=True,
-              help="Pulse width in ns (8..50000).")
+@click.option(
+    "--trigger",
+    type=click.Choice([t.name.lower() for t in CrowbarTrigger]),
+    default="immediate",
+    show_default=True,
+)
+@click.option(
+    "--output",
+    "output_str",
+    type=click.Choice(["lp", "hp"]),
+    default="hp",
+    show_default=True,
+    help="lp = low power, hp = high power (real glitch).",
+)
+@click.option(
+    "--delay-us", type=int, default=0, show_default=True, help="Delay after the trigger in µs."
+)
+@click.option(
+    "--width-ns", type=int, default=200, show_default=True, help="Pulse width in ns (8..50000)."
+)
 @click.pass_context
 def crowbar_configure(
     ctx: click.Context,
-    trigger: str, output_str: str, delay_us: int, width_ns: int,
+    trigger: str,
+    output_str: str,
+    delay_us: int,
+    width_ns: int,
 ) -> None:
     """Configure the parameters for the next glitch."""
     trig = CrowbarTrigger[trigger.upper()]
@@ -319,8 +367,13 @@ def crowbar_arm(ctx: click.Context) -> None:
 
 
 @crowbar.command("fire")
-@click.option("--trigger-timeout-ms", type=int, default=60000, show_default=True,
-              help="Max time to wait for the trigger in ms.")
+@click.option(
+    "--trigger-timeout-ms",
+    type=int,
+    default=60000,
+    show_default=True,
+    help="Max time to wait for the trigger in ms.",
+)
 @click.pass_context
 def crowbar_fire(ctx: click.Context, trigger_timeout_ms: int) -> None:
     """Wait for the trigger and fire the glitch."""
@@ -344,8 +397,13 @@ def crowbar_disarm(ctx: click.Context) -> None:
 
 
 @main.group()
-@click.option("--engine", type=click.Choice(["emfi", "crowbar"]), default="crowbar",
-              show_default=True, help="Engine to run the sweep on.")
+@click.option(
+    "--engine",
+    type=click.Choice(["emfi", "crowbar"]),
+    default="crowbar",
+    show_default=True,
+    help="Engine to run the sweep on.",
+)
 @click.option("--port", default=None, help="Override the port.")
 @click.pass_context
 def campaign(ctx: click.Context, engine: str, port: str | None) -> None:
@@ -377,23 +435,30 @@ def campaign_status(ctx: click.Context) -> None:
 
 
 @campaign.command("configure")
-@click.option("--delay", required=True,
-              help="Delay range in µs (START:END:STEP, or a fixed value).")
-@click.option("--width", required=True,
-              help="Pulse width range (µs on EMFI, ns on crowbar).")
-@click.option("--power", required=True,
-              help="Power range. On crowbar: 1=low, 2=high. Ignored on EMFI.")
-@click.option("--settle-ms", type=int, default=0, show_default=True,
-              help="Settle time between shots in ms.")
+@click.option(
+    "--delay", required=True, help="Delay range in µs (START:END:STEP, or a fixed value)."
+)
+@click.option("--width", required=True, help="Pulse width range (µs on EMFI, ns on crowbar).")
+@click.option(
+    "--power", required=True, help="Power range. On crowbar: 1=low, 2=high. Ignored on EMFI."
+)
+@click.option(
+    "--settle-ms", type=int, default=0, show_default=True, help="Settle time between shots in ms."
+)
 @click.pass_context
 def campaign_configure(
     ctx: click.Context,
-    delay: str, width: str, power: str, settle_ms: int,
+    delay: str,
+    width: str,
+    power: str,
+    settle_ms: int,
 ) -> None:
     """Define the sweep ranges."""
     with _campaign_client(ctx) as cli:
         cli.configure(
-            _parse_axis(delay), _parse_axis(width), _parse_axis(power),
+            _parse_axis(delay),
+            _parse_axis(width),
+            _parse_axis(power),
             settle_ms=settle_ms,
         )
     console.print("[green]configured[/green]")
@@ -418,27 +483,45 @@ def campaign_stop(ctx: click.Context) -> None:
 
 
 @campaign.command("drain")
-@click.option("--max", "max_count", type=int, default=18, show_default=True,
-              help="Records per request (max 18).")
+@click.option(
+    "--max",
+    "max_count",
+    type=int,
+    default=18,
+    show_default=True,
+    help="Records per request (max 18).",
+)
 @click.pass_context
 def campaign_drain(ctx: click.Context, max_count: int) -> None:
     """Download the accumulated sweep results."""
     rows: list[tuple] = []
     with _campaign_client(ctx) as cli:
         for r in cli.drain_all():
-            rows.append((
-                r.step_n, r.delay, r.width, r.power,
-                f"0x{r.fire_status:02X}", f"0x{r.verify_status:02X}",
-                f"0x{r.target_state:08X}", r.ts_us,
-            ))
+            rows.append(
+                (
+                    r.step_n,
+                    r.delay,
+                    r.width,
+                    r.power,
+                    f"0x{r.fire_status:02X}",
+                    f"0x{r.verify_status:02X}",
+                    f"0x{r.target_state:08X}",
+                    r.ts_us,
+                )
+            )
     if not rows:
         console.print("[yellow]ring empty[/yellow]")
         return
     table = Table(title=f"Campaign results ({len(rows)})")
     for col, just in [
-        ("step", "right"), ("delay", "right"), ("width", "right"),
-        ("power", "right"), ("fire", "right"), ("verify", "right"),
-        ("target", "right"), ("ts_us", "right"),
+        ("step", "right"),
+        ("delay", "right"),
+        ("width", "right"),
+        ("power", "right"),
+        ("fire", "right"),
+        ("verify", "right"),
+        ("target", "right"),
+        ("ts_us", "right"),
     ]:
         table.add_column(col, justify=just)
     for row in rows:
@@ -447,8 +530,7 @@ def campaign_drain(ctx: click.Context, max_count: int) -> None:
 
 
 @campaign.command("watch")
-@click.option("--every-ms", type=int, default=200, show_default=True,
-              help="Update interval in ms.")
+@click.option("--every-ms", type=int, default=200, show_default=True, help="Update interval in ms.")
 @click.pass_context
 def campaign_watch(ctx: click.Context, every_ms: int) -> None:
     """Follow the sweep live until it completes."""
@@ -461,14 +543,21 @@ def campaign_watch(ctx: click.Context, every_ms: int) -> None:
             t.add_column(col, justify="right")
         for r in seen_results[-15:]:
             t.add_row(
-                str(r.step_n), str(r.delay), str(r.width), str(r.power),
-                f"0x{r.fire_status:02X}", f"0x{r.verify_status:02X}",
+                str(r.step_n),
+                str(r.delay),
+                str(r.width),
+                str(r.power),
+                f"0x{r.fire_status:02X}",
+                f"0x{r.verify_status:02X}",
                 f"0x{r.target_state:08X}",
             )
         return t
 
     last_status = None
-    with _campaign_client(ctx) as cli, Live(_render(), refresh_per_second=8, console=console) as live:
+    with (
+        _campaign_client(ctx) as cli,
+        Live(_render(), refresh_per_second=8, console=console) as live,
+    ):
         for st, batch in cli.watch(every_ms=every_ms):
             last_status = st
             seen_results.extend(batch)
@@ -505,8 +594,9 @@ def _scanner_client(ctx: click.Context) -> ScannerClient:
     default=None,
     help="Optional hex value (discovery sweeps the whole bus by default).",
 )
-@click.option("--timeout-s", type=float, default=30.0, show_default=True,
-              help="Max scan time in seconds.")
+@click.option(
+    "--timeout-s", type=float, default=30.0, show_default=True, help="Max scan time in seconds."
+)
 @click.pass_context
 def scanner_scan_swd(
     ctx: click.Context,
@@ -516,7 +606,8 @@ def scanner_scan_swd(
     """Detect the target's SWD pins."""
     with _scanner_client(ctx) as cli:
         cli.scan_swd(
-            targetsel_hex=targetsel, timeout_s=timeout_s,
+            targetsel_hex=targetsel,
+            timeout_s=timeout_s,
             on_progress=console.print,
         )
 
@@ -532,9 +623,7 @@ def tui() -> None:
     try:
         from .tui import run as _run_tui
     except ImportError as e:
-        raise click.ClickException(
-            f"TUI is not available: {e}."
-        ) from e
+        raise click.ClickException(f"TUI is not available: {e}.") from e
     _run_tui()
 
 

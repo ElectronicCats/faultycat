@@ -13,4 +13,5 @@
 // then, any `#include "voltage_mux.h"` is a bug and the `#error`
 // below catches it at build time.
 
-#error "drivers/voltage_mux is a stub — FaultyCat HW v2.x has no voltage mux. Do not include. See drivers/voltage_mux/README.md."
+#error                                                                                             \
+    "drivers/voltage_mux is a stub — FaultyCat HW v2.x has no voltage mux. Do not include. See drivers/voltage_mux/README.md."

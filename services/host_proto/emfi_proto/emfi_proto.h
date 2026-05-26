@@ -16,9 +16,9 @@
 //
 // 100 ms inter-byte timeout resets the parser.
 
-#define EMFI_PROTO_SOF            0xFAu
-#define EMFI_PROTO_MAX_PAYLOAD    512u
-#define EMFI_PROTO_INTERBYTE_MS   100u
+#define EMFI_PROTO_SOF          0xFAu
+#define EMFI_PROTO_MAX_PAYLOAD  512u
+#define EMFI_PROTO_INTERBYTE_MS 100u
 
 typedef enum {
     EMFI_CMD_PING      = 0x01,
@@ -42,7 +42,7 @@ bool emfi_proto_feed(uint8_t byte, uint32_t now_ms);
 // Act on the last-assembled frame. Writes the reply frame (including
 // SOF+CMD|0x80+LEN+PAYLOAD+CRC) into `reply` and returns its length.
 // Returns 0 if no reply is to be sent.
-size_t emfi_proto_dispatch(uint8_t *reply, size_t reply_cap);
+size_t emfi_proto_dispatch(uint8_t* reply, size_t reply_cap);
 
 // CRC-16/CCITT helper exposed for tests.
-uint16_t emfi_proto_crc16(const uint8_t *data, size_t len);
+uint16_t emfi_proto_crc16(const uint8_t* data, size_t len);

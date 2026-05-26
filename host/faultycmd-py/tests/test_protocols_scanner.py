@@ -1,8 +1,8 @@
 """Unit tests for faultycmd.protocols.scanner — text-shell wrapper."""
+
 from __future__ import annotations
 
 import pytest
-
 from faultycmd.protocols import ScannerClient, ScannerError
 from faultycmd.protocols.scanner import parse_scan_swd_match
 
@@ -44,11 +44,12 @@ class FakeShellSerial:
 
 
 def _client(fake: FakeShellSerial) -> ScannerClient:
-    factory = lambda *_a, **_kw: fake   # noqa: E731
+    factory = lambda *_a, **_kw: fake  # noqa: E731
     return ScannerClient("/dev/null", serial_factory=factory)
 
 
 # -- low-level send_line ------------------------------------------
+
 
 def test_send_line_filters_noise():
     fake = FakeShellSerial()
@@ -71,6 +72,7 @@ def test_send_line_timeout():
 
 
 # -- SWD ----------------------------------------------------------
+
 
 def test_swd_init_ok():
     fake = FakeShellSerial()
@@ -117,6 +119,7 @@ def test_swd_err_raises():
 
 # -- JTAG ---------------------------------------------------------
 
+
 def test_jtag_init_with_trst():
     fake = FakeShellSerial()
     fake.queue_lines("JTAG: OK init tdi=GP0 tdo=GP1 tms=GP2 tck=GP3 trst=4")
@@ -149,13 +152,14 @@ def test_jtag_idcode_collects_multi_line():
 
 # -- SCAN ---------------------------------------------------------
 
+
 def test_scan_jtag_streams_progress_until_terminal():
     fake = FakeShellSerial()
     fake.queue_lines(
         "SCAN: starting JTAG pinout scan over 8 channels (P(8,4)=1680)",
         "SCAN: progress 0/1680",
         "SCAN: progress 100/1680",
-        "ADC= 750 SCAN=11111111",   # diag noise interleaved
+        "ADC= 750 SCAN=11111111",  # diag noise interleaved
         "SCAN: jtag NO_MATCH (no valid IDCODE found)",
     )
     seen: list[str] = []
@@ -179,6 +183,7 @@ def test_scan_swd_with_targetsel():
 
 # -- mode switches ------------------------------------------------
 
+
 def test_buspirate_enter_returns_confirmation():
     fake = FakeShellSerial()
     fake.queue_lines(
@@ -201,6 +206,7 @@ def test_serprog_enter_returns_confirmation():
 
 # -- lifecycle ----------------------------------------------------
 
+
 def test_must_open_first():
     fake = FakeShellSerial()
     cli = _client(fake)
@@ -217,6 +223,7 @@ def test_close_runs_via_context():
 
 
 # -- parse_scan_swd_match -----------------------------------------
+
 
 def test_parse_scan_swd_match_picks_swclk_swdio():
     lines = [

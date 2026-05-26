@@ -4,14 +4,8 @@
 #include "hal/gpio.h"
 
 static const uint8_t s_pin[SCANNER_IO_CHANNEL_COUNT] = {
-    BOARD_GP_SCANNER_CH0,
-    BOARD_GP_SCANNER_CH1,
-    BOARD_GP_SCANNER_CH2,
-    BOARD_GP_SCANNER_CH3,
-    BOARD_GP_SCANNER_CH4,
-    BOARD_GP_SCANNER_CH5,
-    BOARD_GP_SCANNER_CH6,
-    BOARD_GP_SCANNER_CH7,
+    BOARD_GP_SCANNER_CH0, BOARD_GP_SCANNER_CH1, BOARD_GP_SCANNER_CH2, BOARD_GP_SCANNER_CH3,
+    BOARD_GP_SCANNER_CH4, BOARD_GP_SCANNER_CH5, BOARD_GP_SCANNER_CH6, BOARD_GP_SCANNER_CH7,
 };
 
 void scanner_io_init(void) {
@@ -25,8 +19,7 @@ void scanner_io_set_dir(uint8_t channel, scanner_io_dir_t dir) {
     if (channel >= SCANNER_IO_CHANNEL_COUNT) {
         return;
     }
-    hal_gpio_init(s_pin[channel], dir == SCANNER_IO_DIR_OUT ? HAL_GPIO_DIR_OUT
-                                                            : HAL_GPIO_DIR_IN);
+    hal_gpio_init(s_pin[channel], dir == SCANNER_IO_DIR_OUT ? HAL_GPIO_DIR_OUT : HAL_GPIO_DIR_IN);
 }
 
 void scanner_io_put(uint8_t channel, bool value) {

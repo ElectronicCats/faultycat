@@ -11,15 +11,15 @@
 #define HAL_FAKE_GPIO_MAX_PINS 32
 
 typedef struct {
-    bool            initialized;
-    hal_gpio_dir_t  dir;
-    bool            level;
-    bool            pull_up;
-    bool            pull_down;
-    uint32_t        init_calls;
-    uint32_t        put_calls;
-    uint32_t        get_calls;
-    uint32_t        pulls_calls;
+    bool initialized;
+    hal_gpio_dir_t dir;
+    bool level;
+    bool pull_up;
+    bool pull_down;
+    uint32_t init_calls;
+    uint32_t put_calls;
+    uint32_t get_calls;
+    uint32_t pulls_calls;
 } hal_fake_gpio_state_t;
 
 extern hal_fake_gpio_state_t hal_fake_gpio_states[HAL_FAKE_GPIO_MAX_PINS];
@@ -40,8 +40,7 @@ void hal_fake_gpio_reset(void);
 
 #define HAL_FAKE_GPIO_INPUT_SCRIPT_MAX 8192u
 
-void   hal_fake_gpio_input_script_load(hal_gpio_pin_t pin,
-                                       const bool *bits, size_t bit_count);
+void hal_fake_gpio_input_script_load(hal_gpio_pin_t pin, const bool* bits, size_t bit_count);
 size_t hal_fake_gpio_input_script_remaining(hal_gpio_pin_t pin);
 size_t hal_fake_gpio_input_script_consumed(hal_gpio_pin_t pin);
 
@@ -54,18 +53,15 @@ size_t hal_fake_gpio_input_script_consumed(hal_gpio_pin_t pin);
 // Pass HAL_FAKE_GPIO_PIN_NONE for a watch slot you don't need.
 // -----------------------------------------------------------------------------
 
-#define HAL_FAKE_GPIO_PIN_NONE 0xFFu
+#define HAL_FAKE_GPIO_PIN_NONE     0xFFu
 #define HAL_FAKE_GPIO_EDGE_LOG_MAX 4096u
 
 typedef struct {
     bool watch[4];
 } hal_fake_gpio_edge_sample_t;
 
-void   hal_fake_gpio_edge_sampler_configure(hal_gpio_pin_t trigger,
-                                            hal_gpio_pin_t w0,
-                                            hal_gpio_pin_t w1,
-                                            hal_gpio_pin_t w2,
-                                            hal_gpio_pin_t w3);
-void   hal_fake_gpio_edge_sampler_reset(void);
+void hal_fake_gpio_edge_sampler_configure(hal_gpio_pin_t trigger, hal_gpio_pin_t w0,
+                                          hal_gpio_pin_t w1, hal_gpio_pin_t w2, hal_gpio_pin_t w3);
+void hal_fake_gpio_edge_sampler_reset(void);
 size_t hal_fake_gpio_edge_sampler_count(void);
 hal_fake_gpio_edge_sample_t hal_fake_gpio_edge_sampler_at(size_t idx);

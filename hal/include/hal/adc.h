@@ -32,16 +32,16 @@ uint16_t hal_adc_read(hal_adc_channel_t ch);
 #include <stdbool.h>
 
 typedef struct {
-    bool     enable_dma;       // route samples to DMA via DREQ_ADC
-    bool     shift_to_8bit;    // true = pushes 8-bit samples (matches legacy glitcher.c)
-    uint32_t dreq_threshold;   // DREQ asserted when >= threshold samples present
-    bool     enable_fifo;
+    bool enable_dma;         // route samples to DMA via DREQ_ADC
+    bool shift_to_8bit;      // true = pushes 8-bit samples (matches legacy glitcher.c)
+    uint32_t dreq_threshold; // DREQ asserted when >= threshold samples present
+    bool enable_fifo;
 } hal_adc_fifo_cfg_t;
 
 // Configure the ADC FIFO + DREQ source. Must be called after
 // hal_adc_select_input (via hal_adc_read_raw once or explicitly if
 // a finer init lands later).
-void hal_adc_fifo_setup(const hal_adc_fifo_cfg_t *cfg);
+void hal_adc_fifo_setup(const hal_adc_fifo_cfg_t* cfg);
 
 // 0 = full-speed ADC (~500 ksps). Higher values divide the sample rate.
 void hal_adc_set_clkdiv(uint32_t div);
@@ -52,7 +52,7 @@ void hal_adc_run(bool enabled);
 
 // Pointer to the ADC FIFO register for DMA transfers. Opaque to
 // callers; pass into hal_dma_configure as `src`.
-const volatile void *hal_adc_fifo_register(void);
+const volatile void* hal_adc_fifo_register(void);
 
 // Select the ADC input channel. Channel 3 corresponds to GP29 on
 // RP2040 (target_monitor). Exposed here because emfi_capture selects

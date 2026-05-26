@@ -30,8 +30,8 @@ typedef enum {
 
 typedef struct {
     emfi_trig_t trigger;
-    uint32_t    delay_us;      // 0..1_000_000
-    uint32_t    width_us;      // 1..50 (mirrors EMFI_PULSE_MIN/MAX)
+    uint32_t delay_us; // 0..1_000_000
+    uint32_t width_us; // 1..50 (mirrors EMFI_PULSE_MIN/MAX)
 } emfi_pio_params_t;
 
 // One-time init. Claims pio0/SM0 and prepares the instance. Returns
@@ -45,7 +45,7 @@ void emfi_pio_deinit(void);
 // Compile `params` into a PIO program and load it. On success the SM
 // is configured (but NOT enabled) and the delay/width words have been
 // pushed to the TX FIFO in the order the program expects.
-bool emfi_pio_load(const emfi_pio_params_t *params);
+bool emfi_pio_load(const emfi_pio_params_t* params);
 
 // Enable the SM; after this the program starts executing and will
 // eventually raise IRQ 0 when the pulse has fired.

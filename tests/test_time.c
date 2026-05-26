@@ -42,7 +42,7 @@ static void test_sleeps_are_cumulative(void) {
 static void test_explicit_us_advance(void) {
     hal_fake_time_advance_us(2500);
     TEST_ASSERT_EQUAL_UINT32(2500, hal_now_us());
-    TEST_ASSERT_EQUAL_UINT32(2, hal_now_ms());   // 2500us = 2ms truncated
+    TEST_ASSERT_EQUAL_UINT32(2, hal_now_ms()); // 2500us = 2ms truncated
 }
 
 int main(void) {

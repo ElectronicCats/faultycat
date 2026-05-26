@@ -51,11 +51,11 @@ void hv_charger_init(void);
 // Replace the default config. Only takes effect on the next arm;
 // a currently-armed session keeps running with the old values
 // until it naturally disarms.
-void hv_charger_configure(const hv_charger_config_t *cfg);
+void hv_charger_configure(const hv_charger_config_t* cfg);
 
 // Read the current config (the defaults if hv_charger_configure
 // was never called).
-void hv_charger_get_config(hv_charger_config_t *out);
+void hv_charger_get_config(hv_charger_config_t* out);
 
 // Start pushing charge. Idempotent — arming an already-armed
 // charger resets the auto-disarm countdown.

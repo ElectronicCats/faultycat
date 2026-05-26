@@ -39,7 +39,7 @@ static void test_init_drives_both_gates_low(void) {
 static void test_set_path_lp_raises_lp_only(void) {
     crowbar_mosfet_init();
     crowbar_mosfet_set_path(CROWBAR_PATH_LP);
-    TEST_ASSERT_TRUE (hal_fake_gpio_states[BOARD_GP_CROWBAR_LP].level);
+    TEST_ASSERT_TRUE(hal_fake_gpio_states[BOARD_GP_CROWBAR_LP].level);
     TEST_ASSERT_FALSE(hal_fake_gpio_states[BOARD_GP_CROWBAR_HP].level);
     TEST_ASSERT_EQUAL(CROWBAR_PATH_LP, crowbar_mosfet_get_path());
 }
@@ -48,7 +48,7 @@ static void test_set_path_hp_raises_hp_only(void) {
     crowbar_mosfet_init();
     crowbar_mosfet_set_path(CROWBAR_PATH_HP);
     TEST_ASSERT_FALSE(hal_fake_gpio_states[BOARD_GP_CROWBAR_LP].level);
-    TEST_ASSERT_TRUE (hal_fake_gpio_states[BOARD_GP_CROWBAR_HP].level);
+    TEST_ASSERT_TRUE(hal_fake_gpio_states[BOARD_GP_CROWBAR_HP].level);
     TEST_ASSERT_EQUAL(CROWBAR_PATH_HP, crowbar_mosfet_get_path());
 }
 
@@ -82,7 +82,7 @@ static void test_switch_lp_to_hp_break_before_make(void) {
                              hal_fake_gpio_states[BOARD_GP_CROWBAR_HP].put_calls);
     // End state must not have both HIGH.
     TEST_ASSERT_FALSE(hal_fake_gpio_states[BOARD_GP_CROWBAR_LP].level);
-    TEST_ASSERT_TRUE (hal_fake_gpio_states[BOARD_GP_CROWBAR_HP].level);
+    TEST_ASSERT_TRUE(hal_fake_gpio_states[BOARD_GP_CROWBAR_HP].level);
 }
 
 static void test_invalid_path_treated_as_none(void) {
@@ -100,12 +100,8 @@ static void test_invalid_path_treated_as_none(void) {
 
 static void test_every_sequence_end_state_has_at_most_one_high(void) {
     const crowbar_path_t sequence[] = {
-        CROWBAR_PATH_LP,
-        CROWBAR_PATH_HP,
-        CROWBAR_PATH_LP,
-        CROWBAR_PATH_NONE,
-        CROWBAR_PATH_HP,
-        CROWBAR_PATH_LP,
+        CROWBAR_PATH_LP,   CROWBAR_PATH_HP, CROWBAR_PATH_LP,
+        CROWBAR_PATH_NONE, CROWBAR_PATH_HP, CROWBAR_PATH_LP,
     };
     crowbar_mosfet_init();
     for (unsigned i = 0; i < sizeof(sequence) / sizeof(sequence[0]); i++) {
@@ -113,7 +109,7 @@ static void test_every_sequence_end_state_has_at_most_one_high(void) {
         bool lp_high = hal_fake_gpio_states[BOARD_GP_CROWBAR_LP].level;
         bool hp_high = hal_fake_gpio_states[BOARD_GP_CROWBAR_HP].level;
         TEST_ASSERT_FALSE_MESSAGE(lp_high && hp_high,
-            "Both crowbar gates are HIGH — break-before-make violated");
+                                  "Both crowbar gates are HIGH — break-before-make violated");
     }
 }
 

@@ -25,6 +25,7 @@ DRAIN reply: 1 B n + n records of:
     fire_status (u8), verify_status (u8), reserved[2],
     target_state (u32), ts_us (u32)
 """
+
 from __future__ import annotations
 
 import struct
@@ -38,15 +39,15 @@ from ..usb import cdc_for
 from ._base import BinaryProtoClient
 
 CMD_CONFIG = 0x20
-CMD_START  = 0x21
-CMD_STOP   = 0x22
+CMD_START = 0x21
+CMD_STOP = 0x22
 CMD_STATUS = 0x23
-CMD_DRAIN  = 0x24
+CMD_DRAIN = 0x24
 
-CONFIG_PAYLOAD_LEN  = 40
-STATUS_REPLY_LEN    = 20
-RECORD_LEN          = 28
-DRAIN_MAX_COUNT     = 18
+CONFIG_PAYLOAD_LEN = 40
+STATUS_REPLY_LEN = 20
+RECORD_LEN = 28
+DRAIN_MAX_COUNT = 18
 
 Engine = Literal["emfi", "crowbar"]
 
@@ -54,31 +55,31 @@ Engine = Literal["emfi", "crowbar"]
 class CampaignState(IntEnum):
     """``campaign_state_t`` from services/campaign_manager/."""
 
-    IDLE        = 0
+    IDLE = 0
     CONFIGURING = 1
-    SWEEPING    = 2
-    DONE        = 3
-    STOPPED     = 4
-    ERROR       = 5
+    SWEEPING = 2
+    DONE = 3
+    STOPPED = 4
+    ERROR = 5
 
 
 class CampaignErr(IntEnum):
     """``campaign_err_t``."""
 
-    NONE            = 0
-    BAD_CONFIG      = 1
-    NOT_CONFIGURED  = 2
-    BUS_BUSY        = 3
-    STEP_FAILED     = 4
-    INTERNAL        = 5
+    NONE = 0
+    BAD_CONFIG = 1
+    NOT_CONFIGURED = 2
+    BUS_BUSY = 3
+    STEP_FAILED = 4
+    INTERNAL = 5
 
 
 class ProtoStatus(IntEnum):
     """1-byte status replies from CONFIG / START / STOP."""
 
-    OK            = 0x00
-    ERR_BAD_LEN   = 0x01
-    ERR_REJECTED  = 0x02
+    OK = 0x00
+    ERR_BAD_LEN = 0x01
+    ERR_REJECTED = 0x02
 
 
 @dataclass
@@ -115,7 +116,7 @@ class CampaignClient(BinaryProtoClient):
     """F9-4 campaign_proto over CDC0 (EMFI) or CDC1 (crowbar)."""
 
     def __init__(self, port: str, *, engine: Engine, **kw: object) -> None:
-        super().__init__(port, **kw)   # type: ignore[arg-type]
+        super().__init__(port, **kw)  # type: ignore[arg-type]
         self.engine = engine
 
     @classmethod
@@ -140,9 +141,15 @@ class CampaignClient(BinaryProtoClient):
         """
         payload = struct.pack(
             "<10I",
-            delay[0], delay[1], delay[2],
-            width[0], width[1], width[2],
-            power[0], power[1], power[2],
+            delay[0],
+            delay[1],
+            delay[2],
+            width[0],
+            width[1],
+            width[2],
+            power[0],
+            power[1],
+            power[2],
             settle_ms,
         )
         rpl = self._send(CMD_CONFIG, payload)
@@ -164,7 +171,7 @@ class CampaignClient(BinaryProtoClient):
         step_n, total, pushed, dropped = struct.unpack("<4I", rpl[4:20])
         return CampaignStatus(
             state=CampaignState(state) if state in CampaignState._value2member_map_ else state,  # type: ignore[arg-type]
-            err=CampaignErr(err) if err in CampaignErr._value2member_map_ else err,              # type: ignore[arg-type]
+            err=CampaignErr(err) if err in CampaignErr._value2member_map_ else err,  # type: ignore[arg-type]
             step_n=step_n,
             total_steps=total,
             results_pushed=pushed,
@@ -191,15 +198,20 @@ class CampaignClient(BinaryProtoClient):
             off = 1 + i * RECORD_LEN
             chunk = rpl[off : off + RECORD_LEN]
             step_n, d, w, p = struct.unpack("<4I", chunk[0:16])
-            fire_status   = chunk[16]
+            fire_status = chunk[16]
             verify_status = chunk[17]
             # chunk[18:20] reserved
             target_state, ts_us = struct.unpack("<II", chunk[20:28])
             out.append(
                 CampaignResult(
-                    step_n=step_n, delay=d, width=w, power=p,
-                    fire_status=fire_status, verify_status=verify_status,
-                    target_state=target_state, ts_us=ts_us,
+                    step_n=step_n,
+                    delay=d,
+                    width=w,
+                    power=p,
+                    fire_status=fire_status,
+                    verify_status=verify_status,
+                    target_state=target_state,
+                    ts_us=ts_us,
                 )
             )
         return out

@@ -17,6 +17,7 @@ mid-stream, it skips and resyncs at the next SOF. CRC mismatches
 raise :class:`FrameCRCError` rather than silently dropping — the
 caller sees the failure and can recover.
 """
+
 from __future__ import annotations
 
 import struct
@@ -24,9 +25,9 @@ import time
 from typing import Protocol
 
 SOF = 0xFA
-HEADER_LEN = 3   # CMD + LEN_LO + LEN_HI
+HEADER_LEN = 3  # CMD + LEN_LO + LEN_HI
 CRC_LEN = 2
-FRAME_OVERHEAD = 1 + HEADER_LEN + CRC_LEN   # SOF + header + CRC = 6
+FRAME_OVERHEAD = 1 + HEADER_LEN + CRC_LEN  # SOF + header + CRC = 6
 
 
 class _ByteReader(Protocol):
@@ -126,8 +127,7 @@ def read_frame(reader: _ByteReader, timeout: float = 2.0) -> tuple[int, bytes]:
         calc = crc16_ccitt(header + payload)
         if expected != calc:
             raise FrameCRCError(
-                f"CRC mismatch on cmd=0x{cmd:02X}: "
-                f"expected 0x{expected:04X}, calc 0x{calc:04X}"
+                f"CRC mismatch on cmd=0x{cmd:02X}: " f"expected 0x{expected:04X}, calc 0x{calc:04X}"
             )
         return cmd, payload
     raise FrameTimeout(f"no frame received within {timeout:.1f}s")

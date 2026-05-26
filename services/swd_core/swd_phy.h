@@ -28,11 +28,11 @@
 //      may own a given pin at a time. F6 documents the contract;
 //      F9 lands the formal mutex with daplink_usb / pinout_scanner.
 
-#define SWD_PHY_CLK_DEFAULT_KHZ   1000u   // 1 MHz — safe default
-#define SWD_PHY_CLK_MIN_KHZ       100u
-#define SWD_PHY_CLK_MAX_KHZ       24000u
+#define SWD_PHY_CLK_DEFAULT_KHZ 1000u // 1 MHz — safe default
+#define SWD_PHY_CLK_MIN_KHZ     100u
+#define SWD_PHY_CLK_MAX_KHZ     24000u
 
-#define SWD_PHY_NRST_NONE         (-1)    // pass to init when no reset wired
+#define SWD_PHY_NRST_NONE (-1) // pass to init when no reset wired
 
 // Claim pio1/SM0, attach the SWD program, configure the chosen pins.
 // `swclk_gp` and `swdio_gp` are GPIO numbers (typically two channels
@@ -55,8 +55,8 @@ void swd_phy_set_clk_khz(uint32_t khz);
 // Bit shifters — `bit_count` in 1..32. write shifts MSB-first per
 // the SWD protocol convention upstream uses. read returns the bits
 // right-aligned in the low `bit_count` bits of the return word.
-void     swd_phy_write_bits(uint32_t bit_count, uint32_t data);
-uint32_t swd_phy_read_bits (uint32_t bit_count);
+void swd_phy_write_bits(uint32_t bit_count, uint32_t data);
+uint32_t swd_phy_read_bits(uint32_t bit_count);
 
 // Drive SWCLK for `bit_count` cycles with SWDIO in hi-z (turnaround
 // + idle filler). Used by SWD line reset and IDLE sequences.
@@ -71,4 +71,4 @@ void swd_phy_write_mode(void);
 // at init). assert(true) drives nRST LOW; assert(false) releases.
 // reset_level() returns the current driven level (-1 if unwired).
 void swd_phy_assert_reset(bool asserted);
-int  swd_phy_reset_level(void);
+int swd_phy_reset_level(void);

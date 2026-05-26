@@ -18,9 +18,7 @@ echo "==> Fetching top-level submodules (pinned commits; shallow where practical
 git submodule update --init \
     third_party/pico-sdk \
     third_party/debugprobe \
-    third_party/blueTag \
-    third_party/free-dap \
-    third_party/faultier
+    third_party/free-dap
 
 # pico-sdk pulls tinyusb, btstack, cyw43-driver, mbedtls, etc. For our
 # USB work we only strictly need tinyusb, but pico_sdk_init() references

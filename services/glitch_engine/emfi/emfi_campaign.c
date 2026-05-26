@@ -10,12 +10,12 @@
 #include "hv_charger.h"
 
 static emfi_config_t s_cfg;
-static bool          s_cfg_valid = false;
+static bool s_cfg_valid = false;
 static emfi_status_t s_status;
-static uint32_t      s_arm_start_ms;
-static uint32_t      s_fire_start_ms;
-static uint32_t      s_fire_timeout_ms;
-static uint32_t      s_hv_last_charged_ms;
+static uint32_t s_arm_start_ms;
+static uint32_t s_fire_start_ms;
+static uint32_t s_fire_timeout_ms;
+static uint32_t s_hv_last_charged_ms;
 
 static void reset_status(void) {
     memset(&s_status, 0, sizeof(s_status));
@@ -39,7 +39,7 @@ static void enter_error(emfi_err_t err) {
 
 bool emfi_campaign_init(void) {
     reset_status();
-    s_cfg_valid        = false;
+    s_cfg_valid          = false;
     s_hv_last_charged_ms = 0;
     // emfi_capture claims its DMA channel lazily; call it here so the
     // first fire() doesn't silently skip capture_start on a fresh boot.
@@ -49,10 +49,13 @@ bool emfi_campaign_init(void) {
     return true;
 }
 
-bool emfi_campaign_configure(const emfi_config_t *cfg) {
-    if (!cfg) return false;
-    if (cfg->width_us < 1u || cfg->width_us > 50u) return false;
-    if (cfg->delay_us > 1000000u) return false;
+bool emfi_campaign_configure(const emfi_config_t* cfg) {
+    if (!cfg)
+        return false;
+    if (cfg->width_us < 1u || cfg->width_us > 50u)
+        return false;
+    if (cfg->delay_us > 1000000u)
+        return false;
     s_cfg       = *cfg;
     s_cfg_valid = true;
     // Clearing any error from a prior run lets a fresh configure
@@ -67,7 +70,8 @@ bool emfi_campaign_arm(void) {
         enter_error(EMFI_ERR_BAD_CONFIG);
         return false;
     }
-    if (s_status.state != EMFI_STATE_IDLE) return false;
+    if (s_status.state != EMFI_STATE_IDLE)
+        return false;
 
     hv_charger_arm();
     s_arm_start_ms = hal_now_ms();
@@ -77,7 +81,8 @@ bool emfi_campaign_arm(void) {
 }
 
 bool emfi_campaign_fire(uint32_t trigger_timeout_ms) {
-    if (s_status.state != EMFI_STATE_CHARGED) return false;
+    if (s_status.state != EMFI_STATE_CHARGED)
+        return false;
 
     // Re-check invariant right here: if HV was last seen charged too
     // long ago, fail fast rather than firing into a half-spent cap.
@@ -130,7 +135,8 @@ static void tick_arming(void) {
     }
     uint32_t elapsed = hal_now_ms() - s_arm_start_ms;
     uint32_t timeout = s_cfg.charge_timeout_ms;
-    if (timeout == 0u) return;  // 0 = wait up to hv_charger auto-disarm
+    if (timeout == 0u)
+        return; // 0 = wait up to hv_charger auto-disarm
     if (elapsed > timeout) {
         enter_error(EMFI_ERR_HV_NOT_CHARGED);
     }
@@ -146,15 +152,16 @@ static void tick_charged(void) {
 
 static void tick_waiting(void) {
     if (emfi_pio_is_done()) {
-        s_status.capture_fill         = emfi_capture_fill();
+        s_status.capture_fill          = emfi_capture_fill();
         s_status.pulse_width_us_actual = s_cfg.width_us;
-        s_status.delay_us_actual      = s_cfg.delay_us;
-        s_status.last_fire_at_ms      = hal_now_ms();
+        s_status.delay_us_actual       = s_cfg.delay_us;
+        s_status.last_fire_at_ms       = hal_now_ms();
         teardown();
         s_status.state = EMFI_STATE_FIRED;
         return;
     }
-    if (s_fire_timeout_ms == 0u) return;
+    if (s_fire_timeout_ms == 0u)
+        return;
     uint32_t elapsed = hal_now_ms() - s_fire_start_ms;
     if (elapsed > s_fire_timeout_ms) {
         enter_error(EMFI_ERR_TRIGGER_TIMEOUT);
@@ -162,21 +169,29 @@ static void tick_waiting(void) {
 }
 
 void emfi_campaign_tick(void) {
-    hv_charger_tick();  // let the HV driver run its 60 s safety net.
+    hv_charger_tick(); // let the HV driver run its 60 s safety net.
     switch (s_status.state) {
-        case EMFI_STATE_ARMING:  tick_arming();  break;
-        case EMFI_STATE_CHARGED: tick_charged(); break;
-        case EMFI_STATE_WAITING: tick_waiting(); break;
-        default: break;
+        case EMFI_STATE_ARMING:
+            tick_arming();
+            break;
+        case EMFI_STATE_CHARGED:
+            tick_charged();
+            break;
+        case EMFI_STATE_WAITING:
+            tick_waiting();
+            break;
+        default:
+            break;
     }
 }
 
-void emfi_campaign_get_status(emfi_status_t *out) {
-    if (!out) return;
+void emfi_campaign_get_status(emfi_status_t* out) {
+    if (!out)
+        return;
     *out = s_status;
 }
 
-const uint8_t *emfi_campaign_capture_buffer(void) {
+const uint8_t* emfi_campaign_capture_buffer(void) {
     return emfi_capture_buffer();
 }
 

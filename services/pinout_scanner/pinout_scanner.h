@@ -40,19 +40,19 @@
 #define PINOUT_SCANNER_SWD_TOTAL  56u
 
 typedef struct {
-    uint8_t  tdi;
-    uint8_t  tdo;
-    uint8_t  tms;
-    uint8_t  tck;
-    uint32_t idcode;          // first device's IDCODE on the matched chain
-    size_t   chain_length;
+    uint8_t tdi;
+    uint8_t tdo;
+    uint8_t tms;
+    uint8_t tck;
+    uint32_t idcode; // first device's IDCODE on the matched chain
+    size_t chain_length;
 } pinout_scan_jtag_result_t;
 
 typedef struct {
-    uint8_t  swclk;
-    uint8_t  swdio;
+    uint8_t swclk;
+    uint8_t swdio;
     uint32_t dpidr;
-    uint32_t targetsel;       // compatibility echo; scan does not issue TARGETSEL
+    uint32_t targetsel; // compatibility echo; scan does not issue TARGETSEL
 } pinout_scan_swd_result_t;
 
 // Progress / yield callback signature. Called once per iteration
@@ -67,16 +67,14 @@ typedef void (*pinout_scanner_progress_cb)(uint32_t cur, uint32_t total);
 // (chain_length ≥ 1 AND first IDCODE passes jtag_idcode_is_valid).
 // On false, no permutation matched. Either way the function returns
 // with both jtag_core and swd_phy in the deinit state.
-bool pinout_scan_jtag(pinout_scan_jtag_result_t *out,
-                      pinout_scanner_progress_cb cb);
+bool pinout_scan_jtag(pinout_scan_jtag_result_t* out, pinout_scanner_progress_cb cb);
 
 // Run an SWD pinout scan. Returns true on the first OK DPIDR read
 // that passes swd_dp_dpidr_is_valid() and repeats consistently. The
 // targetsel parameter is retained for callers that still track
 // multidrop targets; scan discovery itself uses swd_dp_bus_detect()
 // and does not issue TARGETSEL.
-bool pinout_scan_swd(pinout_scan_swd_result_t *out,
-                     pinout_scanner_progress_cb cb);
+bool pinout_scan_swd(pinout_scan_swd_result_t* out, pinout_scanner_progress_cb cb);
 
 // -----------------------------------------------------------------------------
 // Pure permutation iterator — exposed for tests.
@@ -91,11 +89,11 @@ typedef struct {
     uint8_t indices[PINOUT_SCANNER_JTAG_PINS];
     uint8_t k;
     uint8_t n;
-    bool    started;
+    bool started;
 } pinout_perm_iter_t;
 
-void pinout_perm_init(pinout_perm_iter_t *it, uint8_t k, uint8_t n);
-bool pinout_perm_next(pinout_perm_iter_t *it);
+void pinout_perm_init(pinout_perm_iter_t* it, uint8_t k, uint8_t n);
+bool pinout_perm_next(pinout_perm_iter_t* it);
 
 // Returns P(n, k) = n * (n-1) * ... * (n-k+1). Used by the shell's
 // progress display and by tests. Returns 0 if k > n or k == 0.

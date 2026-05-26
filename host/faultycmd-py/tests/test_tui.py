@@ -8,6 +8,7 @@ spins up its own threading.Threads. The real-device smoke documented
 in the F10-5 commit message exercises the App end-to-end against a
 live FaultyCat instead.
 """
+
 from __future__ import annotations
 
 from faultycmd.tui import (
@@ -18,6 +19,7 @@ from faultycmd.tui import (
 )
 
 # -- DiagSnapshot parser ------------------------------------------
+
 
 def test_diag_snapshot_parses_real_line():
     line = "ADC= 757 SCAN=11111111 TRIG=0 GATE=NONE HV[---] EMFI=IDLE CROW=IDLE"
@@ -68,6 +70,7 @@ def test_diag_snapshot_ignores_prefix_noise():
 # exercised by Textual's own internal tests + by the F10-5
 # real-device smoke documented in the commit message.
 
+
 def test_status_panel_initial_state():
     p = StatusPanel("EMFI")
     assert p.title_text == "EMFI"
@@ -91,6 +94,7 @@ def test_status_panel_update_replaces_not_merges():
 
 # -- CampaignPanel -------------------------------------------------
 
+
 def test_campaign_panel_initial_state():
     p = CampaignPanel()
     assert p.summary == {}
@@ -100,10 +104,12 @@ def test_campaign_panel_initial_state():
 def test_campaign_panel_summary_and_tail():
     p = CampaignPanel()
     p.set_summary({"state": "SWEEPING", "step": "2/6", "pushed": "2"})
-    p.push_results([
-        "step=0 d=1000 w=200 p=1 fire=0x00 verify=0x00",
-        "step=1 d=1000 w=300 p=1 fire=0x00 verify=0x00",
-    ])
+    p.push_results(
+        [
+            "step=0 d=1000 w=200 p=1 fire=0x00 verify=0x00",
+            "step=1 d=1000 w=300 p=1 fire=0x00 verify=0x00",
+        ]
+    )
     assert p.summary["state"] == "SWEEPING"
     assert len(p.tail) == 2
     assert "step=0" in p.tail[0]
@@ -126,6 +132,7 @@ def test_campaign_panel_clear_tail():
 
 
 # -- App construction (no run) ------------------------------------
+
 
 def test_app_construction_does_not_open_serial():
     """Constructing the App must not touch any CDC — opening happens

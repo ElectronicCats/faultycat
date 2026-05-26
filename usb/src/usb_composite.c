@@ -16,7 +16,7 @@
 // `itf`. If the host asks for the magic baud, reboot into the
 // RP2040 bootrom with USB mass-storage mode enabled so the next
 // `cp faultycat.uf2 /media/RPI-RP2/` lands.
-void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const *coding) {
+void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* coding) {
     (void)itf;
     if (coding != NULL && coding->bit_rate == USB_MAGIC_BOOTSEL_BAUD) {
         // `reset_usb_boot(0, 0)` — no activity LED pin, no disable
@@ -98,9 +98,8 @@ void usb_composite_task(void) {
 // process it through dap_stub_handle (shared with v2), and ship the
 // response back as a 64 B input report via tud_hid_report().
 
-void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
-                           hid_report_type_t report_type,
-                           uint8_t const *buffer, uint16_t bufsize) {
+void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type,
+                           uint8_t const* buffer, uint16_t bufsize) {
     (void)instance;
     (void)report_id;
 
@@ -108,23 +107,20 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
     // interrupt-out (no SET_REPORT control transfer involved);
     // HID_REPORT_TYPE_OUTPUT is what SET_REPORT sends. Accept both —
     // CMSIS-DAP hosts will pick one or the other.
-    if (report_type != HID_REPORT_TYPE_OUTPUT
-     && report_type != HID_REPORT_TYPE_INVALID) {
+    if (report_type != HID_REPORT_TYPE_OUTPUT && report_type != HID_REPORT_TYPE_INVALID) {
         return;
     }
 
     uint8_t resp[CFG_TUD_HID_EP_BUFSIZE];
-    size_t resp_len = dap_stub_handle(buffer, (size_t)bufsize,
-                                      resp, sizeof(resp));
+    size_t resp_len = dap_stub_handle(buffer, (size_t)bufsize, resp, sizeof(resp));
     if (resp_len == 0u) {
         return;
     }
     tud_hid_report(0, resp, (uint16_t)resp_len);
 }
 
-uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id,
-                               hid_report_type_t report_type,
-                               uint8_t *buffer, uint16_t reqlen) {
+uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type,
+                               uint8_t* buffer, uint16_t reqlen) {
     (void)instance;
     (void)report_id;
     (void)report_type;
@@ -143,8 +139,7 @@ bool usb_composite_cdc_connected(usb_cdc_index_t idx) {
     return tud_cdc_n_connected((uint8_t)idx);
 }
 
-size_t usb_composite_cdc_write(usb_cdc_index_t idx,
-                               const void *data, size_t len) {
+size_t usb_composite_cdc_write(usb_cdc_index_t idx, const void* data, size_t len) {
     if ((unsigned)idx >= USB_CDC_COUNT || data == NULL || len == 0) {
         return 0;
     }
@@ -153,16 +148,18 @@ size_t usb_composite_cdc_write(usb_cdc_index_t idx,
     return (size_t)written;
 }
 
-size_t usb_composite_cdc_write_str(usb_cdc_index_t idx, const char *s) {
+size_t usb_composite_cdc_write_str(usb_cdc_index_t idx, const char* s) {
     if (s == NULL) {
         return 0;
     }
     return usb_composite_cdc_write(idx, s, strlen(s));
 }
 
-size_t usb_composite_cdc_read(usb_cdc_index_t idx, void *data, size_t cap) {
-    if ((unsigned)idx >= USB_CDC_COUNT || data == NULL || cap == 0) return 0;
-    if (!tud_cdc_n_available((uint8_t)idx)) return 0;
+size_t usb_composite_cdc_read(usb_cdc_index_t idx, void* data, size_t cap) {
+    if ((unsigned)idx >= USB_CDC_COUNT || data == NULL || cap == 0)
+        return 0;
+    if (!tud_cdc_n_available((uint8_t)idx))
+        return 0;
     uint32_t n = tud_cdc_n_read((uint8_t)idx, data, (uint32_t)cap);
     return (size_t)n;
 }

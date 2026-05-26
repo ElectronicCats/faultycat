@@ -10,7 +10,7 @@ static const uint8_t s_pin[UI_LED_COUNT] = {
     [UI_LED_CHARGE_ON]   = BOARD_GP_LED_CHARGE_ON,
 };
 
-static bool     s_on[UI_LED_COUNT];
+static bool s_on[UI_LED_COUNT];
 static uint32_t s_last_charged_ms;
 
 void ui_leds_init(void) {

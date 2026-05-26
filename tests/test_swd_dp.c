@@ -20,7 +20,7 @@
 // the TXS0108E level shifter on FaultyCat v2.x scanner header
 // breaks bidirectional push-pull SWD). Tests that inspect raw FIFO
 // content must therefore compare against the inverted value.
-#define OD_INV8(x)  ((uint8_t)~(uint8_t)(x))
+#define OD_INV8(x)  ((uint8_t) ~(uint8_t)(x))
 #define OD_INV32(x) (~(uint32_t)(x))
 
 static const uint8_t SWCLK = BOARD_GP_SCANNER_CH0;
@@ -72,17 +72,18 @@ static void push_parity(uint8_t p) {
 }
 
 // FIFO TX command word decoders (mirror of test_swd_phy.c).
-static uint32_t cmd_count(uint32_t w) { return (w & 0xFFu) + 1u; }
+static uint32_t cmd_count(uint32_t w) {
+    return (w & 0xFFu) + 1u;
+}
 
 static uint32_t write_data_after_cmd(uint32_t cmd_index) {
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[PIO1].sm[SM0];
     TEST_ASSERT_LESS_THAN(sm->tx_count, cmd_index + 1u);
     return sm->tx_fifo[cmd_index + 1u];
 }
 
-static void assert_write_at(uint32_t cmd_index, uint32_t bit_count,
-                            uint32_t expected_data) {
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+static void assert_write_at(uint32_t cmd_index, uint32_t bit_count, uint32_t expected_data) {
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[PIO1].sm[SM0];
     TEST_ASSERT_LESS_THAN(sm->tx_count, cmd_index);
     TEST_ASSERT_EQUAL_UINT32(bit_count, cmd_count(sm->tx_fifo[cmd_index]));
     TEST_ASSERT_EQUAL_HEX32(OD_INV32(expected_data), write_data_after_cmd(cmd_index));
@@ -114,15 +115,15 @@ static void test_parity_of_alternating_bits_is_zero(void) {
 // -----------------------------------------------------------------------------
 
 static void test_dpidr_validator_accepts_known_coherent_values(void) {
-    TEST_ASSERT_TRUE(swd_dp_dpidr_is_valid(0x0BC12477u));  // RP2040
-    TEST_ASSERT_TRUE(swd_dp_dpidr_is_valid(0x2BA01477u));  // common ARM Cortex-M DP
+    TEST_ASSERT_TRUE(swd_dp_dpidr_is_valid(0x0BC12477u)); // RP2040
+    TEST_ASSERT_TRUE(swd_dp_dpidr_is_valid(0x2BA01477u)); // common ARM Cortex-M DP
 }
 
 static void test_dpidr_validator_rejects_bus_noise_sentinels(void) {
     TEST_ASSERT_FALSE(swd_dp_dpidr_is_valid(0x00000000u));
     TEST_ASSERT_FALSE(swd_dp_dpidr_is_valid(0xFFFFFFFFu));
-    TEST_ASSERT_FALSE(swd_dp_dpidr_is_valid(0x0BC12476u));  // architected ID bit clear
-    TEST_ASSERT_FALSE(swd_dp_dpidr_is_valid(0x00001001u));  // empty designer / part
+    TEST_ASSERT_FALSE(swd_dp_dpidr_is_valid(0x0BC12476u)); // architected ID bit clear
+    TEST_ASSERT_FALSE(swd_dp_dpidr_is_valid(0x00001001u)); // empty designer / part
 }
 
 // -----------------------------------------------------------------------------
@@ -131,15 +132,15 @@ static void test_dpidr_validator_rejects_bus_noise_sentinels(void) {
 
 static void test_dp_read_dpidr_emits_request_byte_0xA5(void) {
     push_ack(SWD_ACK_OK);
-    push_data32(0x0BC12477u);   // RP2040 Cortex-M0+ DPIDR
+    push_data32(0x0BC12477u); // RP2040 Cortex-M0+ DPIDR
     push_parity(swd_dp_compute_parity(0x0BC12477u));
     uint32_t dpidr = 0u;
     TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_read(SWD_DP_ADDR_DPIDR, &dpidr));
     TEST_ASSERT_EQUAL_HEX32(0x0BC12477u, dpidr);
     // Find the 8-bit request word in TX FIFO. It is the data entry
     // immediately after the write-cmd command (count=8).
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
-    bool found_request = false;
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    bool found_request          = false;
     for (uint32_t i = 0; i + 1 < sm->tx_count; i++) {
         if (cmd_count(sm->tx_fifo[i]) == 8u) {
             TEST_ASSERT_EQUAL_HEX8(OD_INV8(0xA5u), (uint8_t)sm->tx_fifo[i + 1]);
@@ -155,10 +156,9 @@ static void test_dp_write_ctrlstat_emits_request_byte_0xA9(void) {
     // fields = (0<<1)|(0<<2)|(1<<3)|(0<<4) = 0x08; parity = 1.
     // request = 0x81 | 0x08 | (1<<5) = 0xA9.
     push_ack(SWD_ACK_OK);
-    TEST_ASSERT_EQUAL(SWD_ACK_OK,
-        swd_dp_write(SWD_DP_ADDR_CTRLSTAT, 0xDEADBEEFu));
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
-    bool found = false;
+    TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_write(SWD_DP_ADDR_CTRLSTAT, 0xDEADBEEFu));
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    bool found                  = false;
     for (uint32_t i = 0; i + 1 < sm->tx_count; i++) {
         if (cmd_count(sm->tx_fifo[i]) == 8u) {
             TEST_ASSERT_EQUAL_HEX8(OD_INV8(0xA9u), (uint8_t)sm->tx_fifo[i + 1]);
@@ -186,7 +186,7 @@ static void test_dp_read_returns_wait_on_ack_wait(void) {
     push_ack(SWD_ACK_WAIT);
     uint32_t v = 0xDEADu;
     TEST_ASSERT_EQUAL(SWD_ACK_WAIT, swd_dp_read(SWD_DP_ADDR_DPIDR, &v));
-    TEST_ASSERT_EQUAL_HEX32(0xDEADu, v);  // unchanged
+    TEST_ASSERT_EQUAL_HEX32(0xDEADu, v); // unchanged
 }
 
 static void test_dp_read_returns_fault_on_ack_fault(void) {
@@ -203,8 +203,7 @@ static void test_dp_read_returns_parity_err_on_bad_parity(void) {
     // inside do_transfer.
     push_parity(swd_dp_compute_parity(0x12345678u) ^ 1u);
     uint32_t v = 0u;
-    TEST_ASSERT_EQUAL(SWD_ACK_PARITY_ERR,
-                      swd_dp_read(SWD_DP_ADDR_DPIDR, &v));
+    TEST_ASSERT_EQUAL(SWD_ACK_PARITY_ERR, swd_dp_read(SWD_DP_ADDR_DPIDR, &v));
 }
 
 static void test_dp_read_returns_no_target_when_swdio_stuck_high(void) {
@@ -212,8 +211,7 @@ static void test_dp_read_returns_no_target_when_swdio_stuck_high(void) {
     // floating, or no target). Codify as NO_TARGET.
     hal_fake_pio_push_rx(PIO1, SM0, isr_for(0b111u, 3u));
     uint32_t v = 0u;
-    TEST_ASSERT_EQUAL(SWD_ACK_NO_TARGET,
-                      swd_dp_read(SWD_DP_ADDR_DPIDR, &v));
+    TEST_ASSERT_EQUAL(SWD_ACK_NO_TARGET, swd_dp_read(SWD_DP_ADDR_DPIDR, &v));
 }
 
 // -----------------------------------------------------------------------------
@@ -222,22 +220,21 @@ static void test_dp_read_returns_no_target_when_swdio_stuck_high(void) {
 
 static void test_dp_write_emits_data_and_parity_after_request(void) {
     push_ack(SWD_ACK_OK);
-    TEST_ASSERT_EQUAL(SWD_ACK_OK,
-        swd_dp_write(SWD_DP_ADDR_CTRLSTAT, 0xCAFEBABEu));
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_write(SWD_DP_ADDR_CTRLSTAT, 0xCAFEBABEu));
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[PIO1].sm[SM0];
     // Walk the TX entries: find request (count=8), skip turnaround
     // command, expect another count=32 followed by data, then count=1
     // followed by parity.
-    bool found_data = false;
-    bool found_parity = false;
+    bool found_data         = false;
+    bool found_parity       = false;
     uint8_t expected_parity = swd_dp_compute_parity(0xCAFEBABEu);
     for (uint32_t i = 0; i + 1 < sm->tx_count; i++) {
         if (cmd_count(sm->tx_fifo[i]) == 32u) {
             TEST_ASSERT_EQUAL_HEX32(OD_INV32(0xCAFEBABEu), sm->tx_fifo[i + 1]);
             found_data = true;
         }
-        if (cmd_count(sm->tx_fifo[i]) == 1u
-         && (sm->tx_fifo[i] >> 8) & 1u) {  // dir bit on → write mode SKIP or write_bits
+        if (cmd_count(sm->tx_fifo[i]) == 1u &&
+            (sm->tx_fifo[i] >> 8) & 1u) { // dir bit on → write mode SKIP or write_bits
             // After the 32-bit write, the next 1-bit command with
             // dir on is the parity bit. swd_phy_write_bits XOR-
             // inverts data before push (OD emulation), so the FIFO
@@ -262,8 +259,8 @@ static void test_abort_targets_dp_address_zero(void) {
     TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_abort(SWD_ABORT_DAPABORT));
     // Request for write to addr 0, APnDP=0:
     //   fields = 0; parity = 0; req = 0x81.
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
-    bool found = false;
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    bool found                  = false;
     for (uint32_t i = 0; i + 1 < sm->tx_count; i++) {
         if (cmd_count(sm->tx_fifo[i]) == 8u) {
             TEST_ASSERT_EQUAL_HEX8(OD_INV8(0x81u), (uint8_t)sm->tx_fifo[i + 1]);
@@ -283,8 +280,8 @@ static void test_ap_read_sets_apndp_bit_in_request(void) {
     push_parity(0u);
     uint32_t v = 0u;
     TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_ap_read(0x00u, &v));
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
-    bool found = false;
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    bool found                  = false;
     for (uint32_t i = 0; i + 1 < sm->tx_count; i++) {
         if (cmd_count(sm->tx_fifo[i]) == 8u) {
             TEST_ASSERT_EQUAL_HEX8(OD_INV8(0x87u), (uint8_t)sm->tx_fifo[i + 1]);
@@ -303,13 +300,13 @@ static void test_wakeup_emits_selection_alert_and_activation(void) {
     swd_dp_wakeup();
 
     // Each swd_phy_write_bits call emits command,data pairs.
-    assert_write_at(0u,  8u,  0xffu);
-    assert_write_at(2u,  32u, 0x6209f392u);
-    assert_write_at(4u,  32u, 0x86852d95u);
-    assert_write_at(6u,  32u, 0xe3ddafe9u);
-    assert_write_at(8u,  32u, 0x19bc0ea2u);
-    assert_write_at(10u, 4u,  0x0u);
-    assert_write_at(12u, 8u,  0x1au);
+    assert_write_at(0u, 8u, 0xffu);
+    assert_write_at(2u, 32u, 0x6209f392u);
+    assert_write_at(4u, 32u, 0x86852d95u);
+    assert_write_at(6u, 32u, 0xe3ddafe9u);
+    assert_write_at(8u, 32u, 0x19bc0ea2u);
+    assert_write_at(10u, 4u, 0x0u);
+    assert_write_at(12u, 8u, 0x1au);
 }
 
 static void test_switch_jtag_to_swd_emits_line_resets_and_command(void) {
@@ -333,7 +330,7 @@ static void test_request_idcode_reads_dpidr_and_emits_idle(void) {
     TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_request_idcode(&idcode));
     TEST_ASSERT_EQUAL_HEX32(0x0BC12477u, idcode);
 
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[PIO1].sm[SM0];
     assert_write_at(0u, 8u, 0xa5u);
     TEST_ASSERT_GREATER_OR_EQUAL_UINT32(2u, sm->tx_count);
     assert_write_at(sm->tx_count - 2u, 8u, 0x00u);
@@ -400,9 +397,9 @@ static void test_power_up_waits_until_both_acks_are_set(void) {
     // too, then return OK.
     push_ack(SWD_ACK_OK);
     push_ack(SWD_ACK_OK);
-    push_ctrlstat_read(0u);                         // poll 1: nothing
-    push_ctrlstat_read(SWD_CTRLSTAT_CDBGPWRUPACK);  // poll 2: half
-    push_ctrlstat_read(SWD_CTRLSTAT_PWRUP_ACK);     // poll 3: full
+    push_ctrlstat_read(0u);                        // poll 1: nothing
+    push_ctrlstat_read(SWD_CTRLSTAT_CDBGPWRUPACK); // poll 2: half
+    push_ctrlstat_read(SWD_CTRLSTAT_PWRUP_ACK);    // poll 3: full
     TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_power_up(0));
 }
 
@@ -411,7 +408,8 @@ static void test_power_up_times_out_returns_wait(void) {
     // (loop budget is per-call: pass max_retries=5).
     push_ack(SWD_ACK_OK);
     push_ack(SWD_ACK_OK);
-    for (uint32_t i = 0u; i < 5u; ++i) push_ctrlstat_read(0u);
+    for (uint32_t i = 0u; i < 5u; ++i)
+        push_ctrlstat_read(0u);
     TEST_ASSERT_EQUAL(SWD_ACK_WAIT, swd_dp_power_up(5u));
 }
 
@@ -423,42 +421,39 @@ static void test_power_up_propagates_abort_failure(void) {
 }
 
 static void test_power_up_propagates_ctrlstat_write_failure(void) {
-    push_ack(SWD_ACK_OK);     // abort OK
-    push_ack(SWD_ACK_WAIT);   // CTRLSTAT write WAITs
+    push_ack(SWD_ACK_OK);   // abort OK
+    push_ack(SWD_ACK_WAIT); // CTRLSTAT write WAITs
     TEST_ASSERT_EQUAL(SWD_ACK_WAIT, swd_dp_power_up(0));
 }
 
 static void test_power_up_propagates_ctrlstat_read_failure(void) {
-    push_ack(SWD_ACK_OK);     // abort OK
-    push_ack(SWD_ACK_OK);     // CTRLSTAT write OK
-    push_ack(SWD_ACK_FAULT);  // first poll FAULTs
+    push_ack(SWD_ACK_OK);    // abort OK
+    push_ack(SWD_ACK_OK);    // CTRLSTAT write OK
+    push_ack(SWD_ACK_FAULT); // first poll FAULTs
     TEST_ASSERT_EQUAL(SWD_ACK_FAULT, swd_dp_power_up(0));
 }
 
 static void test_power_up_writes_pwrup_req_to_ctrlstat(void) {
-    push_ack(SWD_ACK_OK);                        // abort
-    push_ack(SWD_ACK_OK);                        // write CTRLSTAT
-    push_ctrlstat_read(SWD_CTRLSTAT_PWRUP_ACK);  // poll OK
+    push_ack(SWD_ACK_OK);                       // abort
+    push_ack(SWD_ACK_OK);                       // write CTRLSTAT
+    push_ctrlstat_read(SWD_CTRLSTAT_PWRUP_ACK); // poll OK
     TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_power_up(0));
 
     // Scan the TX FIFO for the 32-bit data word that follows the
     // CTRLSTAT write request (request byte = 0xA9, write to addr 4).
     // The expected payload is SWD_CTRLSTAT_PWRUP_REQ = 0x50000000,
     // XOR-inverted by swd_phy_write_bits for OD emulation.
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
-    bool found_request = false;
-    bool found_payload = false;
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    bool found_request          = false;
+    bool found_payload          = false;
     for (uint32_t i = 0u; i + 1u < sm->tx_count; ++i) {
-        if (cmd_count(sm->tx_fifo[i]) == 8u
-            && (uint8_t)sm->tx_fifo[i + 1u] == OD_INV8(0xA9u)) {
+        if (cmd_count(sm->tx_fifo[i]) == 8u && (uint8_t)sm->tx_fifo[i + 1u] == OD_INV8(0xA9u)) {
             found_request = true;
             // The 32-bit data word lives at the next count==32 entry
             // after this request.
             for (uint32_t j = i + 2u; j + 1u < sm->tx_count; ++j) {
                 if (cmd_count(sm->tx_fifo[j]) == 32u) {
-                    TEST_ASSERT_EQUAL_HEX32(
-                        OD_INV32(SWD_CTRLSTAT_PWRUP_REQ),
-                        sm->tx_fifo[j + 1u]);
+                    TEST_ASSERT_EQUAL_HEX32(OD_INV32(SWD_CTRLSTAT_PWRUP_REQ), sm->tx_fifo[j + 1u]);
                     found_payload = true;
                     break;
                 }
@@ -471,24 +466,21 @@ static void test_power_up_writes_pwrup_req_to_ctrlstat(void) {
 }
 
 static void test_power_up_writes_sticky_clear_to_abort(void) {
-    push_ack(SWD_ACK_OK);                        // abort
-    push_ack(SWD_ACK_OK);                        // write CTRLSTAT
-    push_ctrlstat_read(SWD_CTRLSTAT_PWRUP_ACK);  // poll OK
+    push_ack(SWD_ACK_OK);                       // abort
+    push_ack(SWD_ACK_OK);                       // write CTRLSTAT
+    push_ctrlstat_read(SWD_CTRLSTAT_PWRUP_ACK); // poll OK
     TEST_ASSERT_EQUAL(SWD_ACK_OK, swd_dp_power_up(0));
 
     // ABORT write request byte = 0x81 (addr 0, write). Look for the
     // first 8-bit TX entry that matches that byte and check the 32-
     // bit payload that follows is SWD_ABORT_ALL_STKY_CLR (0x1E).
-    hal_fake_pio_sm_state_t *sm = &hal_fake_pio_insts[PIO1].sm[SM0];
-    bool found_payload = false;
+    hal_fake_pio_sm_state_t* sm = &hal_fake_pio_insts[PIO1].sm[SM0];
+    bool found_payload          = false;
     for (uint32_t i = 0u; i + 1u < sm->tx_count; ++i) {
-        if (cmd_count(sm->tx_fifo[i]) == 8u
-            && (uint8_t)sm->tx_fifo[i + 1u] == OD_INV8(0x81u)) {
+        if (cmd_count(sm->tx_fifo[i]) == 8u && (uint8_t)sm->tx_fifo[i + 1u] == OD_INV8(0x81u)) {
             for (uint32_t j = i + 2u; j + 1u < sm->tx_count; ++j) {
                 if (cmd_count(sm->tx_fifo[j]) == 32u) {
-                    TEST_ASSERT_EQUAL_HEX32(
-                        OD_INV32(SWD_ABORT_ALL_STKY_CLR),
-                        sm->tx_fifo[j + 1u]);
+                    TEST_ASSERT_EQUAL_HEX32(OD_INV32(SWD_ABORT_ALL_STKY_CLR), sm->tx_fifo[j + 1u]);
                     found_payload = true;
                     break;
                 }
@@ -507,7 +499,8 @@ static void test_power_up_default_retry_budget_when_max_retries_zero(void) {
     // implementation detail.
     push_ack(SWD_ACK_OK);
     push_ack(SWD_ACK_OK);
-    for (uint32_t i = 0u; i < 1000u; ++i) push_ctrlstat_read(0u);
+    for (uint32_t i = 0u; i < 1000u; ++i)
+        push_ctrlstat_read(0u);
     TEST_ASSERT_EQUAL(SWD_ACK_WAIT, swd_dp_power_up(0));
 }
 

@@ -26,9 +26,9 @@
 // phase. That is why the pulse test is deferred to F5, not F2.
 
 typedef enum {
-    CROWBAR_PATH_NONE = 0,  // both gates LOW — idle / safe
-    CROWBAR_PATH_LP   = 1,  // low-power path
-    CROWBAR_PATH_HP   = 2,  // high-power path (N-MOSFET)
+    CROWBAR_PATH_NONE = 0, // both gates LOW — idle / safe
+    CROWBAR_PATH_LP   = 1, // low-power path
+    CROWBAR_PATH_HP   = 2, // high-power path (N-MOSFET)
 } crowbar_path_t;
 
 // Configure GP17 (LP) and GP16 (HP) as outputs, both LOW. Must be

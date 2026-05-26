@@ -7,24 +7,26 @@
 
 typedef struct {
     uint8_t pin;
-    bool    pull_up;
-    bool    pull_down;
-    bool    pressed_level;  // the logical pin level that means "pressed"
+    bool pull_up;
+    bool pull_down;
+    bool pressed_level; // the logical pin level that means "pressed"
 } ui_button_config_t;
 
 static const ui_button_config_t s_cfg[UI_BTN_COUNT] = {
-    [UI_BTN_ARM] = {
-        .pin            = BOARD_GP_BTN_ARM,
-        .pull_up        = false,
-        .pull_down      = true,
-        .pressed_level  = true,    // active-high
-    },
-    [UI_BTN_PULSE] = {
-        .pin            = BOARD_GP_BTN_PULSE,
-        .pull_up        = true,
-        .pull_down      = false,
-        .pressed_level  = false,   // active-low
-    },
+    [UI_BTN_ARM] =
+        {
+            .pin           = BOARD_GP_BTN_ARM,
+            .pull_up       = false,
+            .pull_down     = true,
+            .pressed_level = true, // active-high
+        },
+    [UI_BTN_PULSE] =
+        {
+            .pin           = BOARD_GP_BTN_PULSE,
+            .pull_up       = true,
+            .pull_down     = false,
+            .pressed_level = false, // active-low
+        },
 };
 
 void ui_buttons_init(void) {

@@ -11,15 +11,15 @@
 #define HAL_FAKE_ADC_MAX_CHANNELS 8
 
 typedef struct {
-    bool     enabled;
+    bool enabled;
     uint16_t simulated_value;
     uint32_t read_calls;
     uint32_t enable_calls;
 } hal_fake_adc_channel_t;
 
-extern bool                     hal_fake_adc_initialized;
-extern uint32_t                 hal_fake_adc_init_calls;
-extern hal_fake_adc_channel_t   hal_fake_adc_channels[HAL_FAKE_ADC_MAX_CHANNELS];
+extern bool hal_fake_adc_initialized;
+extern uint32_t hal_fake_adc_init_calls;
+extern hal_fake_adc_channel_t hal_fake_adc_channels[HAL_FAKE_ADC_MAX_CHANNELS];
 
 void hal_fake_adc_reset(void);
 
@@ -28,12 +28,12 @@ void hal_fake_adc_reset(void);
 void hal_fake_adc_set_value(hal_adc_channel_t ch, uint16_t value);
 
 typedef struct {
-    bool     fifo_setup_called;
+    bool fifo_setup_called;
     hal_adc_fifo_cfg_t last_fifo_cfg;
     uint32_t clkdiv;
-    bool     running;
+    bool running;
     uint32_t run_calls;
-    uint8_t  selected_channel;
+    uint8_t selected_channel;
     uint32_t select_calls;
 } hal_fake_adc_extra_t;
 

@@ -23,9 +23,9 @@
 // Without the bump, write_frame's `len > MAX` guard silently rejected
 // the DRAIN reply and the host saw a timeout.
 
-#define CROWBAR_PROTO_SOF            0xFAu
-#define CROWBAR_PROTO_MAX_PAYLOAD    512u
-#define CROWBAR_PROTO_INTERBYTE_MS   100u
+#define CROWBAR_PROTO_SOF          0xFAu
+#define CROWBAR_PROTO_MAX_PAYLOAD  512u
+#define CROWBAR_PROTO_INTERBYTE_MS 100u
 
 typedef enum {
     CROWBAR_CMD_PING      = 0x01,
@@ -47,8 +47,8 @@ bool crowbar_proto_feed(uint8_t byte, uint32_t now_ms);
 // Act on the last-assembled frame. Writes the reply frame (including
 // SOF+CMD|0x80+LEN+PAYLOAD+CRC) into `reply` and returns its length.
 // Returns 0 if no reply is to be sent.
-size_t crowbar_proto_dispatch(uint8_t *reply, size_t reply_cap);
+size_t crowbar_proto_dispatch(uint8_t* reply, size_t reply_cap);
 
 // CRC-16/CCITT helper exposed for tests. Same polynomial/seed as
 // emfi_proto so a future refactor could share the helper.
-uint16_t crowbar_proto_crc16(const uint8_t *data, size_t len);
+uint16_t crowbar_proto_crc16(const uint8_t* data, size_t len);

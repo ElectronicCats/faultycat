@@ -24,6 +24,7 @@ or, if unset:
 A corrupt or unreadable file is treated as empty (we don't want a
 TUI launch to fail because the operator hand-edited the JSON wrong).
 """
+
 from __future__ import annotations
 
 import json

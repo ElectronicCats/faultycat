@@ -41,7 +41,7 @@
 // Post-fire cool-down. The legacy firmware forces 250 ms of dead
 // time after each pulse to let the cap fully bleed and the
 // operator's neurons catch up. Exposed so tests can assert it.
-#define EMFI_PULSE_COOLDOWN_MS  250u
+#define EMFI_PULSE_COOLDOWN_MS 250u
 
 // Configure GP14 as a plain GPIO output driven LOW. Must be called
 // before any fire. Safe to call repeatedly.
@@ -70,7 +70,7 @@ typedef struct hal_pio_inst hal_pio_inst_t;
 // transfers control of the HV pulse MOSFET to the PIO program —
 // make sure the PIO program holds GP14 LOW until the trigger/delay
 // phase completes. docs/SAFETY.md §3 #5 invariant fires in F4-5.
-bool emfi_pulse_attach_pio(hal_pio_inst_t *pio, uint32_t sm);
+bool emfi_pulse_attach_pio(hal_pio_inst_t* pio, uint32_t sm);
 
 // Return GP14 to plain-GPIO ownership driven LOW. Safe from any
 // state. No-op if not attached.

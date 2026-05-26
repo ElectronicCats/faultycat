@@ -2,9 +2,9 @@
 
 #include <string.h>
 
-bool                    hal_fake_adc_initialized;
-uint32_t                hal_fake_adc_init_calls;
-hal_fake_adc_channel_t  hal_fake_adc_channels[HAL_FAKE_ADC_MAX_CHANNELS];
+bool hal_fake_adc_initialized;
+uint32_t hal_fake_adc_init_calls;
+hal_fake_adc_channel_t hal_fake_adc_channels[HAL_FAKE_ADC_MAX_CHANNELS];
 
 void hal_fake_adc_reset(void) {
     hal_fake_adc_initialized = false;
@@ -43,8 +43,9 @@ uint16_t hal_adc_read(hal_adc_channel_t ch) {
 
 hal_fake_adc_extra_t hal_fake_adc_extra;
 
-void hal_adc_fifo_setup(const hal_adc_fifo_cfg_t *cfg) {
-    if (!cfg) return;
+void hal_adc_fifo_setup(const hal_adc_fifo_cfg_t* cfg) {
+    if (!cfg)
+        return;
     hal_fake_adc_extra.fifo_setup_called = true;
     hal_fake_adc_extra.last_fifo_cfg     = *cfg;
 }
@@ -58,9 +59,9 @@ void hal_adc_run(bool enabled) {
     hal_fake_adc_extra.run_calls++;
 }
 
-const volatile void *hal_adc_fifo_register(void) {
+const volatile void* hal_adc_fifo_register(void) {
     static volatile uint8_t fake_fifo;
-    return (const volatile void *)&fake_fifo;
+    return (const volatile void*)&fake_fifo;
 }
 
 void hal_adc_select_input(uint8_t channel) {

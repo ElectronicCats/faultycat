@@ -12,6 +12,7 @@ handles:
     ``request_cmd | 0x80`` (the firmware's reply convention from
     F4 onwards).
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -108,9 +109,7 @@ class BinaryProtoClient:
 
     def _require_serial(self) -> _SerialLike:
         if self._ser is None:
-            raise RuntimeError(
-                "client not open — use it as a context manager or call open() first"
-            )
+            raise RuntimeError("client not open — use it as a context manager or call open() first")
         return self._ser
 
     def _send(self, cmd: int, payload: bytes = b"") -> bytes:

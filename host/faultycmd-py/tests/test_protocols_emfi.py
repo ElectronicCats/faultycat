@@ -1,10 +1,10 @@
 """Unit tests for faultycmd.protocols.emfi."""
+
 from __future__ import annotations
 
 import struct
 
 import pytest
-
 from faultycmd.protocols import EmfiClient, EngineError
 from faultycmd.protocols.emfi import (
     CMD_CAPTURE,
@@ -17,6 +17,7 @@ from faultycmd.protocols.emfi import (
     EmfiState,
     EmfiTrigger,
 )
+
 from tests.conftest import FakeSerial, make_fake_factory
 
 
@@ -25,6 +26,7 @@ def _client(fake: FakeSerial) -> EmfiClient:
 
 
 # -- ping ---------------------------------------------------------
+
 
 def test_ping_round_trip():
     fake = FakeSerial()
@@ -40,6 +42,7 @@ def test_ping_round_trip():
 
 # -- configure ----------------------------------------------------
 
+
 def test_configure_packs_payload():
     fake = FakeSerial()
     fake.queue_reply(CMD_CONFIGURE, bytes([EmfiErr.NONE]))
@@ -51,7 +54,7 @@ def test_configure_packs_payload():
             charge_timeout_ms=500,
         )
     frames = fake.take_written_frames()
-    payload = frames[0][4:-2]   # strip SOF/CMD/LEN and CRC
+    payload = frames[0][4:-2]  # strip SOF/CMD/LEN and CRC
     assert payload[0] == int(EmfiTrigger.IMMEDIATE)
     assert struct.unpack("<III", payload[1:13]) == (1234, 5, 500)
 
@@ -65,6 +68,7 @@ def test_configure_engine_error_raises():
 
 
 # -- arm / fire / disarm -----------------------------------------
+
 
 def test_arm_ok():
     fake = FakeSerial()
@@ -101,10 +105,9 @@ def test_disarm_always_returns():
 
 # -- status -------------------------------------------------------
 
+
 def test_status_decodes_struct():
-    payload = bytes([EmfiState.FIRED, EmfiErr.NONE]) + struct.pack(
-        "<IIII", 12345, 8192, 5, 1000
-    )
+    payload = bytes([EmfiState.FIRED, EmfiErr.NONE]) + struct.pack("<IIII", 12345, 8192, 5, 1000)
     fake = FakeSerial()
     fake.queue_reply(CMD_STATUS, payload)
     with _client(fake) as cli:
@@ -125,6 +128,7 @@ def test_status_short_reply_raises():
 
 
 # -- capture ------------------------------------------------------
+
 
 def test_capture_returns_payload():
     body = bytes(range(64))
@@ -159,6 +163,7 @@ def test_capture_rejects_overflow_offset():
 
 
 # -- lifecycle ----------------------------------------------------
+
 
 def test_must_open_before_send():
     fake = FakeSerial()

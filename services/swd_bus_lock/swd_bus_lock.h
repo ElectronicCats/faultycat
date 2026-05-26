@@ -28,14 +28,14 @@
 // external host retries. Campaign and scanner never see "busy" —
 // they're operator-driven and don't run concurrently in normal use.
 
-#define SWD_BUS_TIMEOUT_NONE      0u
-#define SWD_BUS_TIMEOUT_FOREVER   0xFFFFFFFFu
+#define SWD_BUS_TIMEOUT_NONE    0u
+#define SWD_BUS_TIMEOUT_FOREVER 0xFFFFFFFFu
 
 typedef enum {
-    SWD_BUS_OWNER_IDLE     = 0,    // bus free
-    SWD_BUS_OWNER_CAMPAIGN = 1,    // glitch_engine post-fire SWD verify (F9)
-    SWD_BUS_OWNER_SCANNER  = 2,    // pinout_scanner during P(8,k) sweep (F8-2)
-    SWD_BUS_OWNER_DAPLINK  = 3,    // CMSIS-DAP from external host (F7)
+    SWD_BUS_OWNER_IDLE     = 0, // bus free
+    SWD_BUS_OWNER_CAMPAIGN = 1, // glitch_engine post-fire SWD verify (F9)
+    SWD_BUS_OWNER_SCANNER  = 2, // pinout_scanner during P(8,k) sweep (F8-2)
+    SWD_BUS_OWNER_DAPLINK  = 3, // CMSIS-DAP from external host (F7)
 } swd_bus_owner_t;
 
 // Reset to IDLE state. Safe to call repeatedly.

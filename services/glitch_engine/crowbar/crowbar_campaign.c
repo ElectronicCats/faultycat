@@ -7,10 +7,10 @@
 #include "hal/time.h"
 
 static crowbar_config_t s_cfg;
-static bool             s_cfg_valid = false;
+static bool s_cfg_valid = false;
 static crowbar_status_t s_status;
-static uint32_t         s_fire_start_ms;
-static uint32_t         s_fire_timeout_ms;
+static uint32_t s_fire_start_ms;
+static uint32_t s_fire_timeout_ms;
 
 static void reset_status(void) {
     memset(&s_status, 0, sizeof(s_status));
@@ -46,21 +46,28 @@ static bool valid_trigger(crowbar_trig_t t) {
     return false;
 }
 
-static bool validate_cfg(const crowbar_config_t *c) {
-    if (!c) return false;
-    if (!valid_trigger(c->trigger)) return false;
-    if (c->output != CROWBAR_OUT_LP && c->output != CROWBAR_OUT_HP) return false;
-    if (c->width_ns < CROWBAR_PIO_WIDTH_NS_MIN
-     || c->width_ns > CROWBAR_PIO_WIDTH_NS_MAX) return false;
-    if (c->delay_us > CROWBAR_PIO_DELAY_US_MAX) return false;
+static bool validate_cfg(const crowbar_config_t* c) {
+    if (!c)
+        return false;
+    if (!valid_trigger(c->trigger))
+        return false;
+    if (c->output != CROWBAR_OUT_LP && c->output != CROWBAR_OUT_HP)
+        return false;
+    if (c->width_ns < CROWBAR_PIO_WIDTH_NS_MIN || c->width_ns > CROWBAR_PIO_WIDTH_NS_MAX)
+        return false;
+    if (c->delay_us > CROWBAR_PIO_DELAY_US_MAX)
+        return false;
     return true;
 }
 
 static crowbar_path_t out_to_path(crowbar_out_t o) {
     switch (o) {
-        case CROWBAR_OUT_LP: return CROWBAR_PATH_LP;
-        case CROWBAR_OUT_HP: return CROWBAR_PATH_HP;
-        default:             return CROWBAR_PATH_NONE;
+        case CROWBAR_OUT_LP:
+            return CROWBAR_PATH_LP;
+        case CROWBAR_OUT_HP:
+            return CROWBAR_PATH_HP;
+        default:
+            return CROWBAR_PATH_NONE;
     }
 }
 
@@ -70,10 +77,11 @@ bool crowbar_campaign_init(void) {
     return true;
 }
 
-bool crowbar_campaign_configure(const crowbar_config_t *cfg) {
-    if (!validate_cfg(cfg)) return false;
-    s_cfg          = *cfg;
-    s_cfg_valid    = true;
+bool crowbar_campaign_configure(const crowbar_config_t* cfg) {
+    if (!validate_cfg(cfg))
+        return false;
+    s_cfg       = *cfg;
+    s_cfg_valid = true;
     // A fresh configure clears any stale ERROR so the operator does
     // not need to disarm explicitly to retry with new params.
     s_status.state = CROWBAR_STATE_IDLE;
@@ -86,8 +94,8 @@ bool crowbar_campaign_arm(void) {
         enter_error(CROWBAR_ERR_BAD_CONFIG);
         return false;
     }
-    if (s_status.state != CROWBAR_STATE_IDLE
-     && s_status.state != CROWBAR_STATE_FIRED) return false;
+    if (s_status.state != CROWBAR_STATE_IDLE && s_status.state != CROWBAR_STATE_FIRED)
+        return false;
 
     // First half of the gate hand-off invariant: declare ARMED only
     // after both gates are LOW. If something else (manual diag, demo
@@ -101,7 +109,8 @@ bool crowbar_campaign_arm(void) {
 }
 
 bool crowbar_campaign_fire(uint32_t trigger_timeout_ms) {
-    if (s_status.state != CROWBAR_STATE_ARMED) return false;
+    if (s_status.state != CROWBAR_STATE_ARMED)
+        return false;
 
     // Defense-in-depth: re-assert NONE right before the PIO grabs
     // the gate, in case anything changed driver state between arm()
@@ -160,7 +169,8 @@ static void tick_waiting(void) {
         s_status.state = CROWBAR_STATE_FIRED;
         return;
     }
-    if (s_fire_timeout_ms == 0u) return;   // 0 = wait forever
+    if (s_fire_timeout_ms == 0u)
+        return; // 0 = wait forever
     uint32_t elapsed = hal_now_ms() - s_fire_start_ms;
     if (elapsed > s_fire_timeout_ms) {
         enter_error(CROWBAR_ERR_TRIGGER_TIMEOUT);
@@ -169,12 +179,16 @@ static void tick_waiting(void) {
 
 void crowbar_campaign_tick(void) {
     switch (s_status.state) {
-        case CROWBAR_STATE_WAITING: tick_waiting(); break;
-        default: break;
+        case CROWBAR_STATE_WAITING:
+            tick_waiting();
+            break;
+        default:
+            break;
     }
 }
 
-void crowbar_campaign_get_status(crowbar_status_t *out) {
-    if (!out) return;
+void crowbar_campaign_get_status(crowbar_status_t* out) {
+    if (!out)
+        return;
     *out = s_status;
 }

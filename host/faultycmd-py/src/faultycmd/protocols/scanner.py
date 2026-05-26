@@ -27,6 +27,7 @@ the binary protocol from inside Python; the F10-2 campaign module
 handles its own binary surface and the BusPirate / serprog modes
 have native external clients (OpenOCD, flashrom).
 """
+
 from __future__ import annotations
 
 import re
@@ -122,13 +123,11 @@ class ScannerClient:
 
     @classmethod
     def discover(cls, **kw: object) -> ScannerClient:
-        return cls(cdc_for("scanner"), **kw)   # type: ignore[arg-type]
+        return cls(cdc_for("scanner"), **kw)  # type: ignore[arg-type]
 
     def _require_serial(self) -> _SerialLike:
         if self._ser is None:
-            raise RuntimeError(
-                "client not open — use as a context manager or call open() first"
-            )
+            raise RuntimeError("client not open — use as a context manager or call open() first")
         return self._ser
 
     # -- low-level send / receive -----------------------------------
@@ -222,8 +221,7 @@ class ScannerClient:
     #    if they were stable API.
     # ---------------------------------------------------------------
 
-    def _swd_init(self, swclk_gp: int = 0, swdio_gp: int = 1,
-                  nrst_gp: int | None = 2) -> str:
+    def _swd_init(self, swclk_gp: int = 0, swdio_gp: int = 1, nrst_gp: int | None = 2) -> str:
         if nrst_gp is None:
             cmd = f"swd init {swclk_gp} {swdio_gp}"
         else:
@@ -255,9 +253,7 @@ class ScannerClient:
         return line, _parse_hex_after(line, "]=")
 
     def _swd_write32(self, addr: int, value: int) -> str:
-        return self._expect_ok(
-            "SWD:", f"swd write32 0x{addr:08X} 0x{value:08X}"
-        )
+        return self._expect_ok("SWD:", f"swd write32 0x{addr:08X} 0x{value:08X}")
 
     def _swd_reset(self, asserted: bool) -> str:
         return self._expect_ok("SWD:", f"swd reset {1 if asserted else 0}")
@@ -265,7 +261,11 @@ class ScannerClient:
     # -- JTAG (F8-1) — WIP, hidden from public surface (F11). ---------
 
     def _jtag_init(
-        self, tdi: int, tdo: int, tms: int, tck: int,
+        self,
+        tdi: int,
+        tdo: int,
+        tms: int,
+        tck: int,
         trst: int | None = None,
     ) -> str:
         parts = ["jtag", "init", str(tdi), str(tdo), str(tms), str(tck)]
@@ -335,7 +335,10 @@ class ScannerClient:
 
     def buspirate_enter(
         self,
-        tdi: int = 0, tdo: int = 1, tms: int = 2, tck: int = 3,
+        tdi: int = 0,
+        tdo: int = 1,
+        tms: int = 2,
+        tck: int = 3,
     ) -> str:
         """Send `buspirate enter`. After this the operator points
         OpenOCD at the same port; the Python client should NOT keep
@@ -348,7 +351,10 @@ class ScannerClient:
 
     def serprog_enter(
         self,
-        cs: int = 0, mosi: int = 1, miso: int = 2, sck: int = 3,
+        cs: int = 0,
+        mosi: int = 1,
+        miso: int = 2,
+        sck: int = 3,
     ) -> str:
         """Send `serprog enter`. After this point flashrom at the
         same port. The firmware exits the binary mode automatically
@@ -399,7 +405,7 @@ def _parse_hex_after(line: str, marker: str) -> int | None:
     idx = line.find(marker)
     if idx < 0:
         return None
-    rest = line[idx + len(marker):].strip()
+    rest = line[idx + len(marker) :].strip()
     token = rest.split()[0] if rest else ""
     if not token:
         return None
@@ -414,7 +420,7 @@ def _parse_int_after(line: str, marker: str) -> int | None:
     idx = line.find(marker)
     if idx < 0:
         return None
-    rest = line[idx + len(marker):].strip()
+    rest = line[idx + len(marker) :].strip()
     token = rest.split()[0] if rest else ""
     if not token:
         return None

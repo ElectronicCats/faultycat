@@ -40,16 +40,16 @@
 // jtag_deinit.
 
 typedef struct {
-    void (*write_byte)(uint8_t b, void *user);
-    bool (*jtag_clock_bit)(bool tms, bool tdi, void *user);
-    void (*on_exit)(void *user);
-    void *user;
+    void (*write_byte)(uint8_t b, void* user);
+    bool (*jtag_clock_bit)(bool tms, bool tdi, void* user);
+    void (*on_exit)(void* user);
+    void* user;
 } buspirate_compat_callbacks_t;
 
 // Reset state to BBIO mode and stash the callback table. The state
 // machine starts in BBIO since that's what OpenOCD assumes when it
 // opens the port (it sends 0x00 ×25 expecting "BBIO1").
-void buspirate_compat_init(const buspirate_compat_callbacks_t *cb);
+void buspirate_compat_init(const buspirate_compat_callbacks_t* cb);
 
 // Feed one byte from the host. Internally invokes `write_byte` zero
 // or more times (for replies) and `jtag_clock_bit` zero or more
@@ -63,17 +63,17 @@ void buspirate_compat_feed_byte(uint8_t b);
 typedef enum {
     BUSPIRATE_BBIO_IDLE        = 0,
     BUSPIRATE_OCD_IDLE         = 1,
-    BUSPIRATE_OCD_PORT_MODE_1  = 2,   // CMD_PORT_MODE — consume 1 arg byte
-    BUSPIRATE_OCD_FEATURE_1    = 3,   // CMD_FEATURE — consume 2 arg bytes
+    BUSPIRATE_OCD_PORT_MODE_1  = 2, // CMD_PORT_MODE — consume 1 arg byte
+    BUSPIRATE_OCD_FEATURE_1    = 3, // CMD_FEATURE — consume 2 arg bytes
     BUSPIRATE_OCD_FEATURE_2    = 4,
-    BUSPIRATE_OCD_TAP_LEN_HI   = 5,   // CMD_TAP_SHIFT — 2-byte big-endian length
+    BUSPIRATE_OCD_TAP_LEN_HI   = 5, // CMD_TAP_SHIFT — 2-byte big-endian length
     BUSPIRATE_OCD_TAP_LEN_LO   = 6,
-    BUSPIRATE_OCD_TAP_TDI      = 7,   // streaming TDI/TMS pair bytes
+    BUSPIRATE_OCD_TAP_TDI      = 7, // streaming TDI/TMS pair bytes
     BUSPIRATE_OCD_TAP_TMS      = 8,
-    BUSPIRATE_OCD_UART_SPEED_1 = 9,   // CMD_UART_SPEED — consume 3 arg bytes
+    BUSPIRATE_OCD_UART_SPEED_1 = 9, // CMD_UART_SPEED — consume 3 arg bytes
     BUSPIRATE_OCD_UART_SPEED_2 = 10,
     BUSPIRATE_OCD_UART_SPEED_3 = 11,
-    BUSPIRATE_OCD_JTAG_SPEED_1 = 12,  // CMD_JTAG_SPEED — consume 2 arg bytes
+    BUSPIRATE_OCD_JTAG_SPEED_1 = 12, // CMD_JTAG_SPEED — consume 2 arg bytes
     BUSPIRATE_OCD_JTAG_SPEED_2 = 13,
 } buspirate_compat_state_t;
 

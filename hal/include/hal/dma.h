@@ -10,7 +10,7 @@
 // (later) services/glitch_engine/crowbar/. The RP2040 has 12 channels;
 // claim_unused walks the pool, nothing else is abstracted.
 
-typedef int hal_dma_channel_t;   // -1 == invalid
+typedef int hal_dma_channel_t; // -1 == invalid
 
 typedef enum {
     HAL_DMA_SIZE_8  = 0,
@@ -33,13 +33,13 @@ typedef enum {
 
 typedef struct {
     hal_dma_xfer_size_t size;
-    bool                read_increment;
-    bool                write_increment;
+    bool read_increment;
+    bool write_increment;
     // Ring-mode: when non-zero, write/read wraps every
     // (1 << ring_bits) bytes. 0 disables ring mode.
-    uint32_t            ring_bits;
-    bool                ring_on_write;   // true = ring dst, false = ring src
-    hal_dma_dreq_t      dreq;
+    uint32_t ring_bits;
+    bool ring_on_write; // true = ring dst, false = ring src
+    hal_dma_dreq_t dreq;
 } hal_dma_cfg_t;
 
 // Claim the first unused channel. Returns -1 if all 12 are busy.
@@ -48,9 +48,8 @@ void hal_dma_unclaim(hal_dma_channel_t ch);
 
 // Program the channel. If `start` is true the transfer begins
 // immediately; otherwise call hal_dma_start explicitly.
-void hal_dma_configure(hal_dma_channel_t ch, const hal_dma_cfg_t *cfg,
-                       volatile void *dst, const volatile void *src,
-                       uint32_t transfer_count, bool start);
+void hal_dma_configure(hal_dma_channel_t ch, const hal_dma_cfg_t* cfg, volatile void* dst,
+                       const volatile void* src, uint32_t transfer_count, bool start);
 
 void hal_dma_start(hal_dma_channel_t ch);
 void hal_dma_abort(hal_dma_channel_t ch);

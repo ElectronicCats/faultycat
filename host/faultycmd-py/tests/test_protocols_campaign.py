@@ -1,10 +1,10 @@
 """Unit tests for faultycmd.protocols.campaign."""
+
 from __future__ import annotations
 
 import struct
 
 import pytest
-
 from faultycmd.protocols import CampaignClient
 from faultycmd.protocols.campaign import (
     CMD_CONFIG,
@@ -20,16 +20,16 @@ from faultycmd.protocols.campaign import (
     CampaignState,
     ProtoStatus,
 )
+
 from tests.conftest import FakeSerial, make_fake_factory
 
 
 def _client(fake: FakeSerial, engine: str = "crowbar") -> CampaignClient:
-    return CampaignClient(
-        "/dev/null", engine=engine, serial_factory=make_fake_factory(fake)
-    )
+    return CampaignClient("/dev/null", engine=engine, serial_factory=make_fake_factory(fake))
 
 
 # -- configure ----------------------------------------------------
+
 
 def test_configure_packs_40_byte_payload():
     fake = FakeSerial()
@@ -52,11 +52,12 @@ def test_configure_rejected_raises():
     fake = FakeSerial()
     fake.queue_reply(CMD_CONFIG, bytes([ProtoStatus.ERR_REJECTED]))
     with _client(fake) as cli, pytest.raises(CampaignError) as ei:
-        cli.configure((100, 50, 1), (1, 1, 0), (0, 0, 0))   # inverted
+        cli.configure((100, 50, 1), (1, 1, 0), (0, 0, 0))  # inverted
     assert ei.value.status_code == ProtoStatus.ERR_REJECTED
 
 
 # -- start / stop --------------------------------------------------
+
 
 def test_start_ok():
     fake = FakeSerial()
@@ -81,23 +82,29 @@ def test_stop_always_ok():
 
 # -- status --------------------------------------------------------
 
+
 def _status_payload(
     state: int = CampaignState.SWEEPING,
     err: int = CampaignErr.NONE,
-    step_n: int = 0, total: int = 6,
-    pushed: int = 0, dropped: int = 0,
+    step_n: int = 0,
+    total: int = 6,
+    pushed: int = 0,
+    dropped: int = 0,
 ) -> bytes:
-    return (
-        bytes([state, err, 0, 0])
-        + struct.pack("<4I", step_n, total, pushed, dropped)
-    )
+    return bytes([state, err, 0, 0]) + struct.pack("<4I", step_n, total, pushed, dropped)
 
 
 def test_status_decodes():
     fake = FakeSerial()
-    fake.queue_reply(CMD_STATUS, _status_payload(
-        state=CampaignState.SWEEPING, step_n=2, total=6, pushed=2,
-    ))
+    fake.queue_reply(
+        CMD_STATUS,
+        _status_payload(
+            state=CampaignState.SWEEPING,
+            step_n=2,
+            total=6,
+            pushed=2,
+        ),
+    )
     with _client(fake) as cli:
         st = cli.status()
     assert st.state == CampaignState.SWEEPING
@@ -115,9 +122,17 @@ def test_status_short_reply_raises():
 
 # -- drain ---------------------------------------------------------
 
-def _record_bytes(step_n: int, delay: int, width: int, power: int,
-                  fire: int = 0, verify: int = 0,
-                  target: int = 0, ts_us: int = 0) -> bytes:
+
+def _record_bytes(
+    step_n: int,
+    delay: int,
+    width: int,
+    power: int,
+    fire: int = 0,
+    verify: int = 0,
+    target: int = 0,
+    ts_us: int = 0,
+) -> bytes:
     return (
         struct.pack("<4I", step_n, delay, width, power)
         + bytes([fire, verify, 0, 0])
@@ -152,7 +167,7 @@ def test_drain_clamps_max_count():
     fake = FakeSerial()
     fake.queue_reply(CMD_DRAIN, bytes([0]))
     with _client(fake) as cli:
-        cli.drain(max_count=100)   # request 100 → clamps to 18
+        cli.drain(max_count=100)  # request 100 → clamps to 18
     frames = fake.take_written_frames()
     payload = frames[0][4:-2]
     assert payload[0] == DRAIN_MAX_COUNT
@@ -180,6 +195,7 @@ def test_drain_all_iterates_until_short():
 
 
 # -- engine field carried on construction --------------------------
+
 
 def test_engine_field_propagates():
     fake = FakeSerial()

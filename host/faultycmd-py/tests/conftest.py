@@ -1,6 +1,7 @@
 """Shared test fixtures — FakeSerial + frame builders for reply
 scripts that match what the firmware would emit.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -80,6 +81,8 @@ class FakeSerial:
 def make_fake_factory(fake: FakeSerial):
     """Returns a serial_factory callable that always hands back the
     same :class:`FakeSerial` instance regardless of port/baud."""
+
     def factory(port: str, baud: int, per_byte_timeout: float):
         return fake
+
     return factory

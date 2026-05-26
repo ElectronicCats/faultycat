@@ -13,12 +13,12 @@
 // without sharing an interrupt flag.
 // ---------------------------------------------------------------------------
 
-#define OP_PULL_BLOCK      0x80A0u
-#define OP_OUT_Y_32        0x6040u
-#define OP_WAIT_0_PIN0     0x2020u
-#define OP_WAIT_1_PIN0     0x20A0u
-#define OP_SET_PIN_HIGH    0xE001u
-#define OP_SET_PIN_LOW     0xE000u
+#define OP_PULL_BLOCK   0x80A0u
+#define OP_OUT_Y_32     0x6040u
+#define OP_WAIT_0_PIN0  0x2020u
+#define OP_WAIT_1_PIN0  0x20A0u
+#define OP_SET_PIN_HIGH 0xE001u
+#define OP_SET_PIN_LOW  0xE000u
 // SET PINDIRS, 1 — drives the SM-controlled pin to OUTPUT. Encoded
 // as SET (1110) with destination = PINDIRS (100, bits 7:5) and
 // value = 1 (bits 4:0). Programmed as the first instruction of
@@ -37,9 +37,9 @@ static inline uint16_t op_jmp_y_dec(uint8_t addr) {
 // Clock — 125 MHz / 1.0 = 125 MHz PIO clock. 1 instr = 8 ns nominal.
 // width_ns is in ns; delay_us is in microseconds (matches EMFI).
 // ---------------------------------------------------------------------------
-#define CROWBAR_PIO_CLK_DIV       1.0f
-#define CROWBAR_PIO_NS_PER_TICK   8u
-#define CROWBAR_PIO_TICKS_PER_US  125u
+#define CROWBAR_PIO_CLK_DIV      1.0f
+#define CROWBAR_PIO_NS_PER_TICK  8u
+#define CROWBAR_PIO_TICKS_PER_US 125u
 
 // ---------------------------------------------------------------------------
 // Program layout (mirror of emfi_pio, plus a leading SET PINDIRS):
@@ -74,25 +74,28 @@ static inline uint16_t op_jmp_y_dec(uint8_t addr) {
 
 static uint16_t s_prog[24];
 static uint32_t s_prog_len;
-static hal_pio_inst_t *s_pio = NULL;
-static uint32_t s_sm        = 1u;     // SM 0 belongs to EMFI; crowbar uses SM 1.
-static uint32_t s_offset    = 0;
-static bool     s_claimed   = false;
-static bool     s_loaded    = false;
-static crowbar_out_t s_out  = CROWBAR_OUT_NONE;
+static hal_pio_inst_t* s_pio = NULL;
+static uint32_t s_sm         = 1u; // SM 0 belongs to EMFI; crowbar uses SM 1.
+static uint32_t s_offset     = 0;
+static bool s_claimed        = false;
+static bool s_loaded         = false;
+static crowbar_out_t s_out   = CROWBAR_OUT_NONE;
 
 static uint32_t s_delay_ticks;
 static uint32_t s_width_ticks;
 
 static uint32_t pin_for_output(crowbar_out_t out) {
     switch (out) {
-        case CROWBAR_OUT_LP: return BOARD_GP_CROWBAR_LP;
-        case CROWBAR_OUT_HP: return BOARD_GP_CROWBAR_HP;
-        default:             return 0xFFFFFFFFu;
+        case CROWBAR_OUT_LP:
+            return BOARD_GP_CROWBAR_LP;
+        case CROWBAR_OUT_HP:
+            return BOARD_GP_CROWBAR_HP;
+        default:
+            return 0xFFFFFFFFu;
     }
 }
 
-static uint32_t compile_trigger_block(uint16_t *out, crowbar_trig_t t) {
+static uint32_t compile_trigger_block(uint16_t* out, crowbar_trig_t t) {
     switch (t) {
         case CROWBAR_TRIG_IMMEDIATE:
             return 0;
@@ -122,27 +125,29 @@ static uint32_t compile_trigger_block(uint16_t *out, crowbar_trig_t t) {
     return 0;
 }
 
-static void build_program(const crowbar_pio_params_t *p) {
-    s_prog_len = 0;
+static void build_program(const crowbar_pio_params_t* p) {
+    s_prog_len           = 0;
     s_prog[s_prog_len++] = OP_SET_PINDIRS_OUT;
     s_prog[s_prog_len++] = OP_PULL_BLOCK;
     s_prog[s_prog_len++] = OP_OUT_Y_32;
     s_prog_len += compile_trigger_block(&s_prog[s_prog_len], p->trigger);
     uint8_t delay_loop_addr = (uint8_t)s_prog_len;
-    s_prog[s_prog_len++] = op_jmp_y_dec(delay_loop_addr);
-    s_prog[s_prog_len++] = OP_PULL_BLOCK;
-    s_prog[s_prog_len++] = OP_OUT_Y_32;
-    s_prog[s_prog_len++] = OP_SET_PIN_HIGH;
-    uint8_t hold_loop_addr = (uint8_t)s_prog_len;
-    s_prog[s_prog_len++] = op_jmp_y_dec(hold_loop_addr);
-    s_prog[s_prog_len++] = OP_SET_PIN_LOW;
-    s_prog[s_prog_len++] = OP_IRQ1;
+    s_prog[s_prog_len++]    = op_jmp_y_dec(delay_loop_addr);
+    s_prog[s_prog_len++]    = OP_PULL_BLOCK;
+    s_prog[s_prog_len++]    = OP_OUT_Y_32;
+    s_prog[s_prog_len++]    = OP_SET_PIN_HIGH;
+    uint8_t hold_loop_addr  = (uint8_t)s_prog_len;
+    s_prog[s_prog_len++]    = op_jmp_y_dec(hold_loop_addr);
+    s_prog[s_prog_len++]    = OP_SET_PIN_LOW;
+    s_prog[s_prog_len++]    = OP_IRQ1;
 }
 
 bool crowbar_pio_init(void) {
     s_pio = hal_pio_instance(0);
-    if (!s_pio) return false;
-    if (!hal_pio_claim_sm(s_pio, 1u)) return false;
+    if (!s_pio)
+        return false;
+    if (!hal_pio_claim_sm(s_pio, 1u))
+        return false;
     s_sm      = 1u;
     s_claimed = true;
     s_loaded  = false;
@@ -164,11 +169,10 @@ bool crowbar_pio_init(void) {
 }
 
 void crowbar_pio_deinit(void) {
-    if (!s_claimed) return;
+    if (!s_claimed)
+        return;
     if (s_loaded) {
-        hal_pio_program_t prog = { .instructions = s_prog,
-                                   .length       = s_prog_len,
-                                   .origin       = -1 };
+        hal_pio_program_t prog = {.instructions = s_prog, .length = s_prog_len, .origin = -1};
         hal_pio_remove_program(s_pio, &prog, s_offset);
         s_loaded = false;
     }
@@ -192,26 +196,26 @@ void crowbar_pio_deinit(void) {
     s_out     = CROWBAR_OUT_NONE;
 }
 
-bool crowbar_pio_load(const crowbar_pio_params_t *p) {
-    if (!s_claimed || !p) return false;
-    if (p->output != CROWBAR_OUT_LP && p->output != CROWBAR_OUT_HP) return false;
-    if (p->width_ns < CROWBAR_PIO_WIDTH_NS_MIN
-     || p->width_ns > CROWBAR_PIO_WIDTH_NS_MAX) return false;
-    if (p->delay_us > CROWBAR_PIO_DELAY_US_MAX) return false;
+bool crowbar_pio_load(const crowbar_pio_params_t* p) {
+    if (!s_claimed || !p)
+        return false;
+    if (p->output != CROWBAR_OUT_LP && p->output != CROWBAR_OUT_HP)
+        return false;
+    if (p->width_ns < CROWBAR_PIO_WIDTH_NS_MIN || p->width_ns > CROWBAR_PIO_WIDTH_NS_MAX)
+        return false;
+    if (p->delay_us > CROWBAR_PIO_DELAY_US_MAX)
+        return false;
 
     build_program(p);
     if (s_loaded) {
-        hal_pio_program_t old = { .instructions = s_prog,
-                                  .length       = s_prog_len,
-                                  .origin       = -1 };
+        hal_pio_program_t old = {.instructions = s_prog, .length = s_prog_len, .origin = -1};
         hal_pio_remove_program(s_pio, &old, s_offset);
         s_loaded = false;
     }
 
-    hal_pio_program_t prog = { .instructions = s_prog,
-                               .length       = s_prog_len,
-                               .origin       = -1 };
-    if (!hal_pio_add_program(s_pio, &prog, &s_offset)) return false;
+    hal_pio_program_t prog = {.instructions = s_prog, .length = s_prog_len, .origin = -1};
+    if (!hal_pio_add_program(s_pio, &prog, &s_offset))
+        return false;
     s_loaded = true;
     s_out    = p->output;
 
@@ -222,13 +226,13 @@ bool crowbar_pio_load(const crowbar_pio_params_t *p) {
     // program-layout comment above for the rationale.
 
     hal_pio_sm_cfg_t cfg = {
-        .set_pin_base     = pin,
-        .set_pin_count    = 1,
-        .sideset_pin_base = 0,
-        .sideset_pin_count= 0,
-        .in_pin_base      = BOARD_GP_EXT_TRIGGER,
-        .in_pin_count     = 1,
-        .clk_div          = CROWBAR_PIO_CLK_DIV,
+        .set_pin_base      = pin,
+        .set_pin_count     = 1,
+        .sideset_pin_base  = 0,
+        .sideset_pin_count = 0,
+        .in_pin_base       = BOARD_GP_EXT_TRIGGER,
+        .in_pin_count      = 1,
+        .clk_div           = CROWBAR_PIO_CLK_DIV,
     };
     hal_pio_sm_configure(s_pio, s_sm, s_offset, &cfg);
     hal_pio_sm_clear_fifos(s_pio, s_sm);
@@ -240,14 +244,15 @@ bool crowbar_pio_load(const crowbar_pio_params_t *p) {
     // Round up — width_ns of 9 should still produce at least 2 ticks
     // so the pulse hold loop runs once. Floor-by-8 would silently
     // drop sub-tick increments and surprise the operator.
-    s_width_ticks = (p->width_ns + CROWBAR_PIO_NS_PER_TICK - 1u)
-                  / CROWBAR_PIO_NS_PER_TICK;
-    if (s_width_ticks == 0u) s_width_ticks = 1u;
+    s_width_ticks = (p->width_ns + CROWBAR_PIO_NS_PER_TICK - 1u) / CROWBAR_PIO_NS_PER_TICK;
+    if (s_width_ticks == 0u)
+        s_width_ticks = 1u;
     return true;
 }
 
 bool crowbar_pio_start(void) {
-    if (!s_claimed || !s_loaded) return false;
+    if (!s_claimed || !s_loaded)
+        return false;
     hal_pio_sm_put_blocking(s_pio, s_sm, s_delay_ticks);
     hal_pio_sm_put_blocking(s_pio, s_sm, s_width_ticks);
     hal_pio_sm_set_enabled(s_pio, s_sm, true);
@@ -255,12 +260,14 @@ bool crowbar_pio_start(void) {
 }
 
 bool crowbar_pio_is_done(void) {
-    if (!s_claimed) return false;
+    if (!s_claimed)
+        return false;
     return hal_pio_irq_get(s_pio, 1u);
 }
 
 void crowbar_pio_clear_done(void) {
-    if (!s_claimed) return;
+    if (!s_claimed)
+        return;
     hal_pio_irq_clear(s_pio, 1u);
     hal_pio_sm_set_enabled(s_pio, s_sm, false);
 }

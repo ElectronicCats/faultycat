@@ -10,6 +10,7 @@ Wire layout per ``services/host_proto/emfi_proto/emfi_proto.h``::
     STATUS (0x14)      in: -                       out: 18 B status
     CAPTURE (0x15)     in: 2×u16 LE off+len        out: <len> B
 """
+
 from __future__ import annotations
 
 import struct
@@ -22,21 +23,21 @@ from ._base import BinaryProtoClient, EngineError
 
 # -- opcodes (mirror emfi_proto.h) ------------------------------------
 
-CMD_PING      = 0x01
+CMD_PING = 0x01
 CMD_CONFIGURE = 0x10
-CMD_ARM       = 0x11
-CMD_FIRE      = 0x12
-CMD_DISARM    = 0x13
-CMD_STATUS    = 0x14
-CMD_CAPTURE   = 0x15
+CMD_ARM = 0x11
+CMD_FIRE = 0x12
+CMD_DISARM = 0x13
+CMD_STATUS = 0x14
+CMD_CAPTURE = 0x15
 
 
 class EmfiTrigger(IntEnum):
     """``emfi_trig_t`` from services/glitch_engine/emfi/emfi_pio.h."""
 
-    IMMEDIATE     = 0
-    EXT_RISING    = 1
-    EXT_FALLING   = 2
+    IMMEDIATE = 0
+    EXT_RISING = 1
+    EXT_FALLING = 2
     EXT_PULSE_POS = 3
     EXT_PULSE_NEG = 4
 
@@ -44,23 +45,23 @@ class EmfiTrigger(IntEnum):
 class EmfiState(IntEnum):
     """``emfi_state_t`` from services/glitch_engine/emfi/emfi_campaign.h."""
 
-    IDLE    = 0
-    ARMING  = 1
+    IDLE = 0
+    ARMING = 1
     CHARGED = 2
     WAITING = 3
-    FIRED   = 4
-    ERROR   = 5
+    FIRED = 4
+    ERROR = 5
 
 
 class EmfiErr(IntEnum):
     """``emfi_err_t``."""
 
-    NONE             = 0
-    BAD_CONFIG       = 1
-    HV_NOT_CHARGED   = 2
-    TRIGGER_TIMEOUT  = 3
-    PIO_FAULT        = 4
-    INTERNAL         = 5
+    NONE = 0
+    BAD_CONFIG = 1
+    HV_NOT_CHARGED = 2
+    TRIGGER_TIMEOUT = 3
+    PIO_FAULT = 4
+    INTERNAL = 5
 
 
 @dataclass
@@ -79,7 +80,7 @@ class EmfiClient(BinaryProtoClient):
     @classmethod
     def discover(cls, **kw: object) -> EmfiClient:
         """Construct with the default CDC0 port via :func:`usb.cdc_for`."""
-        return cls(cdc_for("emfi"), **kw)   # type: ignore[arg-type]
+        return cls(cdc_for("emfi"), **kw)  # type: ignore[arg-type]
 
     # -- ops ----------------------------------------------------------
 
@@ -96,9 +97,7 @@ class EmfiClient(BinaryProtoClient):
     ) -> None:
         """Configure the next fire path. Raises :class:`EngineError`
         if the firmware rejects the params (typically BAD_CONFIG)."""
-        payload = bytes([int(trigger)]) + struct.pack(
-            "<III", delay_us, width_us, charge_timeout_ms
-        )
+        payload = bytes([int(trigger)]) + struct.pack("<III", delay_us, width_us, charge_timeout_ms)
         self._raise_on_err(self._send(CMD_CONFIGURE, payload))
 
     def arm(self) -> None:
@@ -111,7 +110,7 @@ class EmfiClient(BinaryProtoClient):
 
     def disarm(self) -> None:
         """Hard-disarm (drops HV PWM, resets state)."""
-        self._send(CMD_DISARM)   # firmware always replies err=NONE
+        self._send(CMD_DISARM)  # firmware always replies err=NONE
 
     def status(self) -> EmfiStatus:
         rpl = self._send(CMD_STATUS)
@@ -121,7 +120,7 @@ class EmfiClient(BinaryProtoClient):
         last, fill, width_actual, delay_actual = struct.unpack("<IIII", rpl[2:18])
         return EmfiStatus(
             state=EmfiState(state) if state in EmfiState._value2member_map_ else state,  # type: ignore[arg-type]
-            err=EmfiErr(err) if err in EmfiErr._value2member_map_ else err,              # type: ignore[arg-type]
+            err=EmfiErr(err) if err in EmfiErr._value2member_map_ else err,  # type: ignore[arg-type]
             last_fire_at_ms=last,
             capture_fill=fill,
             pulse_width_us_actual=width_actual,

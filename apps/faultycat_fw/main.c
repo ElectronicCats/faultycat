@@ -44,9 +44,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BUTTON_POLL_PERIOD_MS    20u
-#define SNAPSHOT_PERIOD_MS       500u
-#define EMFI_MANUAL_WIDTH_US     5u
+#define BUTTON_POLL_PERIOD_MS 20u
+#define SNAPSHOT_PERIOD_MS    500u
+#define EMFI_MANUAL_WIDTH_US  5u
 
 // F11 release: the JTAG sub-shell + direct-SWD sub-shell + `scan jtag`
 // are WIP and hidden from the public surface (see `shell_help` and
@@ -55,7 +55,7 @@
 // without dispatcher entries the compiler treats them as unused, which
 // becomes a hard error under `-Wunused-function -Werror`. Mark them
 // `FW_WIP_UNUSED` so they survive the cut without warnings.
-#define FW_WIP_UNUSED  __attribute__((unused))
+#define FW_WIP_UNUSED __attribute__((unused))
 
 // Shell input modes — F8-3 introduced the dispatcher, F8-4 plugs in
 // the BusPirate binary parser, F8-5 will plug in serprog. While in a
@@ -64,9 +64,9 @@
 // doesn't shred the binary protocol. Declared this high in the file
 // so diag_printf (just below) can see it.
 typedef enum {
-    SHELL_MODE_TEXT       = 0,
-    SHELL_MODE_BUSPIRATE  = 1,
-    SHELL_MODE_SERPROG    = 2,
+    SHELL_MODE_TEXT      = 0,
+    SHELL_MODE_BUSPIRATE = 1,
+    SHELL_MODE_SERPROG   = 2,
 } shell_mode_t;
 
 static shell_mode_t s_shell_mode = SHELL_MODE_TEXT;
@@ -76,7 +76,7 @@ static shell_mode_t s_shell_mode = SHELL_MODE_TEXT;
 // drops on a full TX FIFO, which is the right behaviour for diagnostics.
 // -----------------------------------------------------------------------------
 
-static void diag_printf(const char *fmt, ...) {
+static void diag_printf(const char* fmt, ...) {
     if (!usb_composite_cdc_connected(USB_CDC_SCANNER)) {
         return;
     }
@@ -142,25 +142,28 @@ static void diag_banner(void) {
 // F8-4 / F8-5 to plug in without further surgery on this file.
 // -----------------------------------------------------------------------------
 
-#define SHELL_BUF_LEN  96u
+#define SHELL_BUF_LEN 96u
 
-static char     shell_buf[SHELL_BUF_LEN];
-static uint16_t shell_pos = 0u;
-static bool     swd_shell_inited = false;
+static char shell_buf[SHELL_BUF_LEN];
+static uint16_t shell_pos    = 0u;
+static bool swd_shell_inited = false;
 
-static void shell_print(const char *s) {
-    if (!s) return;
+static void shell_print(const char* s) {
+    if (!s)
+        return;
     usb_composite_cdc_write(USB_CDC_SCANNER, s, strlen(s));
 }
 
-static void shell_printf(const char *fmt, ...) {
+static void shell_printf(const char* fmt, ...) {
     char buf[96];
     va_list ap;
     va_start(ap, fmt);
     int n = vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
-    if (n <= 0) return;
-    if (n >= (int)sizeof(buf)) n = (int)sizeof(buf) - 1;
+    if (n <= 0)
+        return;
+    if (n >= (int)sizeof(buf))
+        n = (int)sizeof(buf) - 1;
     usb_composite_cdc_write(USB_CDC_SCANNER, buf, (size_t)n);
 }
 
@@ -173,23 +176,32 @@ static void shell_help(void) {
     shell_print("SHELL:   campaign status                              show state + counters\n");
     shell_print("SHELL:   campaign stop                                halt running sweep\n");
     shell_print("SHELL:   campaign drain [<n>]                         pop up to N results\n");
-    shell_print("SHELL:   campaign demo crowbar                        6-step LP sweep (HV-safe)\n");
+    shell_print(
+        "SHELL:   campaign demo crowbar                        6-step LP sweep (HV-safe)\n");
     shell_print("SHELL: --- Mode switches (binary protocols) ---\n");
-    shell_print("SHELL:   buspirate enter [<tdi> <tdo> <tms> <tck>]    OpenOCD via BPv1 binary (F8-4)\n");
-    shell_print("SHELL:                                                defaults: 0 1 2 3, exit with 0x0F\n");
+    shell_print(
+        "SHELL:   buspirate enter [<tdi> <tdo> <tms> <tck>]    OpenOCD via BPv1 binary (F8-4)\n");
+    shell_print("SHELL:                                                defaults: 0 1 2 3, exit "
+                "with 0x0F\n");
     shell_print("SHELL:   serprog enter [<cs> <mosi> <miso> <sck>]     flashrom serprog (F8-5)\n");
-    shell_print("SHELL:                                                defaults: 0 1 2 3, exit on host disconnect\n");
+    shell_print("SHELL:                                                defaults: 0 1 2 3, exit on "
+                "host disconnect\n");
     shell_print("SHELL: NOTE: JTAG and direct-SWD verbs (jtag *, swd *, scan jtag) are\n");
     shell_print("SHELL:       WIP and disabled in this release — they will respond `ERR wip`.\n");
 }
 
-static FW_WIP_UNUSED const char *ack_label(swd_dp_ack_t a) {
+static FW_WIP_UNUSED const char* ack_label(swd_dp_ack_t a) {
     switch (a) {
-        case SWD_ACK_OK:           return "OK";
-        case SWD_ACK_WAIT:         return "WAIT";
-        case SWD_ACK_FAULT:        return "FAULT";
-        case SWD_ACK_PARITY_ERR:   return "PARITY_ERR";
-        case SWD_ACK_NO_TARGET:    return "NO_TARGET";
+        case SWD_ACK_OK:
+            return "OK";
+        case SWD_ACK_WAIT:
+            return "WAIT";
+        case SWD_ACK_FAULT:
+            return "FAULT";
+        case SWD_ACK_PARITY_ERR:
+            return "PARITY_ERR";
+        case SWD_ACK_NO_TARGET:
+            return "NO_TARGET";
     }
     return "UNKNOWN";
 }
@@ -198,10 +210,9 @@ static FW_WIP_UNUSED const char *ack_label(swd_dp_ack_t a) {
 // the scanner-header defaults if the operator hasn't called
 // `swd init` yet. Saves typing in the common case.
 static FW_WIP_UNUSED bool ensure_inited(void) {
-    if (swd_shell_inited) return true;
-    if (!swd_phy_init(BOARD_GP_SWCLK_DEFAULT,
-                      BOARD_GP_SWDIO_DEFAULT,
-                      BOARD_GP_SWRST_DEFAULT)) {
+    if (swd_shell_inited)
+        return true;
+    if (!swd_phy_init(BOARD_GP_SWCLK_DEFAULT, BOARD_GP_SWDIO_DEFAULT, BOARD_GP_SWRST_DEFAULT)) {
         shell_print("SWD: ERR phy_init_failed\n");
         return false;
     }
@@ -209,7 +220,7 @@ static FW_WIP_UNUSED bool ensure_inited(void) {
     return true;
 }
 
-static FW_WIP_UNUSED void cmd_init(int argc, char **argv) {
+static FW_WIP_UNUSED void cmd_init(int argc, char** argv) {
     // F8-1 soft-lock: SWD and JTAG share GP0..GP7. Refuse SWD init
     // while JTAG owns the bus instead of silently corrupting both.
     if (jtag_is_inited()) {
@@ -220,19 +231,15 @@ static FW_WIP_UNUSED void cmd_init(int argc, char **argv) {
         swd_phy_deinit();
         swd_shell_inited = false;
     }
-    uint8_t swclk = (argc >= 3) ? (uint8_t)strtoul(argv[2], NULL, 0)
-                                : BOARD_GP_SWCLK_DEFAULT;
-    uint8_t swdio = (argc >= 4) ? (uint8_t)strtoul(argv[3], NULL, 0)
-                                : BOARD_GP_SWDIO_DEFAULT;
-    int8_t  nrst  = (argc >= 5) ? (int8_t)strtol(argv[4], NULL, 0)
-                                : (int8_t)BOARD_GP_SWRST_DEFAULT;
+    uint8_t swclk = (argc >= 3) ? (uint8_t)strtoul(argv[2], NULL, 0) : BOARD_GP_SWCLK_DEFAULT;
+    uint8_t swdio = (argc >= 4) ? (uint8_t)strtoul(argv[3], NULL, 0) : BOARD_GP_SWDIO_DEFAULT;
+    int8_t nrst   = (argc >= 5) ? (int8_t)strtol(argv[4], NULL, 0) : (int8_t)BOARD_GP_SWRST_DEFAULT;
     if (!swd_phy_init(swclk, swdio, nrst)) {
         shell_print("SWD: ERR phy_init_failed\n");
         return;
     }
     swd_shell_inited = true;
-    shell_printf("SWD: OK init swclk=GP%u swdio=GP%u nrst=%d\n",
-               swclk, swdio, nrst);
+    shell_printf("SWD: OK init swclk=GP%u swdio=GP%u nrst=%d\n", swclk, swdio, nrst);
 }
 
 static FW_WIP_UNUSED void cmd_deinit(void) {
@@ -245,20 +252,22 @@ static FW_WIP_UNUSED void cmd_deinit(void) {
     shell_print("SWD: OK deinit\n");
 }
 
-static FW_WIP_UNUSED void cmd_freq(int argc, char **argv) {
+static FW_WIP_UNUSED void cmd_freq(int argc, char** argv) {
     if (argc < 3) {
         shell_print("SWD: ERR missing_khz\n");
         return;
     }
-    if (!ensure_inited()) return;
+    if (!ensure_inited())
+        return;
     uint32_t khz = (uint32_t)strtoul(argv[2], NULL, 0);
     swd_phy_set_clk_khz(khz);
     shell_printf("SWD: OK freq %u khz (clamped to range if needed)\n", khz);
 }
 
 static FW_WIP_UNUSED void cmd_connect(void) {
-    if (!ensure_inited()) return;
-    uint32_t dpidr = 0u;
+    if (!ensure_inited())
+        return;
+    uint32_t dpidr   = 0u;
     swd_dp_ack_t ack = swd_dp_connect(SWD_DP_TARGETSEL_RP2040_CORE0, &dpidr);
     if (ack == SWD_ACK_OK) {
         shell_printf("SWD: OK connect dpidr=0x%08lX\n", (unsigned long)dpidr);
@@ -268,8 +277,9 @@ static FW_WIP_UNUSED void cmd_connect(void) {
 }
 
 static FW_WIP_UNUSED void cmd_bus_detect(void) {
-    if (!ensure_inited()) return;
-    uint32_t dpidr = 0u;
+    if (!ensure_inited())
+        return;
+    uint32_t dpidr   = 0u;
     swd_dp_ack_t ack = swd_dp_bus_detect(&dpidr);
     if (ack == SWD_ACK_OK) {
         shell_printf("SWD: OK bus-detect dpidr=0x%08lX\n", (unsigned long)dpidr);
@@ -278,36 +288,37 @@ static FW_WIP_UNUSED void cmd_bus_detect(void) {
     }
 }
 
-static FW_WIP_UNUSED void cmd_read32(int argc, char **argv) {
+static FW_WIP_UNUSED void cmd_read32(int argc, char** argv) {
     if (argc < 3) {
         shell_print("SWD: ERR missing_addr\n");
         return;
     }
-    if (!ensure_inited()) return;
-    uint32_t addr = (uint32_t)strtoul(argv[2], NULL, 16);
+    if (!ensure_inited())
+        return;
+    uint32_t addr    = (uint32_t)strtoul(argv[2], NULL, 16);
     swd_dp_ack_t ack = swd_mem_init();
     if (ack != SWD_ACK_OK) {
         shell_printf("SWD: ERR mem_init ack=%s\n", ack_label(ack));
         return;
     }
     uint32_t val = 0u;
-    ack = swd_mem_read32(addr, &val);
+    ack          = swd_mem_read32(addr, &val);
     if (ack == SWD_ACK_OK) {
-        shell_printf("SWD: OK read32 [0x%08lX]=0x%08lX\n",
-                   (unsigned long)addr, (unsigned long)val);
+        shell_printf("SWD: OK read32 [0x%08lX]=0x%08lX\n", (unsigned long)addr, (unsigned long)val);
     } else {
         shell_printf("SWD: ERR read32 ack=%s\n", ack_label(ack));
     }
 }
 
-static FW_WIP_UNUSED void cmd_write32(int argc, char **argv) {
+static FW_WIP_UNUSED void cmd_write32(int argc, char** argv) {
     if (argc < 4) {
         shell_print("SWD: ERR missing_addr_or_val\n");
         return;
     }
-    if (!ensure_inited()) return;
-    uint32_t addr = (uint32_t)strtoul(argv[2], NULL, 16);
-    uint32_t val  = (uint32_t)strtoul(argv[3], NULL, 16);
+    if (!ensure_inited())
+        return;
+    uint32_t addr    = (uint32_t)strtoul(argv[2], NULL, 16);
+    uint32_t val     = (uint32_t)strtoul(argv[3], NULL, 16);
     swd_dp_ack_t ack = swd_mem_init();
     if (ack != SWD_ACK_OK) {
         shell_printf("SWD: ERR mem_init ack=%s\n", ack_label(ack));
@@ -315,23 +326,23 @@ static FW_WIP_UNUSED void cmd_write32(int argc, char **argv) {
     }
     ack = swd_mem_write32(addr, val);
     if (ack == SWD_ACK_OK) {
-        shell_printf("SWD: OK write32 [0x%08lX]<=0x%08lX\n",
-                   (unsigned long)addr, (unsigned long)val);
+        shell_printf("SWD: OK write32 [0x%08lX]<=0x%08lX\n", (unsigned long)addr,
+                     (unsigned long)val);
     } else {
         shell_printf("SWD: ERR write32 ack=%s\n", ack_label(ack));
     }
 }
 
-static FW_WIP_UNUSED void cmd_reset(int argc, char **argv) {
+static FW_WIP_UNUSED void cmd_reset(int argc, char** argv) {
     if (argc < 3) {
         shell_print("SWD: ERR missing_state\n");
         return;
     }
-    if (!ensure_inited()) return;
+    if (!ensure_inited())
+        return;
     bool assert_low = (argv[2][0] == '1');
     swd_phy_assert_reset(assert_low);
-    shell_printf("SWD: OK reset asserted=%d level=%d\n",
-               assert_low ? 1 : 0, swd_phy_reset_level());
+    shell_printf("SWD: OK reset asserted=%d level=%d\n", assert_low ? 1 : 0, swd_phy_reset_level());
 }
 
 // -----------------------------------------------------------------------------
@@ -342,7 +353,7 @@ static FW_WIP_UNUSED void cmd_reset(int argc, char **argv) {
 // shared CDC2 stream.
 // -----------------------------------------------------------------------------
 
-static FW_WIP_UNUSED void cmd_jtag_init(int argc, char **argv) {
+static FW_WIP_UNUSED void cmd_jtag_init(int argc, char** argv) {
     if (swd_shell_inited) {
         shell_print("JTAG: ERR swd_in_use (run `swd deinit` first)\n");
         return;
@@ -351,21 +362,21 @@ static FW_WIP_UNUSED void cmd_jtag_init(int argc, char **argv) {
         shell_print("JTAG: ERR usage: jtag init <tdi> <tdo> <tms> <tck> [<trst>]\n");
         return;
     }
-    if (jtag_is_inited()) jtag_deinit();
+    if (jtag_is_inited())
+        jtag_deinit();
     jtag_pinout_t p = {
         .tdi  = (uint8_t)strtoul(argv[2], NULL, 0),
         .tdo  = (uint8_t)strtoul(argv[3], NULL, 0),
         .tms  = (uint8_t)strtoul(argv[4], NULL, 0),
         .tck  = (uint8_t)strtoul(argv[5], NULL, 0),
-        .trst = (argc >= 7) ? (int8_t)strtol(argv[6], NULL, 0)
-                            : (int8_t)JTAG_PIN_TRST_NONE,
+        .trst = (argc >= 7) ? (int8_t)strtol(argv[6], NULL, 0) : (int8_t)JTAG_PIN_TRST_NONE,
     };
     if (!jtag_init(&p)) {
         shell_print("JTAG: ERR init_failed (pin range or duplicate?)\n");
         return;
     }
-    shell_printf("JTAG: OK init tdi=GP%u tdo=GP%u tms=GP%u tck=GP%u trst=%d\n",
-               p.tdi, p.tdo, p.tms, p.tck, p.trst);
+    shell_printf("JTAG: OK init tdi=GP%u tdo=GP%u tms=GP%u tck=GP%u trst=%d\n", p.tdi, p.tdo, p.tms,
+                 p.tck, p.trst);
 }
 
 static FW_WIP_UNUSED void cmd_jtag_deinit(void) {
@@ -391,7 +402,7 @@ static FW_WIP_UNUSED void cmd_jtag_trst(void) {
         shell_print("JTAG: ERR not_inited\n");
         return;
     }
-    jtag_assert_trst();   // no-op if no TRST wired
+    jtag_assert_trst(); // no-op if no TRST wired
     shell_print("JTAG: OK trst pulse (no-op if no TRST)\n");
 }
 
@@ -417,17 +428,15 @@ static FW_WIP_UNUSED void cmd_jtag_idcode(void) {
     }
     shell_printf("JTAG: OK idcodes count=%u\n", (unsigned)n);
     for (size_t i = 0; i < n; i++) {
-        bool valid = jtag_idcode_is_valid(ids[i]);
+        bool valid    = jtag_idcode_is_valid(ids[i]);
         uint32_t bank = (ids[i] >> 8) & 0xFu;
         uint32_t mfg  = (ids[i] >> 1) & 0x7Fu;
         uint32_t part = (ids[i] >> 12) & 0xFFFFu;
         uint32_t ver  = (ids[i] >> 28) & 0xFu;
         shell_printf("JTAG:   [%u] 0x%08lX %s mfg_bank=0x%X mfg_id=0x%02X "
-                   "part=0x%04X ver=0x%X\n",
-                   (unsigned)i, (unsigned long)ids[i],
-                   valid ? "VALID" : "INVALID",
-                   (unsigned)bank, (unsigned)mfg,
-                   (unsigned)part, (unsigned)ver);
+                     "part=0x%04X ver=0x%X\n",
+                     (unsigned)i, (unsigned long)ids[i], valid ? "VALID" : "INVALID",
+                     (unsigned)bank, (unsigned)mfg, (unsigned)part, (unsigned)ver);
     }
 }
 
@@ -461,10 +470,10 @@ static void scan_yield_progress(uint32_t cur, uint32_t total) {
     // prints so the operator sees the scan started. Reset the
     // throttle counter at scan-start (cur=0) so a back-to-back
     // `scan jtag` then `scan swd` doesn't race the 100-step throttle.
-    if (cur == 0u) s_scan_last_progress_print = 0u;
+    if (cur == 0u)
+        s_scan_last_progress_print = 0u;
     if (cur == 0u || (cur - s_scan_last_progress_print) >= 100u) {
-        shell_printf("SCAN: progress %lu/%lu\n",
-                   (unsigned long)cur, (unsigned long)total);
+        shell_printf("SCAN: progress %lu/%lu\n", (unsigned long)cur, (unsigned long)total);
         s_scan_last_progress_print = cur;
     }
 }
@@ -479,22 +488,21 @@ static FW_WIP_UNUSED void cmd_scan_jtag(void) {
         return;
     }
     shell_printf("SCAN: starting JTAG pinout scan over %u channels (P(%u,%u)=%lu)\n",
-               PINOUT_SCANNER_CHANNELS, PINOUT_SCANNER_CHANNELS,
-               PINOUT_SCANNER_JTAG_PINS,
-               (unsigned long)PINOUT_SCANNER_JTAG_TOTAL);
+                 PINOUT_SCANNER_CHANNELS, PINOUT_SCANNER_CHANNELS, PINOUT_SCANNER_JTAG_PINS,
+                 (unsigned long)PINOUT_SCANNER_JTAG_TOTAL);
     pinout_scan_jtag_result_t r;
     bool found = pinout_scan_jtag(&r, scan_yield_progress);
     if (!found) {
         shell_print("SCAN: jtag NO_MATCH (no valid IDCODE found)\n");
         return;
     }
-    shell_printf("SCAN: jtag MATCH tdi=GP%u tdo=GP%u tms=GP%u tck=GP%u\n",
-               r.tdi, r.tdo, r.tms, r.tck);
-    shell_printf("SCAN:   chain=%u idcode[0]=0x%08lX\n",
-               (unsigned)r.chain_length, (unsigned long)r.idcode);
+    shell_printf("SCAN: jtag MATCH tdi=GP%u tdo=GP%u tms=GP%u tck=GP%u\n", r.tdi, r.tdo, r.tms,
+                 r.tck);
+    shell_printf("SCAN:   chain=%u idcode[0]=0x%08lX\n", (unsigned)r.chain_length,
+                 (unsigned long)r.idcode);
 }
 
-static void cmd_scan_swd(int argc, char **argv) {
+static void cmd_scan_swd(int argc, char** argv) {
     if (jtag_is_inited()) {
         shell_print("SCAN: ERR jtag_in_use (run `jtag deinit` first)\n");
         return;
@@ -505,9 +513,9 @@ static void cmd_scan_swd(int argc, char **argv) {
     }
 
     shell_printf("SCAN: starting SWD pinout scan over %u channels "
-               "(P(%u,%u)=%u) targetsel_compat=0x%08lX\n",
-               PINOUT_SCANNER_CHANNELS, PINOUT_SCANNER_CHANNELS,
-               PINOUT_SCANNER_SWD_PINS, PINOUT_SCANNER_SWD_TOTAL);
+                 "(P(%u,%u)=%u) targetsel_compat=0x%08lX\n",
+                 PINOUT_SCANNER_CHANNELS, PINOUT_SCANNER_CHANNELS, PINOUT_SCANNER_SWD_PINS,
+                 PINOUT_SCANNER_SWD_TOTAL);
     pinout_scan_swd_result_t r;
     bool found = pinout_scan_swd(&r, scan_yield_progress);
     if (!found) {
@@ -515,17 +523,18 @@ static void cmd_scan_swd(int argc, char **argv) {
         return;
     }
     shell_printf("SCAN: swd MATCH swclk=GP%u swdio=GP%u\n", r.swclk, r.swdio);
-    shell_printf("SCAN:   dpidr=0x%08lX targetsel_compat=0x%08lX\n",
-               (unsigned long)r.dpidr, (unsigned long)r.targetsel);
+    shell_printf("SCAN:   dpidr=0x%08lX targetsel_compat=0x%08lX\n", (unsigned long)r.dpidr,
+                 (unsigned long)r.targetsel);
 }
 
-static void process_scan_subcmd(int argc, char **argv) {
+static void process_scan_subcmd(int argc, char** argv) {
     if (argc < 2) {
         shell_print("SCAN: ERR scan needs subcommand: swd\n");
         return;
     }
-    const char *sub = argv[1];
-    if      (!strcmp(sub, "swd"))  cmd_scan_swd(argc, argv);
+    const char* sub = argv[1];
+    if (!strcmp(sub, "swd"))
+        cmd_scan_swd(argc, argv);
     else if (!strcmp(sub, "jtag")) {
         // F11 release: `scan jtag` is WIP and hidden from the public
         // surface. The implementation (cmd_scan_jtag + service_jtag +
@@ -555,19 +564,20 @@ static void process_scan_subcmd(int argc, char **argv) {
 // F8-4 BusPirate compat — bridge callbacks + entry command
 // -----------------------------------------------------------------------------
 
-static void bp_write_byte_cb(uint8_t b, void *u) {
+static void bp_write_byte_cb(uint8_t b, void* u) {
     (void)u;
     usb_composite_cdc_write(USB_CDC_SCANNER, &b, 1);
 }
 
-static bool bp_jtag_clock_bit_cb(bool tms, bool tdi, void *u) {
+static bool bp_jtag_clock_bit_cb(bool tms, bool tdi, void* u) {
     (void)u;
     return jtag_clock_bit(tms, tdi);
 }
 
-static void bp_on_exit_cb(void *u) {
+static void bp_on_exit_cb(void* u) {
     (void)u;
-    if (jtag_is_inited()) jtag_deinit();
+    if (jtag_is_inited())
+        jtag_deinit();
     s_shell_mode = SHELL_MODE_TEXT;
     shell_print("\nBPIRATE: OK exited (back to text shell)\n");
 }
@@ -579,7 +589,7 @@ static const buspirate_compat_callbacks_t BP_CALLBACKS = {
     .user           = NULL,
 };
 
-static void process_buspirate_subcmd(int argc, char **argv) {
+static void process_buspirate_subcmd(int argc, char** argv) {
     if (argc < 2 || strcmp(argv[1], "enter") != 0) {
         shell_print("BPIRATE: ERR usage: buspirate enter [<tdi> <tdo> <tms> <tck>]\n");
         return;
@@ -593,24 +603,20 @@ static void process_buspirate_subcmd(int argc, char **argv) {
         return;
     }
     bool explicit_pins = (argc >= 6);
-    jtag_pinout_t p = {
-        .tdi  = explicit_pins ? (uint8_t)strtoul(argv[2], NULL, 0)
-                              : BOARD_GP_SCANNER_CH0,
-        .tdo  = explicit_pins ? (uint8_t)strtoul(argv[3], NULL, 0)
-                              : BOARD_GP_SCANNER_CH1,
-        .tms  = explicit_pins ? (uint8_t)strtoul(argv[4], NULL, 0)
-                              : BOARD_GP_SCANNER_CH2,
-        .tck  = explicit_pins ? (uint8_t)strtoul(argv[5], NULL, 0)
-                              : BOARD_GP_SCANNER_CH3,
-        .trst = JTAG_PIN_TRST_NONE,
+    jtag_pinout_t p    = {
+           .tdi  = explicit_pins ? (uint8_t)strtoul(argv[2], NULL, 0) : BOARD_GP_SCANNER_CH0,
+           .tdo  = explicit_pins ? (uint8_t)strtoul(argv[3], NULL, 0) : BOARD_GP_SCANNER_CH1,
+           .tms  = explicit_pins ? (uint8_t)strtoul(argv[4], NULL, 0) : BOARD_GP_SCANNER_CH2,
+           .tck  = explicit_pins ? (uint8_t)strtoul(argv[5], NULL, 0) : BOARD_GP_SCANNER_CH3,
+           .trst = JTAG_PIN_TRST_NONE,
     };
     if (!jtag_init(&p)) {
         shell_print("BPIRATE: ERR jtag_init_failed (pin range or duplicate?)\n");
         return;
     }
     buspirate_compat_init(&BP_CALLBACKS);
-    shell_printf("BPIRATE: OK entering BBIO mode tdi=GP%u tdo=GP%u tms=GP%u tck=GP%u\n",
-                 p.tdi, p.tdo, p.tms, p.tck);
+    shell_printf("BPIRATE: OK entering BBIO mode tdi=GP%u tdo=GP%u tms=GP%u tck=GP%u\n", p.tdi,
+                 p.tdo, p.tms, p.tck);
     shell_print("BPIRATE: send 0x00 to handshake (BBIO1), 0x06 → OCD1, 0x0F to exit\n");
     // Set mode AFTER the prints so the diag-gate doesn't swallow them.
     s_shell_mode = SHELL_MODE_BUSPIRATE;
@@ -628,9 +634,9 @@ static uint8_t s_sp_pin_cs   = BOARD_GP_SCANNER_CH0;
 static uint8_t s_sp_pin_mosi = BOARD_GP_SCANNER_CH1;
 static uint8_t s_sp_pin_miso = BOARD_GP_SCANNER_CH2;
 static uint8_t s_sp_pin_sck  = BOARD_GP_SCANNER_CH3;
-static bool    s_sp_pins_owned = false;
+static bool s_sp_pins_owned  = false;
 
-static void sp_write_byte_cb(uint8_t b, void *u) {
+static void sp_write_byte_cb(uint8_t b, void* u) {
     (void)u;
     usb_composite_cdc_write(USB_CDC_SCANNER, &b, 1);
 }
@@ -638,25 +644,26 @@ static void sp_write_byte_cb(uint8_t b, void *u) {
 // SPI mode 0 (CPOL=0, CPHA=0), MSB-first per 25-series flash
 // convention. Drive MOSI then pulse SCK low→high (target latches
 // MOSI, presents next MISO bit) → sample MISO → high→low.
-static uint8_t sp_xfer_byte_cb(uint8_t out, void *u) {
+static uint8_t sp_xfer_byte_cb(uint8_t out, void* u) {
     (void)u;
     uint8_t in = 0u;
     for (int bit = 7; bit >= 0; bit--) {
         hal_gpio_put(s_sp_pin_mosi, (bool)((out >> bit) & 1u));
-        hal_gpio_put(s_sp_pin_sck,  true);
-        if (hal_gpio_get(s_sp_pin_miso)) in |= (uint8_t)(1u << bit);
-        hal_gpio_put(s_sp_pin_sck,  false);
+        hal_gpio_put(s_sp_pin_sck, true);
+        if (hal_gpio_get(s_sp_pin_miso))
+            in |= (uint8_t)(1u << bit);
+        hal_gpio_put(s_sp_pin_sck, false);
     }
     return in;
 }
 
-static void sp_cs_set_cb(bool low, void *u) {
+static void sp_cs_set_cb(bool low, void* u) {
     (void)u;
     // CS is active-low. `low=true` means "assert" → drive low.
     hal_gpio_put(s_sp_pin_cs, !low);
 }
 
-static void sp_yield_cb(void *u) {
+static void sp_yield_cb(void* u) {
     (void)u;
     // Same cooperative-tasking shape as the F8-2 scan_yield_progress.
     usb_composite_task();
@@ -667,19 +674,20 @@ static void sp_yield_cb(void *u) {
 }
 
 static void sp_release_pins(void) {
-    if (!s_sp_pins_owned) return;
-    hal_gpio_init(s_sp_pin_cs,   HAL_GPIO_DIR_IN);
+    if (!s_sp_pins_owned)
+        return;
+    hal_gpio_init(s_sp_pin_cs, HAL_GPIO_DIR_IN);
     hal_gpio_init(s_sp_pin_mosi, HAL_GPIO_DIR_IN);
     hal_gpio_init(s_sp_pin_miso, HAL_GPIO_DIR_IN);
-    hal_gpio_init(s_sp_pin_sck,  HAL_GPIO_DIR_IN);
-    hal_gpio_set_pulls(s_sp_pin_cs,   false, false);
+    hal_gpio_init(s_sp_pin_sck, HAL_GPIO_DIR_IN);
+    hal_gpio_set_pulls(s_sp_pin_cs, false, false);
     hal_gpio_set_pulls(s_sp_pin_mosi, false, false);
     hal_gpio_set_pulls(s_sp_pin_miso, false, false);
-    hal_gpio_set_pulls(s_sp_pin_sck,  false, false);
+    hal_gpio_set_pulls(s_sp_pin_sck, false, false);
     s_sp_pins_owned = false;
 }
 
-static void sp_on_exit_cb(void *u) {
+static void sp_on_exit_cb(void* u) {
     (void)u;
     sp_release_pins();
     s_shell_mode = SHELL_MODE_TEXT;
@@ -695,7 +703,7 @@ static const flashrom_serprog_callbacks_t SP_CALLBACKS = {
     .user          = NULL,
 };
 
-static void process_serprog_subcmd(int argc, char **argv) {
+static void process_serprog_subcmd(int argc, char** argv) {
     if (argc < 2 || strcmp(argv[1], "enter") != 0) {
         shell_print("SERPROG: ERR usage: serprog enter [<cs> <mosi> <miso> <sck>]\n");
         return;
@@ -709,26 +717,22 @@ static void process_serprog_subcmd(int argc, char **argv) {
         return;
     }
     bool explicit_pins = (argc >= 6);
-    s_sp_pin_cs   = explicit_pins ? (uint8_t)strtoul(argv[2], NULL, 0)
-                                  : BOARD_GP_SCANNER_CH0;
-    s_sp_pin_mosi = explicit_pins ? (uint8_t)strtoul(argv[3], NULL, 0)
-                                  : BOARD_GP_SCANNER_CH1;
-    s_sp_pin_miso = explicit_pins ? (uint8_t)strtoul(argv[4], NULL, 0)
-                                  : BOARD_GP_SCANNER_CH2;
-    s_sp_pin_sck  = explicit_pins ? (uint8_t)strtoul(argv[5], NULL, 0)
-                                  : BOARD_GP_SCANNER_CH3;
+    s_sp_pin_cs        = explicit_pins ? (uint8_t)strtoul(argv[2], NULL, 0) : BOARD_GP_SCANNER_CH0;
+    s_sp_pin_mosi      = explicit_pins ? (uint8_t)strtoul(argv[3], NULL, 0) : BOARD_GP_SCANNER_CH1;
+    s_sp_pin_miso      = explicit_pins ? (uint8_t)strtoul(argv[4], NULL, 0) : BOARD_GP_SCANNER_CH2;
+    s_sp_pin_sck       = explicit_pins ? (uint8_t)strtoul(argv[5], NULL, 0) : BOARD_GP_SCANNER_CH3;
 
     // Drive idle states. CS high (deasserted), MOSI low, SCK low,
     // MISO input + pull-up (so a floating bus reads as 0xFF, the
     // 25-series no-chip-attached signature).
-    hal_gpio_init(s_sp_pin_cs,   HAL_GPIO_DIR_OUT);
+    hal_gpio_init(s_sp_pin_cs, HAL_GPIO_DIR_OUT);
     hal_gpio_init(s_sp_pin_mosi, HAL_GPIO_DIR_OUT);
-    hal_gpio_init(s_sp_pin_sck,  HAL_GPIO_DIR_OUT);
+    hal_gpio_init(s_sp_pin_sck, HAL_GPIO_DIR_OUT);
     hal_gpio_init(s_sp_pin_miso, HAL_GPIO_DIR_IN);
     hal_gpio_set_pulls(s_sp_pin_miso, true, false);
-    hal_gpio_put(s_sp_pin_cs,   true);
+    hal_gpio_put(s_sp_pin_cs, true);
     hal_gpio_put(s_sp_pin_mosi, false);
-    hal_gpio_put(s_sp_pin_sck,  false);
+    hal_gpio_put(s_sp_pin_sck, false);
     s_sp_pins_owned = true;
 
     flashrom_serprog_init(&SP_CALLBACKS);
@@ -751,8 +755,8 @@ static void process_serprog_subcmd(int argc, char **argv) {
 // post-fire verify hook does).
 // -----------------------------------------------------------------------------
 
-#define CAMPAIGN_FIRE_TIMEOUT_MS    10000u
-#define CAMPAIGN_HV_CHARGE_WAIT_MS  3000u
+#define CAMPAIGN_FIRE_TIMEOUT_MS   10000u
+#define CAMPAIGN_HV_CHARGE_WAIT_MS 3000u
 
 // Cooperative wait — yields tud_task between checks so a long fire
 // doesn't starve TinyUSB or the host.
@@ -762,23 +766,29 @@ static void campaign_yield_pump(void) {
     pump_crowbar_cdc();
 }
 
-static bool campaign_executor_emfi(uint32_t step, uint32_t delay,
-                                   uint32_t width, uint32_t power,
-                                   uint8_t *out_fire, uint8_t *out_verify,
-                                   uint32_t *out_target) {
-    (void)step; (void)power;     // F9-3: power axis unused for EMFI
-                                 // (HV is binary armed/charged); F10
-                                 // may map it to charge dwell time.
+static bool campaign_executor_emfi(uint32_t step, uint32_t delay, uint32_t width, uint32_t power,
+                                   uint8_t* out_fire, uint8_t* out_verify, uint32_t* out_target) {
+    (void)step;
+    (void)power; // F9-3: power axis unused for EMFI
+                 // (HV is binary armed/charged); F10
+                 // may map it to charge dwell time.
     emfi_config_t cfg = {
         .trigger           = EMFI_TRIG_IMMEDIATE,
         .delay_us          = delay,
         .width_us          = width,
         .charge_timeout_ms = CAMPAIGN_HV_CHARGE_WAIT_MS,
     };
-    if (!emfi_campaign_configure(&cfg)) { *out_fire = 1; return false; }
-    if (!emfi_campaign_arm())           { *out_fire = 2; return false; }
+    if (!emfi_campaign_configure(&cfg)) {
+        *out_fire = 1;
+        return false;
+    }
+    if (!emfi_campaign_arm()) {
+        *out_fire = 2;
+        return false;
+    }
     if (!emfi_campaign_fire(CAMPAIGN_FIRE_TIMEOUT_MS)) {
-        *out_fire = 3; return false;
+        *out_fire = 3;
+        return false;
     }
 
     // Wait for the engine to complete this fire. Yields cooperatively
@@ -789,8 +799,8 @@ static bool campaign_executor_emfi(uint32_t step, uint32_t delay,
         emfi_status_t st;
         emfi_campaign_get_status(&st);
         if (st.state == EMFI_STATE_FIRED) {
-            *out_fire = 0;
-            *out_target = st.delay_us_actual;   // diag echo
+            *out_fire   = 0;
+            *out_target = st.delay_us_actual; // diag echo
             break;
         }
         if (st.state == EMFI_STATE_ERROR) {
@@ -798,7 +808,7 @@ static bool campaign_executor_emfi(uint32_t step, uint32_t delay,
             return false;
         }
         if ((uint32_t)(hal_now_ms() - start) > CAMPAIGN_FIRE_TIMEOUT_MS) {
-            *out_fire = 4;   // engine-side stuck timeout
+            *out_fire = 4; // engine-side stuck timeout
             return false;
         }
         campaign_yield_pump();
@@ -807,10 +817,9 @@ static bool campaign_executor_emfi(uint32_t step, uint32_t delay,
     return true;
 }
 
-static bool campaign_executor_crowbar(uint32_t step, uint32_t delay,
-                                      uint32_t width, uint32_t power,
-                                      uint8_t *out_fire, uint8_t *out_verify,
-                                      uint32_t *out_target) {
+static bool campaign_executor_crowbar(uint32_t step, uint32_t delay, uint32_t width, uint32_t power,
+                                      uint8_t* out_fire, uint8_t* out_verify,
+                                      uint32_t* out_target) {
     (void)step;
     crowbar_out_t output = (power == 2u) ? CROWBAR_OUT_HP : CROWBAR_OUT_LP;
     crowbar_config_t cfg = {
@@ -819,10 +828,17 @@ static bool campaign_executor_crowbar(uint32_t step, uint32_t delay,
         .delay_us = delay,
         .width_ns = width,
     };
-    if (!crowbar_campaign_configure(&cfg)) { *out_fire = 1; return false; }
-    if (!crowbar_campaign_arm())           { *out_fire = 2; return false; }
+    if (!crowbar_campaign_configure(&cfg)) {
+        *out_fire = 1;
+        return false;
+    }
+    if (!crowbar_campaign_arm()) {
+        *out_fire = 2;
+        return false;
+    }
     if (!crowbar_campaign_fire(CAMPAIGN_FIRE_TIMEOUT_MS)) {
-        *out_fire = 3; return false;
+        *out_fire = 3;
+        return false;
     }
 
     uint32_t start = hal_now_ms();
@@ -831,8 +847,8 @@ static bool campaign_executor_crowbar(uint32_t step, uint32_t delay,
         crowbar_status_t st;
         crowbar_campaign_get_status(&st);
         if (st.state == CROWBAR_STATE_FIRED) {
-            *out_fire = 0;
-            *out_target = (uint32_t)output;   // diag echo
+            *out_fire   = 0;
+            *out_target = (uint32_t)output; // diag echo
             break;
         }
         if (st.state == CROWBAR_STATE_ERROR) {
@@ -852,14 +868,9 @@ static bool campaign_executor_crowbar(uint32_t step, uint32_t delay,
 // Single dispatcher registered with campaign_manager. Picks the
 // engine adapter, runs the post-fire verify hook (default no-op
 // until F6 unblocks SWD physically), and reports per-step status.
-static bool campaign_dispatch_executor(uint32_t step,
-                                       const campaign_config_t *cfg,
-                                       uint32_t delay, uint32_t width,
-                                       uint32_t power,
-                                       uint8_t *out_fire,
-                                       uint8_t *out_verify,
-                                       uint32_t *out_target,
-                                       void *user) {
+static bool campaign_dispatch_executor(uint32_t step, const campaign_config_t* cfg, uint32_t delay,
+                                       uint32_t width, uint32_t power, uint8_t* out_fire,
+                                       uint8_t* out_verify, uint32_t* out_target, void* user) {
     (void)user;
 
     *out_fire   = 0u;
@@ -868,13 +879,14 @@ static bool campaign_dispatch_executor(uint32_t step,
 
     bool fire_ok = false;
     if (cfg->engine == CAMPAIGN_ENGINE_EMFI) {
-        fire_ok = campaign_executor_emfi(step, delay, width, power,
-                                         out_fire, out_verify, out_target);
+        fire_ok =
+            campaign_executor_emfi(step, delay, width, power, out_fire, out_verify, out_target);
     } else {
-        fire_ok = campaign_executor_crowbar(step, delay, width, power,
-                                            out_fire, out_verify, out_target);
+        fire_ok =
+            campaign_executor_crowbar(step, delay, width, power, out_fire, out_verify, out_target);
     }
-    if (!fire_ok) return false;
+    if (!fire_ok)
+        return false;
 
     // Post-fire verify hook. F9-3 ships with no-op verify (verify_status
     // = 0 = "skipped"). F-future will attach a real SWD read here that
@@ -902,15 +914,22 @@ static bool campaign_dispatch_executor(uint32_t step,
 // SPI flash chip or HV target.
 // -----------------------------------------------------------------------------
 
-static const char *campaign_state_label(campaign_state_t s) {
+static const char* campaign_state_label(campaign_state_t s) {
     switch (s) {
-        case CAMPAIGN_STATE_IDLE:        return "IDLE";
-        case CAMPAIGN_STATE_CONFIGURING: return "CONFIGURING";
-        case CAMPAIGN_STATE_SWEEPING:    return "SWEEPING";
-        case CAMPAIGN_STATE_DONE:        return "DONE";
-        case CAMPAIGN_STATE_STOPPED:     return "STOPPED";
-        case CAMPAIGN_STATE_ERROR:       return "ERROR";
-        default:                         return "???";
+        case CAMPAIGN_STATE_IDLE:
+            return "IDLE";
+        case CAMPAIGN_STATE_CONFIGURING:
+            return "CONFIGURING";
+        case CAMPAIGN_STATE_SWEEPING:
+            return "SWEEPING";
+        case CAMPAIGN_STATE_DONE:
+            return "DONE";
+        case CAMPAIGN_STATE_STOPPED:
+            return "STOPPED";
+        case CAMPAIGN_STATE_ERROR:
+            return "ERROR";
+        default:
+            return "???";
     }
 }
 
@@ -918,9 +937,8 @@ static void cmd_campaign_status(void) {
     campaign_status_t st;
     campaign_manager_get_status(&st);
     shell_printf("CAMPAIGN: state=%s err=%u step=%u/%u pushed=%u dropped=%u\n",
-                 campaign_state_label(st.state), (unsigned)st.err,
-                 (unsigned)st.step_n, (unsigned)st.total_steps,
-                 (unsigned)st.results_pushed,
+                 campaign_state_label(st.state), (unsigned)st.err, (unsigned)st.step_n,
+                 (unsigned)st.total_steps, (unsigned)st.results_pushed,
                  (unsigned)st.results_dropped);
 }
 
@@ -929,26 +947,24 @@ static void cmd_campaign_stop(void) {
     shell_print("CAMPAIGN: OK stopped\n");
 }
 
-static void cmd_campaign_drain(int argc, char **argv) {
+static void cmd_campaign_drain(int argc, char** argv) {
     uint32_t max = 8u;
     if (argc >= 3) {
         max = (uint32_t)strtoul(argv[2], NULL, 0);
-        if (max == 0u || max > 64u) max = 8u;
+        if (max == 0u || max > 64u)
+            max = 8u;
     }
     campaign_result_t buf[64];
-    if (max > sizeof(buf)/sizeof(buf[0])) max = sizeof(buf)/sizeof(buf[0]);
+    if (max > sizeof(buf) / sizeof(buf[0]))
+        max = sizeof(buf) / sizeof(buf[0]);
     size_t n = campaign_manager_drain_results(buf, max);
     shell_printf("CAMPAIGN: drained=%u\n", (unsigned)n);
     for (size_t i = 0; i < n; i++) {
-        shell_printf("CAMPAIGN:   step=%u d=%u w=%u p=%u fire=0x%02X verify=0x%02X target=0x%08lX ts=%lu us\n",
-                     (unsigned)buf[i].step_n,
-                     (unsigned)buf[i].delay,
-                     (unsigned)buf[i].width,
-                     (unsigned)buf[i].power,
-                     buf[i].fire_status,
-                     buf[i].verify_status,
-                     (unsigned long)buf[i].target_state,
-                     (unsigned long)buf[i].ts_us);
+        shell_printf("CAMPAIGN:   step=%u d=%u w=%u p=%u fire=0x%02X verify=0x%02X target=0x%08lX "
+                     "ts=%lu us\n",
+                     (unsigned)buf[i].step_n, (unsigned)buf[i].delay, (unsigned)buf[i].width,
+                     (unsigned)buf[i].power, buf[i].fire_status, buf[i].verify_status,
+                     (unsigned long)buf[i].target_state, (unsigned long)buf[i].ts_us);
     }
 }
 
@@ -960,9 +976,9 @@ static void cmd_campaign_demo_crowbar(void) {
     // → 6 steps total. settle 50 ms keeps things visibly stepped.
     campaign_config_t cfg = {
         .engine    = CAMPAIGN_ENGINE_CROWBAR,
-        .delay     = { 1000u, 3000u, 1000u },
-        .width     = { 200u,  300u,  100u },
-        .power     = { 1u,    1u,    0u   },
+        .delay     = {1000u, 3000u, 1000u},
+        .width     = {200u, 300u, 100u},
+        .power     = {1u, 1u, 0u},
         .settle_ms = 50u,
     };
     if (!campaign_manager_configure(&cfg)) {
@@ -977,57 +993,65 @@ static void cmd_campaign_demo_crowbar(void) {
     shell_print("CAMPAIGN:   poll with `campaign status`, fetch via `campaign drain`\n");
 }
 
-static void process_campaign_subcmd(int argc, char **argv) {
+static void process_campaign_subcmd(int argc, char** argv) {
     if (argc < 2) {
         shell_print("CAMPAIGN: ERR campaign needs subcommand: status | stop | drain | demo\n");
         return;
     }
-    const char *sub = argv[1];
-    if      (!strcmp(sub, "status")) cmd_campaign_status();
-    else if (!strcmp(sub, "stop"))   cmd_campaign_stop();
-    else if (!strcmp(sub, "drain"))  cmd_campaign_drain(argc, argv);
+    const char* sub = argv[1];
+    if (!strcmp(sub, "status"))
+        cmd_campaign_status();
+    else if (!strcmp(sub, "stop"))
+        cmd_campaign_stop();
+    else if (!strcmp(sub, "drain"))
+        cmd_campaign_drain(argc, argv);
     else if (!strcmp(sub, "demo")) {
         if (argc >= 3 && !strcmp(argv[2], "crowbar")) {
             cmd_campaign_demo_crowbar();
         } else {
             shell_print("CAMPAIGN: ERR demo needs target (only `crowbar` is HV-safe)\n");
         }
-    }
-    else {
+    } else {
         shell_printf("CAMPAIGN: ERR unknown_subcmd: %s (try `?`)\n", sub);
     }
 }
 
-static FW_WIP_UNUSED void process_jtag_subcmd(int argc, char **argv) {
+static FW_WIP_UNUSED void process_jtag_subcmd(int argc, char** argv) {
     if (argc < 2) {
         shell_print("JTAG: ERR jtag needs subcommand (try `?`)\n");
         return;
     }
-    const char *sub = argv[1];
-    if      (!strcmp(sub, "init"))    cmd_jtag_init(argc, argv);
-    else if (!strcmp(sub, "deinit"))  cmd_jtag_deinit();
-    else if (!strcmp(sub, "reset"))   cmd_jtag_reset();
-    else if (!strcmp(sub, "trst"))    cmd_jtag_trst();
-    else if (!strcmp(sub, "chain"))   cmd_jtag_chain();
-    else if (!strcmp(sub, "idcode")
-          || !strcmp(sub, "idcodes")) cmd_jtag_idcode();
+    const char* sub = argv[1];
+    if (!strcmp(sub, "init"))
+        cmd_jtag_init(argc, argv);
+    else if (!strcmp(sub, "deinit"))
+        cmd_jtag_deinit();
+    else if (!strcmp(sub, "reset"))
+        cmd_jtag_reset();
+    else if (!strcmp(sub, "trst"))
+        cmd_jtag_trst();
+    else if (!strcmp(sub, "chain"))
+        cmd_jtag_chain();
+    else if (!strcmp(sub, "idcode") || !strcmp(sub, "idcodes"))
+        cmd_jtag_idcode();
     else {
         shell_printf("JTAG: ERR unknown_subcmd: %s (try `?`)\n", sub);
     }
 }
 
-static void process_shell_line(char *line) {
+static void process_shell_line(char* line) {
     // Tokenize on whitespace; up to 8 tokens — `jtag init <tdi> <tdo>
     // <tms> <tck> <trst>` is the longest at 7 tokens.
-    char *argv[8];
-    int   argc = 0;
-    char *save;
-    char *tok = strtok_r(line, " \t", &save);
+    char* argv[8];
+    int argc = 0;
+    char* save;
+    char* tok = strtok_r(line, " \t", &save);
     while (tok && argc < 8) {
         argv[argc++] = tok;
-        tok = strtok_r(NULL, " \t", &save);
+        tok          = strtok_r(NULL, " \t", &save);
     }
-    if (argc == 0) return;
+    if (argc == 0)
+        return;
 
     if (!strcmp(argv[0], "?") || !strcmp(argv[0], "help")) {
         shell_help();
@@ -1069,7 +1093,8 @@ static void process_shell_line(char *line) {
 static void pump_shell_cdc(void) {
     uint8_t buf[64];
     size_t n = usb_composite_cdc_read(USB_CDC_SCANNER, buf, sizeof(buf));
-    if (n == 0) return;
+    if (n == 0)
+        return;
     for (size_t i = 0; i < n; i++) {
         uint8_t b = buf[i];
 
@@ -1107,7 +1132,7 @@ static void pump_shell_cdc(void) {
                 // Bare newline — quietly ignore so paired \r\n from a
                 // terminal doesn't emit an empty-line error.
             }
-        } else if (b == 0x7Fu || b == 0x08u) {   // backspace / DEL
+        } else if (b == 0x7Fu || b == 0x08u) { // backspace / DEL
             if (shell_pos > 0u) {
                 shell_pos--;
                 usb_composite_cdc_write(USB_CDC_SCANNER, "\b \b", 3);
@@ -1126,12 +1151,16 @@ static void pump_shell_cdc(void) {
 // Snapshot + helpers
 // -----------------------------------------------------------------------------
 
-static const char *crowbar_label(crowbar_path_t p) {
+static const char* crowbar_label(crowbar_path_t p) {
     switch (p) {
-        case CROWBAR_PATH_NONE: return "NONE";
-        case CROWBAR_PATH_LP:   return "LP  ";
-        case CROWBAR_PATH_HP:   return "HP  ";
-        default:                return "???";
+        case CROWBAR_PATH_NONE:
+            return "NONE";
+        case CROWBAR_PATH_LP:
+            return "LP  ";
+        case CROWBAR_PATH_HP:
+            return "HP  ";
+        default:
+            return "???";
     }
 }
 
@@ -1139,13 +1168,12 @@ static void print_snapshot(void) {
     // Skip the single-shot ADC read while emfi_capture owns the FIFO.
     // adc_read() blocks waiting for CS_READY when the ADC is in
     // continuous/FIFO/DMA mode — would wedge this loop.
-    uint16_t       adc     = emfi_capture_is_running() ? 0u
-                                                       : target_monitor_read_raw();
-    uint8_t        scan    = scanner_io_read_all();
-    bool           trigger = ext_trigger_level();
-    crowbar_path_t path    = crowbar_mosfet_get_path();
-    bool           armed   = hv_charger_is_armed();
-    bool           charged = hv_charger_is_charged();
+    uint16_t adc        = emfi_capture_is_running() ? 0u : target_monitor_read_raw();
+    uint8_t scan        = scanner_io_read_all();
+    bool trigger        = ext_trigger_level();
+    crowbar_path_t path = crowbar_mosfet_get_path();
+    bool armed          = hv_charger_is_armed();
+    bool charged        = hv_charger_is_charged();
 
     char bits[SCANNER_IO_CHANNEL_COUNT + 1];
     for (unsigned i = 0; i < SCANNER_IO_CHANNEL_COUNT; i++) {
@@ -1153,22 +1181,18 @@ static void print_snapshot(void) {
     }
     bits[SCANNER_IO_CHANNEL_COUNT] = '\0';
 
-    emfi_status_t es; emfi_campaign_get_status(&es);
-    static const char *emfi_labels[] = {
-        "IDLE","ARMING","CHARGED","WAITING","FIRED","ERROR"
-    };
-    const char *elabel = (es.state < 6) ? emfi_labels[es.state] : "???";
+    emfi_status_t es;
+    emfi_campaign_get_status(&es);
+    static const char* emfi_labels[] = {"IDLE", "ARMING", "CHARGED", "WAITING", "FIRED", "ERROR"};
+    const char* elabel               = (es.state < 6) ? emfi_labels[es.state] : "???";
 
-    crowbar_status_t cs; crowbar_campaign_get_status(&cs);
-    static const char *crowbar_labels[] = {
-        "IDLE","ARMING","ARMED","WAITING","FIRED","ERROR"
-    };
-    const char *clabel = (cs.state < 6) ? crowbar_labels[cs.state] : "???";
+    crowbar_status_t cs;
+    crowbar_campaign_get_status(&cs);
+    static const char* crowbar_labels[] = {"IDLE", "ARMING", "ARMED", "WAITING", "FIRED", "ERROR"};
+    const char* clabel                  = (cs.state < 6) ? crowbar_labels[cs.state] : "???";
 
-    diag_printf("ADC=%4u SCAN=%s TRIG=%d GATE=%s HV[%s%s] EMFI=%s CROW=%s\n",
-                adc, bits, trigger ? 1 : 0, crowbar_label(path),
-                armed   ? "ARM" : "---",
-                charged ? " CHG" : "",
+    diag_printf("ADC=%4u SCAN=%s TRIG=%d GATE=%s HV[%s%s] EMFI=%s CROW=%s\n", adc, bits,
+                trigger ? 1 : 0, crowbar_label(path), armed ? "ARM" : "---", charged ? " CHG" : "",
                 elabel, clabel);
 }
 
@@ -1209,7 +1233,8 @@ static void try_fire_emfi(void) {
 static void pump_emfi_cdc(void) {
     uint8_t buf[64];
     size_t n = usb_composite_cdc_read(USB_CDC_EMFI, buf, sizeof(buf));
-    if (n == 0) return;
+    if (n == 0)
+        return;
     for (size_t i = 0; i < n; i++) {
         if (emfi_proto_feed(buf[i], hal_now_ms())) {
             static uint8_t reply[768];
@@ -1234,7 +1259,8 @@ static void pump_emfi_cdc(void) {
 static void pump_crowbar_cdc(void) {
     uint8_t buf[64];
     size_t n = usb_composite_cdc_read(USB_CDC_CROWBAR, buf, sizeof(buf));
-    if (n == 0) return;
+    if (n == 0)
+        return;
     for (size_t i = 0; i < n; i++) {
         if (crowbar_proto_feed(buf[i], hal_now_ms())) {
             static uint8_t reply[768];
@@ -1282,10 +1308,10 @@ int main(void) {
     campaign_manager_init();
     campaign_manager_set_step_executor(campaign_dispatch_executor, NULL);
 
-    bool     last_arm              = false;
-    bool     last_pulse            = false;
-    bool     last_scanner_conn     = false;
-    uint32_t last_snapshot_ms      = 0;
+    bool last_arm             = false;
+    bool last_pulse           = false;
+    bool last_scanner_conn    = false;
+    uint32_t last_snapshot_ms = 0;
 
     while (true) {
         usb_composite_task();

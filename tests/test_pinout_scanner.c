@@ -11,8 +11,10 @@
 
 #include "pinout_scanner.h"
 
-void setUp(void)    {}
-void tearDown(void) {}
+void setUp(void) {
+}
+void tearDown(void) {
+}
 
 // -----------------------------------------------------------------------------
 // pinout_perm_total
@@ -22,18 +24,18 @@ static void test_perm_total_canonical_cases(void) {
     // P(8, 4) — full FaultyCat v2.x scanner JTAG search
     TEST_ASSERT_EQUAL_UINT32(1680u, pinout_perm_total(4, 8));
     // P(8, 2) — SWD search
-    TEST_ASSERT_EQUAL_UINT32(56u,   pinout_perm_total(2, 8));
+    TEST_ASSERT_EQUAL_UINT32(56u, pinout_perm_total(2, 8));
     // P(16, 4) — blueTag standalone JTAG
     TEST_ASSERT_EQUAL_UINT32(43680u, pinout_perm_total(4, 16));
     // P(4, 4) = 4!
-    TEST_ASSERT_EQUAL_UINT32(24u,   pinout_perm_total(4, 4));
-    TEST_ASSERT_EQUAL_UINT32(12u,   pinout_perm_total(2, 4));
+    TEST_ASSERT_EQUAL_UINT32(24u, pinout_perm_total(4, 4));
+    TEST_ASSERT_EQUAL_UINT32(12u, pinout_perm_total(2, 4));
 }
 
 static void test_perm_total_edge_cases(void) {
-    TEST_ASSERT_EQUAL_UINT32(0u, pinout_perm_total(0, 8));    // k == 0 → undefined
-    TEST_ASSERT_EQUAL_UINT32(0u, pinout_perm_total(5, 4));    // k > n → 0
-    TEST_ASSERT_EQUAL_UINT32(8u, pinout_perm_total(1, 8));    // P(n, 1) == n
+    TEST_ASSERT_EQUAL_UINT32(0u, pinout_perm_total(0, 8)); // k == 0 → undefined
+    TEST_ASSERT_EQUAL_UINT32(0u, pinout_perm_total(5, 4)); // k > n → 0
+    TEST_ASSERT_EQUAL_UINT32(8u, pinout_perm_total(1, 8)); // P(n, 1) == n
 }
 
 // -----------------------------------------------------------------------------
@@ -45,7 +47,8 @@ static void test_perm_next_count_matches_total_4_8(void) {
     pinout_perm_init(&it, 4, 8);
 
     uint32_t count = 0u;
-    while (pinout_perm_next(&it)) count++;
+    while (pinout_perm_next(&it))
+        count++;
     TEST_ASSERT_EQUAL_UINT32(1680u, count);
 }
 
@@ -54,7 +57,8 @@ static void test_perm_next_count_matches_total_2_8(void) {
     pinout_perm_init(&it, 2, 8);
 
     uint32_t count = 0u;
-    while (pinout_perm_next(&it)) count++;
+    while (pinout_perm_next(&it))
+        count++;
     TEST_ASSERT_EQUAL_UINT32(56u, count);
 }
 
@@ -63,8 +67,9 @@ static void test_perm_next_count_matches_total_4_4(void) {
     pinout_perm_init(&it, 4, 4);
 
     uint32_t count = 0u;
-    while (pinout_perm_next(&it)) count++;
-    TEST_ASSERT_EQUAL_UINT32(24u, count);   // 4!
+    while (pinout_perm_next(&it))
+        count++;
+    TEST_ASSERT_EQUAL_UINT32(24u, count); // 4!
 }
 
 static void test_perm_next_first_tuple_is_lex_smallest(void) {
@@ -85,8 +90,8 @@ static void test_perm_next_all_tuples_unique_and_within_range(void) {
     pinout_perm_iter_t it;
     pinout_perm_init(&it, 2, 4);
 
-    uint8_t seen[4 * 4] = {0};   // bitmap of (i*n + j) tuples seen
-    uint32_t count = 0u;
+    uint8_t seen[4 * 4] = {0}; // bitmap of (i*n + j) tuples seen
+    uint32_t count      = 0u;
     while (pinout_perm_next(&it)) {
         TEST_ASSERT_NOT_EQUAL(it.indices[0], it.indices[1]);
         TEST_ASSERT_TRUE(it.indices[0] < 4);
@@ -106,7 +111,7 @@ static void test_perm_next_iter_in_lex_order(void) {
     pinout_perm_init(&it, 2, 3);
 
     static const uint8_t expected[6][2] = {
-        {0,1}, {0,2}, {1,0}, {1,2}, {2,0}, {2,1},
+        {0, 1}, {0, 2}, {1, 0}, {1, 2}, {2, 0}, {2, 1},
     };
     for (uint32_t i = 0; i < 6u; i++) {
         TEST_ASSERT_TRUE(pinout_perm_next(&it));
@@ -122,8 +127,9 @@ static void test_perm_next_handles_k_eq_n(void) {
     pinout_perm_init(&it, 3, 3);
 
     uint32_t count = 0u;
-    while (pinout_perm_next(&it)) count++;
-    TEST_ASSERT_EQUAL_UINT32(6u, count);   // 3!
+    while (pinout_perm_next(&it))
+        count++;
+    TEST_ASSERT_EQUAL_UINT32(6u, count); // 3!
 }
 
 static void test_perm_next_rejects_k_gt_n(void) {
@@ -139,7 +145,7 @@ static void test_perm_next_rejects_k_zero(void) {
 }
 
 static void test_perm_init_null_safe(void) {
-    pinout_perm_init(NULL, 4, 8);   // must not crash
+    pinout_perm_init(NULL, 4, 8); // must not crash
     TEST_ASSERT_FALSE(pinout_perm_next(NULL));
 }
 
@@ -149,11 +155,9 @@ static void test_perm_init_null_safe(void) {
 
 static void test_constants_match_iterator_total(void) {
     TEST_ASSERT_EQUAL_UINT32(PINOUT_SCANNER_JTAG_TOTAL,
-                             pinout_perm_total(PINOUT_SCANNER_JTAG_PINS,
-                                               PINOUT_SCANNER_CHANNELS));
+                             pinout_perm_total(PINOUT_SCANNER_JTAG_PINS, PINOUT_SCANNER_CHANNELS));
     TEST_ASSERT_EQUAL_UINT32(PINOUT_SCANNER_SWD_TOTAL,
-                             pinout_perm_total(PINOUT_SCANNER_SWD_PINS,
-                                               PINOUT_SCANNER_CHANNELS));
+                             pinout_perm_total(PINOUT_SCANNER_SWD_PINS, PINOUT_SCANNER_CHANNELS));
 }
 
 // -----------------------------------------------------------------------------

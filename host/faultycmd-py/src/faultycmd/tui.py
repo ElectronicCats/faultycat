@@ -39,6 +39,7 @@ CDC ownership during a TUI session:
         `faultycmd scanner ...` or open picocom against CDC2 from a
         second terminal while the TUI is up.
 """
+
 from __future__ import annotations
 
 import os
@@ -164,15 +165,15 @@ class SharedSerial:
 
     def write(self, data: bytes) -> int:
         with self.lock:
-            return self._ser.write(data)   # type: ignore[attr-defined]
+            return self._ser.write(data)  # type: ignore[attr-defined]
 
     def read(self, size: int = 1) -> bytes:
         with self.lock:
-            return self._ser.read(size)   # type: ignore[attr-defined]
+            return self._ser.read(size)  # type: ignore[attr-defined]
 
     def reset_input_buffer(self) -> None:
         with self.lock:
-            self._ser.reset_input_buffer()   # type: ignore[attr-defined]
+            self._ser.reset_input_buffer()  # type: ignore[attr-defined]
 
     def close(self) -> None:
         # Owned by FaultycmdTUI, not the per-client context manager.
@@ -180,7 +181,7 @@ class SharedSerial:
 
     def really_close(self) -> None:
         with self.lock:
-            self._ser.close()   # type: ignore[attr-defined]
+            self._ser.close()  # type: ignore[attr-defined]
 
 
 # -----------------------------------------------------------------------------
@@ -194,7 +195,7 @@ class Connections:
     crowbar: CrowbarClient | None = None
     campaign: CampaignClient | None = None
     cdc1_shared: SharedSerial | None = None
-    cdc2_serial: object | None = None       # serial.Serial in diag tail
+    cdc2_serial: object | None = None  # serial.Serial in diag tail
     # CDC0 has a single owner (EmfiClient) but the daemon `_poll_emfi`
     # and the EMFI modal callbacks both touch it — without a lock,
     # a poll cycle in flight when the operator presses Apply/Arm/Fire
@@ -215,13 +216,14 @@ class Connections:
             cdc1 = serial.Serial(cdc_for("crowbar"), 115200, timeout=0.5)
             self.cdc1_shared = SharedSerial(cdc1)
 
-            crowbar_factory = lambda *_a, **_kw: self.cdc1_shared   # noqa: E731
+            crowbar_factory = lambda *_a, **_kw: self.cdc1_shared  # noqa: E731
             self.crowbar = CrowbarClient("/dev/null", serial_factory=crowbar_factory)
             self.crowbar.open()
 
             campaign_factory = lambda *_a, **_kw: self.cdc1_shared  # noqa: E731
             self.campaign = CampaignClient(
-                "/dev/null", engine="crowbar",
+                "/dev/null",
+                engine="crowbar",
                 serial_factory=campaign_factory,
             )
             self.campaign.open()
@@ -309,7 +311,7 @@ class CampaignPanel(Static):
     def push_results(self, lines: list[str]) -> None:
         self.tail.extend(lines)
         if len(self.tail) > self.MAX_TAIL:
-            self.tail = self.tail[-self.MAX_TAIL:]
+            self.tail = self.tail[-self.MAX_TAIL :]
         self._render_self()
 
     def clear_tail(self) -> None:
@@ -491,7 +493,7 @@ class FaultycmdTUI(App[None]):
                 time.sleep(0.5)
                 continue
             try:
-                chunk = self.conn.cdc2_serial.read(256)   # type: ignore[attr-defined]
+                chunk = self.conn.cdc2_serial.read(256)  # type: ignore[attr-defined]
                 if not chunk:
                     time.sleep(0.05)
                     continue
@@ -510,37 +512,43 @@ class FaultycmdTUI(App[None]):
     def _update_emfi(self, st) -> None:
         if self.emfi_panel is None:
             return
-        self.emfi_panel.update_fields({
-            "state": st.state.name if hasattr(st.state, "name") else str(st.state),
-            "err": st.err.name if hasattr(st.err, "name") else str(st.err),
-            "last_fire_ms": str(st.last_fire_at_ms),
-            "capture_fill": str(st.capture_fill),
-            "width_us":     str(st.pulse_width_us_actual),
-            "delay_us":     str(st.delay_us_actual),
-        })
+        self.emfi_panel.update_fields(
+            {
+                "state": st.state.name if hasattr(st.state, "name") else str(st.state),
+                "err": st.err.name if hasattr(st.err, "name") else str(st.err),
+                "last_fire_ms": str(st.last_fire_at_ms),
+                "capture_fill": str(st.capture_fill),
+                "width_us": str(st.pulse_width_us_actual),
+                "delay_us": str(st.delay_us_actual),
+            }
+        )
 
     def _update_crowbar(self, st) -> None:
         if self.crowbar_panel is None:
             return
-        self.crowbar_panel.update_fields({
-            "state":  st.state.name if hasattr(st.state, "name") else str(st.state),
-            "err":    st.err.name if hasattr(st.err, "name") else str(st.err),
-            "last_fire_ms": str(st.last_fire_at_ms),
-            "width_ns":     str(st.pulse_width_ns_actual),
-            "delay_us":     str(st.delay_us_actual),
-            "output":       st.output.name if hasattr(st.output, "name") else str(st.output),
-        })
+        self.crowbar_panel.update_fields(
+            {
+                "state": st.state.name if hasattr(st.state, "name") else str(st.state),
+                "err": st.err.name if hasattr(st.err, "name") else str(st.err),
+                "last_fire_ms": str(st.last_fire_at_ms),
+                "width_ns": str(st.pulse_width_ns_actual),
+                "delay_us": str(st.delay_us_actual),
+                "output": st.output.name if hasattr(st.output, "name") else str(st.output),
+            }
+        )
 
     def _update_campaign_summary(self, st) -> None:
         if self.campaign_panel is None:
             return
-        self.campaign_panel.set_summary({
-            "state":   st.state.name if hasattr(st.state, "name") else str(st.state),
-            "err":     st.err.name if hasattr(st.err, "name") else str(st.err),
-            "step":    f"{st.step_n}/{st.total_steps}",
-            "pushed":  str(st.results_pushed),
-            "dropped": str(st.results_dropped),
-        })
+        self.campaign_panel.set_summary(
+            {
+                "state": st.state.name if hasattr(st.state, "name") else str(st.state),
+                "err": st.err.name if hasattr(st.err, "name") else str(st.err),
+                "step": f"{st.step_n}/{st.total_steps}",
+                "pushed": str(st.results_pushed),
+                "dropped": str(st.results_dropped),
+            }
+        )
 
     def _push_campaign_results(self, rendered: list[str]) -> None:
         if self.campaign_panel is None:
@@ -550,15 +558,17 @@ class FaultycmdTUI(App[None]):
     def _update_diag(self, snap: DiagSnapshot) -> None:
         if self.diag_panel is None:
             return
-        self.diag_panel.update_fields({
-            "ADC":  str(snap.adc),
-            "SCAN": snap.scan,
-            "TRIG": str(snap.trig),
-            "GATE": snap.gate,
-            "HV":   snap.hv if snap.hv else "---",
-            "EMFI": snap.emfi,
-            "CROW": snap.crow,
-        })
+        self.diag_panel.update_fields(
+            {
+                "ADC": str(snap.adc),
+                "SCAN": snap.scan,
+                "TRIG": str(snap.trig),
+                "GATE": snap.gate,
+                "HV": snap.hv if snap.hv else "---",
+                "EMFI": snap.emfi,
+                "CROW": snap.crow,
+            }
+        )
 
     def _note_error(self, msg: str) -> None:
         self.notify(msg, severity="warning", timeout=2)
@@ -599,9 +609,7 @@ class FaultycmdTUI(App[None]):
                 if not self._closing:
                     try:
                         self.call_from_thread(
-                            lambda: self.notify(
-                                f"Scanner error: {err}", severity="error"
-                            )
+                            lambda: self.notify(f"Scanner error: {err}", severity="error")
                         )
                     except RuntimeError:
                         pass
@@ -622,9 +630,7 @@ class FaultycmdTUI(App[None]):
                     if self.conn.last_error:
                         err = self.conn.last_error
                         try:
-                            self.call_from_thread(
-                                lambda: self.notify(err, severity="error")
-                            )
+                            self.call_from_thread(lambda: self.notify(err, severity="error"))
                         except RuntimeError:
                             pass
                     else:
@@ -704,6 +710,7 @@ class FaultycmdTUI(App[None]):
                 self._post(_notify, f"stop: {e}", "error")
             else:
                 self._post(_notify, "sweep stop sent", "information")
+
         threading.Thread(target=worker, daemon=True).start()
 
     def action_open_emfi_modal(self) -> None:
@@ -725,6 +732,7 @@ class FaultycmdTUI(App[None]):
             `<label>: <err>` line back to the modal status. Mirror
             of `action_open_crowbar_modal._run` for CDC1 — the
             Textual event loop is never blocked on USB I/O."""
+
             def worker() -> None:
                 try:
                     with self.conn.cdc0_lock:
@@ -734,6 +742,7 @@ class FaultycmdTUI(App[None]):
                     self._post(_show, f"{label}: {err}")
                 else:
                     self._post(_show, f"OK {label}")
+
             threading.Thread(target=worker, daemon=True).start()
 
         def _on_apply(state: EmfiFormState) -> None:
@@ -749,6 +758,7 @@ class FaultycmdTUI(App[None]):
                     charge_timeout_ms=state.charge_timeout_ms,
                 )
                 self._last_config.save("emfi", state.to_dict())
+
             _run("apply", _task)
 
         def _on_arm(_state: EmfiFormState) -> None:
@@ -772,6 +782,7 @@ class FaultycmdTUI(App[None]):
             # of 512 B each — must run off the UI thread or the
             # dashboard freezes for hundreds of ms.
             from pathlib import Path
+
             xdg_cache = os.environ.get("XDG_CACHE_HOME") or str(
                 Path(os.environ.get("HOME", str(Path.home()))) / ".cache"
             )
@@ -796,7 +807,8 @@ class FaultycmdTUI(App[None]):
                             length = min(512, fill - offset)
                             chunks.append(
                                 self.conn.emfi.capture(
-                                    offset=offset, length=length,
+                                    offset=offset,
+                                    length=length,
                                 )
                             )
                             offset += length
@@ -812,6 +824,7 @@ class FaultycmdTUI(App[None]):
                     f"capture: saved {len(buf)} B → {out_path}",
                 )
                 self._post(_show, f"OK capture ({len(buf)} B)")
+
             threading.Thread(target=worker, daemon=True).start()
             _show("capture dispatched…")
 
@@ -856,6 +869,7 @@ class FaultycmdTUI(App[None]):
             because the daemon `_poll_cdc1` may hold the lock for a
             full status round-trip and the UI thread would otherwise
             freeze waiting on it."""
+
             def worker() -> None:
                 try:
                     with self.conn.cdc1_shared.lock:
@@ -865,6 +879,7 @@ class FaultycmdTUI(App[None]):
                     self._post(_show, f"{label}: {err}")
                 else:
                     self._post(_show, f"OK {label}")
+
             threading.Thread(target=worker, daemon=True).start()
 
         def _on_apply(state: CrowbarFormState) -> None:
@@ -876,6 +891,7 @@ class FaultycmdTUI(App[None]):
                     width_ns=state.width_ns,
                 )
                 self._last_config.save("crowbar", state.to_dict())
+
             _run("apply", _task)
 
         def _on_arm(state: CrowbarFormState) -> None:
@@ -890,6 +906,7 @@ class FaultycmdTUI(App[None]):
                     width_ns=state.width_ns,
                 )
                 self.conn.crowbar.arm()
+
             _run("arm", _task)
 
         def _on_fire(state: CrowbarFormState) -> None:
@@ -944,6 +961,7 @@ class FaultycmdTUI(App[None]):
             `cdc1_shared.lock` across the call and posts an
             `OK <label>` / `<label>: <err>` line back to the modal
             status. The Textual event loop is never blocked."""
+
             def worker() -> None:
                 try:
                     with self.conn.cdc1_shared.lock:
@@ -953,6 +971,7 @@ class FaultycmdTUI(App[None]):
                     self._post(_show, f"{label}: {err}")
                 else:
                     self._post(_show, f"OK {label}")
+
             threading.Thread(target=worker, daemon=True).start()
 
         def _on_configure(state: CampaignFormState) -> None:
@@ -964,9 +983,13 @@ class FaultycmdTUI(App[None]):
 
             def _task() -> None:
                 self.conn.campaign.configure(
-                    delay=delay, width=width, power=power, settle_ms=settle,
+                    delay=delay,
+                    width=width,
+                    power=power,
+                    settle_ms=settle,
                 )
                 self._last_config.save("campaign", state.to_dict())
+
             _run("configure", _task)
 
         def _on_start() -> None:
@@ -982,6 +1005,7 @@ class FaultycmdTUI(App[None]):
             where the daemon skips. The rendered lines are pushed
             into the dashboard's CampaignPanel tail from the worker
             thread via `call_from_thread`."""
+
             def worker() -> None:
                 try:
                     with self.conn.cdc1_shared.lock:
@@ -999,6 +1023,7 @@ class FaultycmdTUI(App[None]):
                     ]
                     self._post(self.campaign_panel.push_results, rendered)
                 self._post(_show, f"OK drain ({len(results)} results)")
+
             threading.Thread(target=worker, daemon=True).start()
 
         modal = CampaignControlModal(
@@ -1013,6 +1038,7 @@ class FaultycmdTUI(App[None]):
 
 class ScannerResultModal(ModalScreen[None]):
     """Modal to show scanner command output."""
+
     DEFAULT_CSS = """
     ScannerResultModal > Vertical {
         background: $panel;

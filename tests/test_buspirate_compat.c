@@ -12,28 +12,32 @@
 // Test fixtures
 // -----------------------------------------------------------------------------
 
-#define MAX_WRITES   1024u
-#define MAX_CLOCKS   8192u
+#define MAX_WRITES 1024u
+#define MAX_CLOCKS 8192u
 
 static uint8_t s_writes[MAX_WRITES];
-static size_t  s_writes_len;
+static size_t s_writes_len;
 
-typedef struct { bool tms; bool tdi; } clock_event_t;
+typedef struct {
+    bool tms;
+    bool tdi;
+} clock_event_t;
 static clock_event_t s_clocks[MAX_CLOCKS];
-static size_t        s_clocks_len;
+static size_t s_clocks_len;
 
-static bool   s_tdo_script[MAX_CLOCKS];
+static bool s_tdo_script[MAX_CLOCKS];
 static size_t s_tdo_script_len;
 static size_t s_tdo_script_cursor;
 
-static int    s_exit_count;
+static int s_exit_count;
 
-static void fix_write(uint8_t b, void *u) {
+static void fix_write(uint8_t b, void* u) {
     (void)u;
-    if (s_writes_len < MAX_WRITES) s_writes[s_writes_len++] = b;
+    if (s_writes_len < MAX_WRITES)
+        s_writes[s_writes_len++] = b;
 }
 
-static bool fix_clock(bool tms, bool tdi, void *u) {
+static bool fix_clock(bool tms, bool tdi, void* u) {
     (void)u;
     if (s_clocks_len < MAX_CLOCKS) {
         s_clocks[s_clocks_len++] = (clock_event_t){.tms = tms, .tdi = tdi};
@@ -44,7 +48,7 @@ static bool fix_clock(bool tms, bool tdi, void *u) {
     return false;
 }
 
-static void fix_exit(void *u) {
+static void fix_exit(void* u) {
     (void)u;
     s_exit_count++;
 }
@@ -61,22 +65,24 @@ void setUp(void) {
     memset(s_writes, 0, sizeof(s_writes));
     s_clocks_len = 0;
     memset(s_clocks, 0, sizeof(s_clocks));
-    s_tdo_script_len = 0;
+    s_tdo_script_len    = 0;
     s_tdo_script_cursor = 0;
     memset(s_tdo_script, 0, sizeof(s_tdo_script));
     s_exit_count = 0;
     buspirate_compat_init(&TEST_CB);
 }
 
-void tearDown(void) {}
+void tearDown(void) {
+}
 
 // Helper: feed many bytes in sequence.
-static void feed(const uint8_t *bytes, size_t n) {
-    for (size_t i = 0; i < n; i++) buspirate_compat_feed_byte(bytes[i]);
+static void feed(const uint8_t* bytes, size_t n) {
+    for (size_t i = 0; i < n; i++)
+        buspirate_compat_feed_byte(bytes[i]);
 }
 
 // Helper: assert s_writes equals the given byte sequence exactly.
-static void expect_writes(const uint8_t *expected, size_t n) {
+static void expect_writes(const uint8_t* expected, size_t n) {
     TEST_ASSERT_EQUAL_size_t(n, s_writes_len);
     TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, s_writes, n);
 }
@@ -87,14 +93,15 @@ static void expect_writes(const uint8_t *expected, size_t n) {
 
 static void test_bbio_reset_replies_bbio1(void) {
     buspirate_compat_feed_byte(0x00u);
-    expect_writes((const uint8_t *)"BBIO1", 5);
+    expect_writes((const uint8_t*)"BBIO1", 5);
     TEST_ASSERT_EQUAL(BUSPIRATE_BBIO_IDLE, buspirate_compat_get_state());
 }
 
 static void test_bbio_repeated_resets_each_reply_bbio1(void) {
     // OpenOCD probes by sending 0x00 ×25 — every reset must answer
     // BBIO1, not just the first one, for the host to detect the mode.
-    for (int i = 0; i < 25; i++) buspirate_compat_feed_byte(0x00u);
+    for (int i = 0; i < 25; i++)
+        buspirate_compat_feed_byte(0x00u);
     TEST_ASSERT_EQUAL_size_t(25u * 5u, s_writes_len);
     for (int i = 0; i < 25; i++) {
         TEST_ASSERT_EQUAL_HEX8_ARRAY("BBIO1", &s_writes[i * 5], 5);
@@ -115,7 +122,7 @@ static void test_bbio_other_modes_fall_through_to_bbio1(void) {
 
 static void test_enter_ocd_replies_ocd1(void) {
     buspirate_compat_feed_byte(0x06u);
-    expect_writes((const uint8_t *)"OCD1", 4);
+    expect_writes((const uint8_t*)"OCD1", 4);
     TEST_ASSERT_EQUAL(BUSPIRATE_OCD_IDLE, buspirate_compat_get_state());
 }
 
@@ -126,7 +133,7 @@ static void test_user_term_in_bbio_calls_exit(void) {
 }
 
 static void test_user_term_in_ocd_calls_exit(void) {
-    buspirate_compat_feed_byte(0x06u);   // → OCD1
+    buspirate_compat_feed_byte(0x06u); // → OCD1
     s_writes_len = 0;
     buspirate_compat_feed_byte(0x0Fu);
     TEST_ASSERT_EQUAL_size_t(0u, s_writes_len);
@@ -142,30 +149,30 @@ static void test_ocd_unknown_returns_to_bbio(void) {
     static const uint8_t inputs[] = {0x06, 0x00};
     feed(inputs, sizeof(inputs));
     TEST_ASSERT_EQUAL_size_t(4u + 5u, s_writes_len);
-    TEST_ASSERT_EQUAL_HEX8_ARRAY("OCD1",  &s_writes[0], 4);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY("OCD1", &s_writes[0], 4);
     TEST_ASSERT_EQUAL_HEX8_ARRAY("BBIO1", &s_writes[4], 5);
     TEST_ASSERT_EQUAL(BUSPIRATE_BBIO_IDLE, buspirate_compat_get_state());
 }
 
 static void test_ocd_re_enter_replies_ocd1(void) {
-    buspirate_compat_feed_byte(0x06u);   // → OCD1
+    buspirate_compat_feed_byte(0x06u); // → OCD1
     s_writes_len = 0;
-    buspirate_compat_feed_byte(0x06u);   // re-enter inside OCD
-    expect_writes((const uint8_t *)"OCD1", 4);
+    buspirate_compat_feed_byte(0x06u); // re-enter inside OCD
+    expect_writes((const uint8_t*)"OCD1", 4);
 }
 
 static void test_ocd_port_mode_consumes_one_arg(void) {
     static const uint8_t inputs[] = {0x06, 0x01, 0xAA};
     feed(inputs, sizeof(inputs));
     // Only OCD1 reply; no echo for port-mode.
-    expect_writes((const uint8_t *)"OCD1", 4);
+    expect_writes((const uint8_t*)"OCD1", 4);
     TEST_ASSERT_EQUAL(BUSPIRATE_OCD_IDLE, buspirate_compat_get_state());
 }
 
 static void test_ocd_feature_consumes_two_args(void) {
     static const uint8_t inputs[] = {0x06, 0x02, 0xAA, 0xBB};
     feed(inputs, sizeof(inputs));
-    expect_writes((const uint8_t *)"OCD1", 4);
+    expect_writes((const uint8_t*)"OCD1", 4);
     TEST_ASSERT_EQUAL(BUSPIRATE_OCD_IDLE, buspirate_compat_get_state());
 }
 
@@ -176,7 +183,8 @@ static void test_ocd_read_adcs_replies_ten_bytes(void) {
     TEST_ASSERT_EQUAL_size_t(4u + 10u, s_writes_len);
     TEST_ASSERT_EQUAL_HEX8(0x03, s_writes[4]);
     TEST_ASSERT_EQUAL_HEX8(0x08, s_writes[5]);
-    for (size_t i = 6; i < 14; i++) TEST_ASSERT_EQUAL_HEX8(0x00, s_writes[i]);
+    for (size_t i = 6; i < 14; i++)
+        TEST_ASSERT_EQUAL_HEX8(0x00, s_writes[i]);
 }
 
 static void test_ocd_uart_speed_consumes_three_args_and_replies(void) {
@@ -191,7 +199,7 @@ static void test_ocd_uart_speed_consumes_three_args_and_replies(void) {
 static void test_ocd_jtag_speed_consumes_two_args(void) {
     static const uint8_t inputs[] = {0x06, 0x08, 0x05, 0x06};
     feed(inputs, sizeof(inputs));
-    expect_writes((const uint8_t *)"OCD1", 4);
+    expect_writes((const uint8_t*)"OCD1", 4);
 }
 
 static void test_ocd_unknown_subcmd_replies_zero(void) {
@@ -223,10 +231,10 @@ static void test_tap_shift_4_bits(void) {
     // TMS 0xCC LSB-first: 0, 0, 1, 1, 0, 0, 1, 1
     // First 4 (TMS,TDI) pairs: (0,0) (0,1) (1,0) (1,1)
     // Mock TDO returns: 1, 0, 1, 0  → output byte LSB-first = 0b0101 = 0x05
-    s_tdo_script[0] = true;
-    s_tdo_script[1] = false;
-    s_tdo_script[2] = true;
-    s_tdo_script[3] = false;
+    s_tdo_script[0]  = true;
+    s_tdo_script[1]  = false;
+    s_tdo_script[2]  = true;
+    s_tdo_script[3]  = false;
     s_tdo_script_len = 4;
 
     static const uint8_t inputs[] = {0x06, 0x05, 0x00, 0x04, 0xFA, 0xCC};
@@ -234,10 +242,14 @@ static void test_tap_shift_4_bits(void) {
 
     // 4 (TMS, TDI) calls.
     TEST_ASSERT_EQUAL_size_t(4u, s_clocks_len);
-    TEST_ASSERT_FALSE(s_clocks[0].tms); TEST_ASSERT_FALSE(s_clocks[0].tdi);
-    TEST_ASSERT_FALSE(s_clocks[1].tms); TEST_ASSERT_TRUE (s_clocks[1].tdi);
-    TEST_ASSERT_TRUE (s_clocks[2].tms); TEST_ASSERT_FALSE(s_clocks[2].tdi);
-    TEST_ASSERT_TRUE (s_clocks[3].tms); TEST_ASSERT_TRUE (s_clocks[3].tdi);
+    TEST_ASSERT_FALSE(s_clocks[0].tms);
+    TEST_ASSERT_FALSE(s_clocks[0].tdi);
+    TEST_ASSERT_FALSE(s_clocks[1].tms);
+    TEST_ASSERT_TRUE(s_clocks[1].tdi);
+    TEST_ASSERT_TRUE(s_clocks[2].tms);
+    TEST_ASSERT_FALSE(s_clocks[2].tdi);
+    TEST_ASSERT_TRUE(s_clocks[3].tms);
+    TEST_ASSERT_TRUE(s_clocks[3].tdi);
 
     // OCD1 (4) + [0x05, 0x00, 0x04, 0x05] (4) = 8 written bytes.
     TEST_ASSERT_EQUAL_size_t(4u + 4u, s_writes_len);
@@ -251,7 +263,7 @@ static void test_tap_shift_4_bits(void) {
 static void test_tap_shift_8_bits_full_pair(void) {
     // 8 bits, TDI=0xAA TMS=0x55.
     // Mock TDO = 0xF0 (LSB-first script: 0,0,0,0,1,1,1,1)
-    bool tdo[] = {false,false,false,false, true,true,true,true};
+    bool tdo[] = {false, false, false, false, true, true, true, true};
     memcpy(s_tdo_script, tdo, sizeof(tdo));
     s_tdo_script_len = 8;
 
@@ -261,8 +273,8 @@ static void test_tap_shift_8_bits_full_pair(void) {
     TEST_ASSERT_EQUAL_size_t(8u, s_clocks_len);
     // TDI 0xAA LSB-first: 0,1,0,1,0,1,0,1
     // TMS 0x55 LSB-first: 1,0,1,0,1,0,1,0
-    bool exp_tdi[] = {false,true,false,true,false,true,false,true};
-    bool exp_tms[] = {true,false,true,false,true,false,true,false};
+    bool exp_tdi[] = {false, true, false, true, false, true, false, true};
+    bool exp_tms[] = {true, false, true, false, true, false, true, false};
     for (size_t i = 0; i < 8; i++) {
         TEST_ASSERT_EQUAL(exp_tdi[i], s_clocks[i].tdi);
         TEST_ASSERT_EQUAL(exp_tms[i], s_clocks[i].tms);
@@ -278,14 +290,14 @@ static void test_tap_shift_12_bits_partial_second_pair(void) {
     // 2 input pairs (TDI byte + TMS byte each = 4 input bytes).
     // 2 output bytes.
     bool tdo[12];
-    for (size_t i = 0; i < 12; i++) tdo[i] = (i & 1u);   // alternating
+    for (size_t i = 0; i < 12; i++)
+        tdo[i] = (i & 1u); // alternating
     memcpy(s_tdo_script, tdo, sizeof(tdo));
     s_tdo_script_len = 12;
 
     static const uint8_t inputs[] = {
-        0x06, 0x05, 0x00, 0x0C,
-        0xFF, 0x00,   // pair 1: TDI=0xFF TMS=0x00
-        0x00, 0xFF,   // pair 2: TDI=0x00 TMS=0xFF
+        0x06, 0x05, 0x00, 0x0C, 0xFF, 0x00, // pair 1: TDI=0xFF TMS=0x00
+        0x00, 0xFF,                         // pair 2: TDI=0x00 TMS=0xFF
     };
     feed(inputs, sizeof(inputs));
 
@@ -306,7 +318,7 @@ static void test_tap_shift_clamps_to_max(void) {
     feed(inputs, sizeof(inputs));
     TEST_ASSERT_EQUAL_size_t(4u + 3u, s_writes_len);
     TEST_ASSERT_EQUAL_HEX8(0x05, s_writes[4]);
-    TEST_ASSERT_EQUAL_HEX8(0x20, s_writes[5]);   // hi byte of 0x2000
+    TEST_ASSERT_EQUAL_HEX8(0x20, s_writes[5]); // hi byte of 0x2000
     TEST_ASSERT_EQUAL_HEX8(0x00, s_writes[6]);
 }
 
@@ -316,16 +328,17 @@ static void test_tap_shift_clamps_to_max(void) {
 
 static void test_full_session_init_then_exit(void) {
     // 25× 0x00 (probe) → 0x06 (enter OCD) → small TAP_SHIFT → 0x0F (exit).
-    for (int i = 0; i < 25; i++) buspirate_compat_feed_byte(0x00);
+    for (int i = 0; i < 25; i++)
+        buspirate_compat_feed_byte(0x00);
     TEST_ASSERT_EQUAL_size_t(BUSPIRATE_BBIO_IDLE, buspirate_compat_get_state());
 
     s_writes_len = 0;
     buspirate_compat_feed_byte(0x06);
-    expect_writes((const uint8_t *)"OCD1", 4);
+    expect_writes((const uint8_t*)"OCD1", 4);
     TEST_ASSERT_EQUAL(BUSPIRATE_OCD_IDLE, buspirate_compat_get_state());
 
-    s_writes_len = 0;
-    s_tdo_script_len = 0;   // returns false for every clock
+    s_writes_len                 = 0;
+    s_tdo_script_len             = 0; // returns false for every clock
     static const uint8_t shift[] = {0x05, 0x00, 0x05, 0x00, 0x00};
     feed(shift, sizeof(shift));
     // 5 bits, all TDO = 0 → output = [0x05 0x00 0x05 0x00].
@@ -346,11 +359,11 @@ static void test_init_starts_in_bbio(void) {
 }
 
 static void test_init_null_safe(void) {
-    buspirate_compat_init(NULL);    // must not crash
+    buspirate_compat_init(NULL); // must not crash
     // State is zeroed → BBIO_IDLE
     TEST_ASSERT_EQUAL(BUSPIRATE_BBIO_IDLE, buspirate_compat_get_state());
     // Without callbacks, feeding bytes shouldn't crash either.
-    buspirate_compat_feed_byte(0x00);   // no write_byte → silent no-op
+    buspirate_compat_feed_byte(0x00); // no write_byte → silent no-op
 }
 
 // -----------------------------------------------------------------------------

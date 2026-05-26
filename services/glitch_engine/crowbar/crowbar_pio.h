@@ -54,17 +54,17 @@ typedef enum {
 
 // width_ns minimum is one PIO tick (8 ns @ 125 MHz). Maximum capped
 // at 50 µs to keep voltage glitching from cooking the target.
-#define CROWBAR_PIO_WIDTH_NS_MIN   8u
-#define CROWBAR_PIO_WIDTH_NS_MAX   50000u
+#define CROWBAR_PIO_WIDTH_NS_MIN 8u
+#define CROWBAR_PIO_WIDTH_NS_MAX 50000u
 
 // delay_us range mirrors EMFI: 0 (immediate) up to 1 s.
-#define CROWBAR_PIO_DELAY_US_MAX   1000000u
+#define CROWBAR_PIO_DELAY_US_MAX 1000000u
 
 typedef struct {
     crowbar_trig_t trigger;
-    crowbar_out_t  output;        // which gate the PIO drives this fire
-    uint32_t       delay_us;      // 0..CROWBAR_PIO_DELAY_US_MAX
-    uint32_t       width_ns;      // CROWBAR_PIO_WIDTH_NS_MIN..MAX
+    crowbar_out_t output; // which gate the PIO drives this fire
+    uint32_t delay_us;    // 0..CROWBAR_PIO_DELAY_US_MAX
+    uint32_t width_ns;    // CROWBAR_PIO_WIDTH_NS_MIN..MAX
 } crowbar_pio_params_t;
 
 // One-time init. Claims pio0/SM1. Returns false if SM is already
@@ -81,7 +81,7 @@ void crowbar_pio_deinit(void);
 // have been pushed to the TX FIFO in the order the program expects.
 // The selected output gate (LP or HP) is attached to the PIO instance
 // here; CROWBAR_OUT_NONE is rejected as a config error.
-bool crowbar_pio_load(const crowbar_pio_params_t *params);
+bool crowbar_pio_load(const crowbar_pio_params_t* params);
 
 // Enable the SM; after this the program starts executing and will
 // eventually raise IRQ 1 when the pulse has fired.

@@ -21,7 +21,7 @@
 bool emfi_capture_init(void);
 void emfi_capture_start(void);
 void emfi_capture_stop(void);
-const uint8_t *emfi_capture_buffer(void);
+const uint8_t* emfi_capture_buffer(void);
 uint32_t emfi_capture_fill(void);
 
 // True while the ADC FIFO + DMA are owned by this service. Callers

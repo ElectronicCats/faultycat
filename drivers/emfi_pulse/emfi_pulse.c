@@ -7,9 +7,9 @@
 #include "hal/pio.h"
 #include "hal/time.h"
 
-static bool             s_attached = false;
-static hal_pio_inst_t  *s_pio      = NULL;
-static uint32_t         s_sm       = 0;
+static bool s_attached       = false;
+static hal_pio_inst_t* s_pio = NULL;
+static uint32_t s_sm         = 0;
 
 void emfi_pulse_init(void) {
     hal_gpio_init(BOARD_GP_HV_PULSE, HAL_GPIO_DIR_OUT);
@@ -36,8 +36,7 @@ bool emfi_pulse_fire_manual(uint32_t width_us) {
     if (s_attached) {
         return false;
     }
-    if (width_us < EMFI_PULSE_MIN_WIDTH_US
-     || width_us > EMFI_PULSE_MAX_WIDTH_US) {
+    if (width_us < EMFI_PULSE_MIN_WIDTH_US || width_us > EMFI_PULSE_MAX_WIDTH_US) {
         return false;
     }
     uint32_t cookie = hal_irq_save_and_disable();
@@ -49,7 +48,7 @@ bool emfi_pulse_fire_manual(uint32_t width_us) {
     return true;
 }
 
-bool emfi_pulse_attach_pio(hal_pio_inst_t *pio, uint32_t sm) {
+bool emfi_pulse_attach_pio(hal_pio_inst_t* pio, uint32_t sm) {
     if (!pio || s_attached) {
         return false;
     }

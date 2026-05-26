@@ -35,14 +35,17 @@ static crowbar_config_t default_cfg(void) {
     return c;
 }
 
-static void advance_ms(uint32_t ms) { hal_fake_time_advance_ms(ms); }
+static void advance_ms(uint32_t ms) {
+    hal_fake_time_advance_ms(ms);
+}
 
 // -----------------------------------------------------------------------------
 // init / configure
 // -----------------------------------------------------------------------------
 
 static void test_initial_state_is_idle(void) {
-    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    crowbar_status_t s;
+    crowbar_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(CROWBAR_STATE_IDLE, s.state);
     TEST_ASSERT_EQUAL(CROWBAR_ERR_NONE, s.err);
     TEST_ASSERT_EQUAL(CROWBAR_OUT_NONE, s.output);
@@ -54,37 +57,37 @@ static void test_configure_rejects_null(void) {
 
 static void test_configure_rejects_output_none(void) {
     crowbar_config_t c = default_cfg();
-    c.output = CROWBAR_OUT_NONE;
+    c.output           = CROWBAR_OUT_NONE;
     TEST_ASSERT_FALSE(crowbar_campaign_configure(&c));
 }
 
 static void test_configure_rejects_zero_width(void) {
     crowbar_config_t c = default_cfg();
-    c.width_ns = 0u;
+    c.width_ns         = 0u;
     TEST_ASSERT_FALSE(crowbar_campaign_configure(&c));
 }
 
 static void test_configure_rejects_width_above_max(void) {
     crowbar_config_t c = default_cfg();
-    c.width_ns = CROWBAR_PIO_WIDTH_NS_MAX + 1u;
+    c.width_ns         = CROWBAR_PIO_WIDTH_NS_MAX + 1u;
     TEST_ASSERT_FALSE(crowbar_campaign_configure(&c));
 }
 
 static void test_configure_rejects_delay_above_max(void) {
     crowbar_config_t c = default_cfg();
-    c.delay_us = CROWBAR_PIO_DELAY_US_MAX + 1u;
+    c.delay_us         = CROWBAR_PIO_DELAY_US_MAX + 1u;
     TEST_ASSERT_FALSE(crowbar_campaign_configure(&c));
 }
 
 static void test_configure_rejects_invalid_trigger(void) {
     crowbar_config_t c = default_cfg();
-    c.trigger = (crowbar_trig_t)99;
+    c.trigger          = (crowbar_trig_t)99;
     TEST_ASSERT_FALSE(crowbar_campaign_configure(&c));
 }
 
 static void test_configure_accepts_lp(void) {
     crowbar_config_t c = default_cfg();
-    c.output = CROWBAR_OUT_LP;
+    c.output           = CROWBAR_OUT_LP;
     TEST_ASSERT_TRUE(crowbar_campaign_configure(&c));
 }
 
@@ -94,7 +97,8 @@ static void test_configure_accepts_lp(void) {
 
 static void test_arm_without_configure_errors(void) {
     TEST_ASSERT_FALSE(crowbar_campaign_arm());
-    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    crowbar_status_t s;
+    crowbar_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(CROWBAR_STATE_ERROR, s.state);
     TEST_ASSERT_EQUAL(CROWBAR_ERR_BAD_CONFIG, s.err);
 }
@@ -103,7 +107,8 @@ static void test_arm_from_idle_goes_armed(void) {
     crowbar_config_t c = default_cfg();
     crowbar_campaign_configure(&c);
     TEST_ASSERT_TRUE(crowbar_campaign_arm());
-    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    crowbar_status_t s;
+    crowbar_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(CROWBAR_STATE_ARMED, s.state);
 }
 
@@ -136,7 +141,8 @@ static void test_fire_from_armed_starts_pio_and_enters_waiting(void) {
     crowbar_campaign_configure(&c);
     crowbar_campaign_arm();
     TEST_ASSERT_TRUE(crowbar_campaign_fire(500));
-    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    crowbar_status_t s;
+    crowbar_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(CROWBAR_STATE_WAITING, s.state);
     TEST_ASSERT_TRUE(hal_fake_pio_insts[0].sm[1].claimed);
     TEST_ASSERT_TRUE(hal_fake_pio_insts[0].sm[1].enabled);
@@ -165,7 +171,8 @@ static void test_fire_pio_init_failure_enters_error(void) {
     crowbar_campaign_configure(&c);
     crowbar_campaign_arm();
     TEST_ASSERT_FALSE(crowbar_campaign_fire(500));
-    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    crowbar_status_t s;
+    crowbar_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(CROWBAR_STATE_ERROR, s.state);
     TEST_ASSERT_EQUAL(CROWBAR_ERR_PIO_FAULT, s.err);
 }
@@ -179,12 +186,13 @@ static void test_waiting_completes_on_pio_irq1(void) {
     crowbar_campaign_configure(&c);
     crowbar_campaign_arm();
     crowbar_campaign_fire(500);
-    hal_fake_pio_raise_irq(0, 1);   // crowbar uses IRQ index 1
+    hal_fake_pio_raise_irq(0, 1); // crowbar uses IRQ index 1
     crowbar_campaign_tick();
-    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    crowbar_status_t s;
+    crowbar_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(CROWBAR_STATE_FIRED, s.state);
     TEST_ASSERT_EQUAL_UINT32(200u, s.pulse_width_ns_actual);
-    TEST_ASSERT_EQUAL_UINT32(10u,  s.delay_us_actual);
+    TEST_ASSERT_EQUAL_UINT32(10u, s.delay_us_actual);
     TEST_ASSERT_EQUAL(CROWBAR_OUT_HP, s.output);
 }
 
@@ -196,32 +204,35 @@ static void test_waiting_irq0_does_not_fire(void) {
     crowbar_campaign_fire(500);
     hal_fake_pio_raise_irq(0, 0);
     crowbar_campaign_tick();
-    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    crowbar_status_t s;
+    crowbar_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(CROWBAR_STATE_WAITING, s.state);
 }
 
 static void test_waiting_times_out_when_pio_silent(void) {
     crowbar_config_t c = default_cfg();
-    c.trigger = CROWBAR_TRIG_EXT_RISING;
+    c.trigger          = CROWBAR_TRIG_EXT_RISING;
     crowbar_campaign_configure(&c);
     crowbar_campaign_arm();
     crowbar_campaign_fire(50);
     advance_ms(100);
     crowbar_campaign_tick();
-    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    crowbar_status_t s;
+    crowbar_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(CROWBAR_STATE_ERROR, s.state);
     TEST_ASSERT_EQUAL(CROWBAR_ERR_TRIGGER_TIMEOUT, s.err);
 }
 
 static void test_waiting_zero_timeout_means_wait_forever(void) {
     crowbar_config_t c = default_cfg();
-    c.trigger = CROWBAR_TRIG_EXT_RISING;
+    c.trigger          = CROWBAR_TRIG_EXT_RISING;
     crowbar_campaign_configure(&c);
     crowbar_campaign_arm();
     crowbar_campaign_fire(0);
     advance_ms(10000);
     crowbar_campaign_tick();
-    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    crowbar_status_t s;
+    crowbar_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(CROWBAR_STATE_WAITING, s.state);
 }
 
@@ -235,7 +246,8 @@ static void test_disarm_returns_to_idle_and_releases_pio(void) {
     crowbar_campaign_arm();
     crowbar_campaign_fire(500);
     crowbar_campaign_disarm();
-    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    crowbar_status_t s;
+    crowbar_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(CROWBAR_STATE_IDLE, s.state);
     TEST_ASSERT_FALSE(hal_fake_pio_insts[0].sm[1].claimed);
 }
@@ -260,17 +272,19 @@ static void test_arm_from_fired_back_to_armed(void) {
     crowbar_campaign_arm();
     crowbar_campaign_fire(500);
     hal_fake_pio_raise_irq(0, 1);
-    crowbar_campaign_tick();    // -> FIRED
+    crowbar_campaign_tick(); // -> FIRED
     TEST_ASSERT_TRUE(crowbar_campaign_arm());
-    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    crowbar_status_t s;
+    crowbar_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(CROWBAR_STATE_ARMED, s.state);
 }
 
 static void test_reconfigure_clears_error_state(void) {
-    TEST_ASSERT_FALSE(crowbar_campaign_arm());   // -> ERROR(BAD_CONFIG)
+    TEST_ASSERT_FALSE(crowbar_campaign_arm()); // -> ERROR(BAD_CONFIG)
     crowbar_config_t c = default_cfg();
     TEST_ASSERT_TRUE(crowbar_campaign_configure(&c));
-    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    crowbar_status_t s;
+    crowbar_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(CROWBAR_STATE_IDLE, s.state);
     TEST_ASSERT_EQUAL(CROWBAR_ERR_NONE, s.err);
 }
@@ -289,7 +303,8 @@ static void test_two_consecutive_arm_fire_cycles(void) {
     TEST_ASSERT_TRUE(crowbar_campaign_fire(500));
     hal_fake_pio_raise_irq(0, 1);
     crowbar_campaign_tick();
-    crowbar_status_t s; crowbar_campaign_get_status(&s);
+    crowbar_status_t s;
+    crowbar_campaign_get_status(&s);
     TEST_ASSERT_EQUAL(CROWBAR_STATE_FIRED, s.state);
 
     TEST_ASSERT_TRUE(crowbar_campaign_arm());
@@ -309,7 +324,7 @@ static void test_two_consecutive_arm_fire_cycles(void) {
 
 static void test_configure_accepts_pulse_neg(void) {
     crowbar_config_t c = default_cfg();
-    c.trigger = CROWBAR_TRIG_EXT_PULSE_NEG;
+    c.trigger          = CROWBAR_TRIG_EXT_PULSE_NEG;
     TEST_ASSERT_TRUE(crowbar_campaign_configure(&c));
 }
 
@@ -319,13 +334,13 @@ static void test_configure_accepts_pulse_neg(void) {
 // fix the pin stayed in GPIO_FUNC_PIO0 and gpio_put was a no-op.
 static void test_teardown_reinits_used_gate_pin_to_sio(void) {
     crowbar_config_t c = default_cfg();
-    c.output = CROWBAR_OUT_HP;
+    c.output           = CROWBAR_OUT_HP;
     crowbar_campaign_configure(&c);
     crowbar_campaign_arm();
     crowbar_campaign_fire(500);
     uint32_t before = hal_fake_gpio_states[BOARD_GP_CROWBAR_HP].init_calls;
     hal_fake_pio_raise_irq(0, 1);
-    crowbar_campaign_tick();    // -> FIRED runs teardown
+    crowbar_campaign_tick(); // -> FIRED runs teardown
     uint32_t after = hal_fake_gpio_states[BOARD_GP_CROWBAR_HP].init_calls;
     TEST_ASSERT_GREATER_THAN(before, after);
 }

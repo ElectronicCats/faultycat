@@ -12,8 +12,8 @@
 // acquires (F4/F5 PIO ISRs never touch SWD), so we don't need an
 // atomic CAS or a pico-sdk mutex_t. Keeps host tests buildable
 // against the plain hal_fake.
-static volatile bool             s_locked = false;
-static volatile swd_bus_owner_t  s_owner  = SWD_BUS_OWNER_IDLE;
+static volatile bool s_locked           = false;
+static volatile swd_bus_owner_t s_owner = SWD_BUS_OWNER_IDLE;
 
 void swd_bus_lock_init(void) {
     s_locked = false;
@@ -43,7 +43,8 @@ bool swd_bus_acquire(swd_bus_owner_t who, uint32_t timeout_ms) {
         }
         if (timeout_ms != SWD_BUS_TIMEOUT_FOREVER) {
             uint32_t elapsed = (uint32_t)(hal_now_ms() - start);
-            if (elapsed >= timeout_ms) return false;
+            if (elapsed >= timeout_ms)
+                return false;
         }
         // Yield once per millisecond. The bus is held by another
         // cooperative consumer in the same main loop, so sleeping

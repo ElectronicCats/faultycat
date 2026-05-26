@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "swd_dp.h"   // for swd_dp_ack_t
+#include "swd_dp.h" // for swd_dp_ack_t
 
 // services/swd_core/swd_mem — MEM-AP layer (ADIv5).
 //
@@ -25,7 +25,7 @@ swd_dp_ack_t swd_mem_init(void);
 // Single 32-bit memory read. addr must be 4-byte aligned. Returns
 // OK on success and writes the read word to *out; on WAIT/FAULT/
 // parity error returns the corresponding ACK and *out is unchanged.
-swd_dp_ack_t swd_mem_read32(uint32_t addr, uint32_t *out);
+swd_dp_ack_t swd_mem_read32(uint32_t addr, uint32_t* out);
 
 // Single 32-bit memory write. addr must be 4-byte aligned.
 swd_dp_ack_t swd_mem_write32(uint32_t addr, uint32_t val);

@@ -3,13 +3,12 @@
 Mocks pyserial's list_ports.comports() so tests pass on any
 platform (don't depend on a real /dev/ttyACM* or COMx).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import pytest
-
 from faultycmd import usb
 
 
@@ -18,10 +17,10 @@ class FakePort:
     """Minimal stand-in for pyserial's ListPortInfo."""
 
     device: str
-    vid: Optional[int]
-    pid: Optional[int]
+    vid: int | None
+    pid: int | None
     hwid: str = ""
-    location: Optional[str] = None
+    location: str | None = None
 
 
 def _linux_port(dev: str, vid: int, pid: int, iface: int) -> FakePort:
@@ -43,10 +42,7 @@ def _windows_port(dev: str, vid: int, pid: int, iface: int) -> FakePort:
         device=dev,
         vid=vid,
         pid=pid,
-        hwid=(
-            f"USB VID:PID={vid:04X}:{pid:04X} SER=FLT3-XXXX "
-            f"LOCATION=1-3:x.{iface}"
-        ),
+        hwid=(f"USB VID:PID={vid:04X}:{pid:04X} SER=FLT3-XXXX " f"LOCATION=1-3:x.{iface}"),
         location=f"1-3:x.{iface}",
     )
 

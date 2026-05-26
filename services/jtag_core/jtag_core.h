@@ -41,18 +41,18 @@
 //   - JTAG_PIN_TRST_NONE      : pass to jtag_pinout_t.trst when no
 //                               TRST line is wired.
 
-#define JTAG_MAX_DEVICES        32u
-#define JTAG_MIN_IR_LEN         2u
-#define JTAG_MAX_IR_LEN         32u
-#define JTAG_MAX_DR_LEN         4096u
-#define JTAG_PIN_TRST_NONE      ((int8_t)-1)
+#define JTAG_MAX_DEVICES   32u
+#define JTAG_MIN_IR_LEN    2u
+#define JTAG_MAX_IR_LEN    32u
+#define JTAG_MAX_DR_LEN    4096u
+#define JTAG_PIN_TRST_NONE ((int8_t) - 1)
 
 typedef struct {
     uint8_t tdi;
     uint8_t tdo;
     uint8_t tms;
     uint8_t tck;
-    int8_t  trst;       // JTAG_PIN_TRST_NONE if no TRST wired
+    int8_t trst; // JTAG_PIN_TRST_NONE if no TRST wired
 } jtag_pinout_t;
 
 // Initialize the bit-bang phy on the given pinout.
@@ -65,7 +65,7 @@ typedef struct {
 // two of (tdi, tdo, tms, tck, trst) collide. Cross-service ownership
 // (vs swd_phy) is checked at the SHELL level, NOT here — jtag_core
 // will gladly init even if swd_phy already owns one of these pins.
-bool jtag_init(const jtag_pinout_t *pins);
+bool jtag_init(const jtag_pinout_t* pins);
 
 // Tear down: revert all four (or five) pins to plain GPIO inputs with
 // pulls disabled, releasing them so scanner_io / swd_phy can re-claim.
@@ -100,7 +100,7 @@ bool jtag_clock_bit(bool tms, bool tdi);
 //
 // out[i] is the canonical IDCODE: bit 0 always 1, bits[11:1] = mfg id,
 // bits[27:12] = part #, bits[31:28] = version.
-size_t jtag_read_idcodes(uint32_t *out, size_t max_devices);
+size_t jtag_read_idcodes(uint32_t* out, size_t max_devices);
 
 // Validate an IDCODE per IEEE 1149.1: bit 0 must be 1, mfg id in
 // [1..126], bank ≤ 8, value not 0 or 0xFFFFFFFF. Used by F8-2's

@@ -77,8 +77,7 @@ static void test_fire_manual_calls_put_high_then_low(void) {
     TEST_ASSERT_TRUE(emfi_pulse_fire_manual(5u));
     // init drove the pin low once, force_low is not called by fire,
     // fire itself writes high then low = 2 puts.
-    TEST_ASSERT_EQUAL_UINT32(puts_before + 2u,
-                             hal_fake_gpio_states[BOARD_GP_HV_PULSE].put_calls);
+    TEST_ASSERT_EQUAL_UINT32(puts_before + 2u, hal_fake_gpio_states[BOARD_GP_HV_PULSE].put_calls);
     TEST_ASSERT_FALSE(hal_fake_gpio_states[BOARD_GP_HV_PULSE].level);
 }
 
@@ -110,7 +109,7 @@ static void test_fire_manual_does_not_leave_pin_high(void) {
 static void test_attach_pio_succeeds_when_detached(void) {
     emfi_pulse_init();
     hal_fake_pio_reset();
-    hal_pio_inst_t *pio = hal_pio_instance(0);
+    hal_pio_inst_t* pio = hal_pio_instance(0);
     TEST_ASSERT_TRUE(emfi_pulse_attach_pio(pio, 0));
     TEST_ASSERT_TRUE(emfi_pulse_is_attached_to_pio());
 }
@@ -118,7 +117,7 @@ static void test_attach_pio_succeeds_when_detached(void) {
 static void test_attach_pio_refuses_when_already_attached(void) {
     emfi_pulse_init();
     hal_fake_pio_reset();
-    hal_pio_inst_t *pio = hal_pio_instance(0);
+    hal_pio_inst_t* pio = hal_pio_instance(0);
     TEST_ASSERT_TRUE(emfi_pulse_attach_pio(pio, 0));
     TEST_ASSERT_FALSE(emfi_pulse_attach_pio(pio, 1));
 }
@@ -126,7 +125,7 @@ static void test_attach_pio_refuses_when_already_attached(void) {
 static void test_fire_manual_rejected_while_attached(void) {
     emfi_pulse_init();
     hal_fake_pio_reset();
-    hal_pio_inst_t *pio = hal_pio_instance(0);
+    hal_pio_inst_t* pio = hal_pio_instance(0);
     emfi_pulse_attach_pio(pio, 0);
     TEST_ASSERT_FALSE(emfi_pulse_fire_manual(5u));
     TEST_ASSERT_FALSE(hal_fake_gpio_states[BOARD_GP_HV_PULSE].level);
@@ -135,7 +134,7 @@ static void test_fire_manual_rejected_while_attached(void) {
 static void test_detach_pio_returns_pin_to_gpio_low(void) {
     emfi_pulse_init();
     hal_fake_pio_reset();
-    hal_pio_inst_t *pio = hal_pio_instance(0);
+    hal_pio_inst_t* pio = hal_pio_instance(0);
     emfi_pulse_attach_pio(pio, 0);
     // Simulate PIO leaving the pin high, like a glitched state.
     hal_fake_gpio_states[BOARD_GP_HV_PULSE].level = true;
@@ -147,7 +146,7 @@ static void test_detach_pio_returns_pin_to_gpio_low(void) {
 static void test_fire_manual_works_again_after_detach(void) {
     emfi_pulse_init();
     hal_fake_pio_reset();
-    hal_pio_inst_t *pio = hal_pio_instance(0);
+    hal_pio_inst_t* pio = hal_pio_instance(0);
     emfi_pulse_attach_pio(pio, 0);
     emfi_pulse_detach_pio();
     TEST_ASSERT_TRUE(emfi_pulse_fire_manual(5u));
@@ -157,7 +156,7 @@ static void test_fire_manual_works_again_after_detach(void) {
 static void test_force_low_detaches_if_attached(void) {
     emfi_pulse_init();
     hal_fake_pio_reset();
-    hal_pio_inst_t *pio = hal_pio_instance(0);
+    hal_pio_inst_t* pio = hal_pio_instance(0);
     emfi_pulse_attach_pio(pio, 0);
     emfi_pulse_force_low();
     TEST_ASSERT_FALSE(emfi_pulse_is_attached_to_pio());
