@@ -101,15 +101,15 @@ jobs:
       - name: PyInstaller smoke build
         run: |
           pyinstaller --name faultycmd --onefile \
-            --collect-all textual --collect-all rich --collect-all click \
-            src/faultycmd/__main__.py || \
-          pyinstaller --name faultycmd --onefile \
-            --collect-all textual --collect-all rich --collect-all click \
             -p src \
-            -c "from faultycmd.cli import main; main()" \
-            --runtime-hook /dev/null || true
+            --collect-all faultycmd \
+            --collect-all textual --collect-all rich --collect-all click \
+            src/faultycmd/__main__.py
         # PyInstaller's spec file gets refined in F11 release polish;
         # this step is a "does it even start" smoke for now.
+        # -p src + --collect-all faultycmd lets the bootloader resolve
+        # the `from faultycmd.cli import main` absolute import inside
+        # the frozen __main__.py.
 
       - name: Verify binary boots
         run: |

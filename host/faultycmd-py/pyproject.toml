@@ -66,3 +66,11 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B"]
 ignore = ["E501"]   # line-length is enforced via formatter
+
+[tool.ruff.lint.isort]
+# Older ruff (e.g. 0.6.9 pinned in the pre-commit hook) auto-detects
+# first-party packages by scanning the working dir, which fails when
+# the hook runs from a different cwd than expected. Declaring it
+# explicitly keeps imports stable across ruff versions and across
+# local/CI invocations.
+known-first-party = ["faultycmd"]

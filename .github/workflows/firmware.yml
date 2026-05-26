@@ -61,7 +61,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build gcc-arm-none-eabi libnewlib-arm-none-eabi
+            cmake ninja-build \
+            gcc-arm-none-eabi \
+            libnewlib-arm-none-eabi \
+            libstdc++-arm-none-eabi-newlib
 
       - name: Show toolchain versions
         run: |
