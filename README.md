@@ -1,52 +1,10 @@
 # Faulty Cat
 
-> ## 🚧 Firmware v3 rewrite in progress
+> ## Firmware v3 — rewritten from scratch
 >
-> This branch (`rewrite/v3`) hosts a from-scratch firmware rewrite for
-> the **existing FaultyCat v2.x hardware** — no new board. The plan,
-> phases, and frozen decisions live in
-> [`FAULTYCAT_REFACTOR_PLAN.md`](FAULTYCAT_REFACTOR_PLAN.md), the
-> layering in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), the pin
-> map in [`docs/HARDWARE_V2.md`](docs/HARDWARE_V2.md), and the
-> legacy-vs-rewrite diff in [`docs/PORTING.md`](docs/PORTING.md).
->
-> The legacy v2.x firmware lives on the `main` branch (under
-> `firmware/c/`) and keeps working on shipped devices. In
-> `rewrite/v3` that legacy tree was removed during F11 cleanup —
-> only the v3 stack (`apps/`, `services/`, `drivers/`, `hal/`,
-> `host/`) ships from this branch. Pick what you need.
->
-> **Prerequisites** — install these before running the build:
->
-> | Tool | Purpose |
-> |---|---|
-> | `cmake` ≥ 3.20 | Build system generator |
-> | `ninja` | Build backend used by the presets |
-> | `arm-none-eabi-gcc` | ARM Cortex-M0+ cross-compiler |
-> | `libnewlib-arm-none-eabi` | Bare-metal C library (needed at link time) |
->
-> Install commands by platform:
-> ```
-> # Debian / Ubuntu
-> sudo apt install cmake ninja-build gcc-arm-none-eabi libnewlib-arm-none-eabi
->
-> # Fedora
-> sudo dnf install cmake ninja-build arm-none-eabi-gcc-cs arm-none-eabi-newlib
->
-> # Arch
-> sudo pacman -S cmake ninja arm-none-eabi-gcc arm-none-eabi-newlib
->
-> # macOS (Homebrew)
-> brew install cmake ninja && brew install --cask gcc-arm-embedded
-> ```
->
-> Quickstart (after clone):
-> ```
-> tools/bootstrap.sh            # populate third_party/
-> cmake --preset fw-debug
-> cmake --build build/fw-debug
-> tools/flash.sh                # flashes build/fw-debug/apps/faultycat_fw/faultycat.uf2
-> ```
+> This repository ships **firmware v3** for the existing FaultyCat
+> v2.x hardware. It is a from-scratch rewrite of the original v2.x
+> firmware, not an evolution of it — same board, new stack.
 
 Faulty Cat is a low-cost Electromagnetic Fault Injection (EMFI) tool, designed specifically for self-study and hobbiest research.
 
@@ -124,6 +82,29 @@ legacy
 [Bootloader mode section](https://github.com/ElectronicCats/faultycat/wiki/1.-Understanding-Faulty-Cat#bootloader-mode)
 of the wiki (the **mechanism** is the same in v3 — only the firmware
 on top changed).
+
+### Building the firmware
+
+The fastest way to build the firmware from source is the official
+**Raspberry Pi Pico** extension for VS Code — it installs the
+toolchain (cmake, ninja, arm-none-eabi-gcc) and the pico-sdk for
+you, and runs the cmake configure/build steps from the editor.
+
+1. Install the
+   [Raspberry Pi Pico](https://marketplace.visualstudio.com/items?itemName=raspberry-pi.raspberry-pi-pico)
+   extension from the VS Code Marketplace.
+2. Clone this repository **with submodules**:
+   `git clone --recursive <repo-url>`
+   (or, after a plain clone, run
+   `git submodule update --init --recursive`).
+3. Open the cloned folder in VS Code, then run
+   **Raspberry Pi Pico: Import Project** from the command palette
+   (Ctrl+Shift+P) and point it at this folder.
+4. Hit **Compile** in the status bar. The resulting `.uf2` lands
+   under `build/.../apps/faultycat_fw/faultycat.uf2`.
+
+Flash that `.uf2` using one of the paths in **Programming the
+Faulty Cat** above.
 
 ### Documentation
 
