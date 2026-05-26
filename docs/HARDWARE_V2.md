@@ -60,9 +60,8 @@ future use.
 
 - Footprint: `Connector_PinSocket_2.54mm:PinSocket_1x10_P2.54mm_Vertical`.
 - **8 signal pins** (GP0–GP7) + **VCC** + **GND** = 10 pins total.
-- The JTAGulator-style algorithm (blueTag, F8) enumerates every
-  permutation of the 8 channels to auto-discover JTAG and SWD pins on
-  the target.
+- A JTAGulator-style algorithm enumerates every permutation of the
+  8 channels to auto-discover JTAG and SWD pins on the target.
 - **SWD over the scanner header (F6).** v2.x has no dedicated SWD
   header for `services/swd_core` to use. F6 routes SWD over two of
   the eight scanner channels — defaults `BOARD_GP_SWCLK_DEFAULT`

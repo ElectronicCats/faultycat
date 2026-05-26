@@ -60,8 +60,9 @@ permutation iterator; it doesn't sit in the wire stack itself.
 ## 2. JTAG TAP state machine (jtag_core)
 
 `services/jtag_core` is a CPU bit-bang TAP controller — adapted in
-function shape from [blueTag@v2.1.2](../third_party/blueTag/) under
-MIT, reimplemented against `hal/gpio` so the v3 layered model holds.
+function shape from [blueTag@v2.1.2](https://github.com/Aodrulez/blueTag)
+under MIT, reimplemented against `hal/gpio` so the v3 layered model
+holds.
 
 ### Pin assignment
 

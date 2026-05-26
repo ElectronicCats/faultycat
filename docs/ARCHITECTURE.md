@@ -101,7 +101,7 @@ Current tree health:
   `jtag_reset_to_run_test_idle`, `jtag_assert_trst`,
   `jtag_detect_chain_length`, `jtag_read_idcodes`,
   `jtag_idcode_is_valid`, `jtag_permutations_count`. Function
-  shapes adapted from `third_party/blueTag/src/blueTag.c` under MIT
+  shapes adapted from blueTag's `src/blueTag.c` under MIT
   (attribution at file head); reimplemented against `hal/gpio` so
   the v3 layered model holds. CDC2 shell extended with `jtag init/
   deinit/reset/trst/chain/idcode` (output prefix `JTAG:` so a
@@ -343,9 +343,7 @@ compatible — existing EMFI / crowbar configures are unaffected.
 │  third_party/pico-sdk @ 2.1.1         ←  BSD-3, pinned                       │
 │  third_party/Unity    @ v2.6.1        ←  MIT, pinned — host tests            │
 │  third_party/debugprobe @ v2.3.0      ←  MIT, pinned — F7                    │
-│  third_party/blueTag  @ v2.1.2        ←  MIT, pinned — F8                    │
 │  third_party/free-dap (master HEAD)   ←  BSD-3, ref only (not compiled)      │
-│  third_party/faultier (1c78f3e)       ←  NO LICENSE, ref only (not compiled) │
 │  third_party/cmsis-dap (headers copy) ←  Apache-2.0 — F7                     │
 └────────────────────────────────────────────────────────────────────────────┘
 ```

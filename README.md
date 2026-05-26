@@ -121,7 +121,7 @@ here. Click through for the full document:
 | [`docs/MUTEX_INTERNALS.md`](docs/MUTEX_INTERNALS.md) | SWD bus cooperative mutex + Campaign manager wire stack (F9). |
 | [`docs/JTAG_INTERNALS.md`](docs/JTAG_INTERNALS.md) | JTAG/SWD scanner, BusPirate-compat shell, flashrom serprog (F8). |
 | [`host/faultycmd-py/README.md`](host/faultycmd-py/README.md) | **Install + usage of the `faultycmd` CLI and TUI** — venv setup on Linux, Windows (PowerShell / CMD / Git Bash), macOS. Hotkeys, trigger polarity, trigger timeout. |
-| [`LICENSES/README.md`](LICENSES/README.md) | License overview for vendored code (pico-sdk, debugprobe, blueTag, faultier, Unity). |
+| [`LICENSES/README.md`](LICENSES/README.md) | License overview for vendored code (pico-sdk, debugprobe, free-dap, Unity, CMSIS-DAP headers). |
 
 If you only want to flash a board and drive it from the host tool,
 the path is: this README → `host/faultycmd-py/README.md` (install
