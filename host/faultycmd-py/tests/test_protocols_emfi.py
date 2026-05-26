@@ -5,6 +5,7 @@ from __future__ import annotations
 import struct
 
 import pytest
+
 from faultycmd.protocols import EmfiClient, EngineError
 from faultycmd.protocols.emfi import (
     CMD_CAPTURE,
@@ -17,7 +18,6 @@ from faultycmd.protocols.emfi import (
     EmfiState,
     EmfiTrigger,
 )
-
 from tests.conftest import FakeSerial, make_fake_factory
 
 

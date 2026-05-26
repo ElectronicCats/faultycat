@@ -15,7 +15,14 @@
 // command/data pairs. Production PIO has its
 // own 4-deep FIFO + actual SM consumption; the fake is a shadow
 // that only needs to outlive a single-test sequence.
-#define HAL_FAKE_PIO_FIFO_DEPTH  256
+//
+// 16384 covers the deepest test (`test_power_up_default_retry_budget_when_max_retries_zero`):
+//   - RX side: 1000 ctrl/stat reads × 3 entries (ack + data + parity) + 2 initial ACKs
+//     ≈ 3002 entries.
+//   - TX side: 1000 reads × ~9 cmd/data entries each + 2 initial transfers
+//     ≈ 9016 entries.
+// Picked the larger one with headroom for future deeper tests.
+#define HAL_FAKE_PIO_FIFO_DEPTH  16384
 #define HAL_FAKE_PIO_PROGRAM_MAX 32
 
 typedef struct {

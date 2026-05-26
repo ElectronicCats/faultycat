@@ -5,6 +5,7 @@ from __future__ import annotations
 import struct
 
 import pytest
+
 from faultycmd.protocols import CampaignClient
 from faultycmd.protocols.campaign import (
     CMD_CONFIG,
@@ -20,7 +21,6 @@ from faultycmd.protocols.campaign import (
     CampaignState,
     ProtoStatus,
 )
-
 from tests.conftest import FakeSerial, make_fake_factory
 
 

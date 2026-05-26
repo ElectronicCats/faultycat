@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from faultycmd.protocols import ScannerClient, ScannerError
 from faultycmd.protocols.scanner import parse_scan_swd_match
 

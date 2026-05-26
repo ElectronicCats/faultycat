@@ -10,6 +10,7 @@ FaultyCat covers the visual side.
 from __future__ import annotations
 
 import pytest
+
 from faultycmd.tui_modals import (
     CampaignControlModal,
     CampaignFormState,

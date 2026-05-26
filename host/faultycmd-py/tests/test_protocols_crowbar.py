@@ -5,6 +5,7 @@ from __future__ import annotations
 import struct
 
 import pytest
+
 from faultycmd.protocols import CrowbarClient, EngineError
 from faultycmd.protocols.crowbar import (
     CMD_CONFIGURE,
@@ -16,7 +17,6 @@ from faultycmd.protocols.crowbar import (
     CrowbarState,
     CrowbarTrigger,
 )
-
 from tests.conftest import FakeSerial, make_fake_factory
 
 

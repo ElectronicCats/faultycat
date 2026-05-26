@@ -5,6 +5,7 @@ from __future__ import annotations
 import struct
 
 import pytest
+
 from faultycmd.framing import (
     FrameCRCError,
     FrameTimeout,

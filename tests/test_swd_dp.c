@@ -312,12 +312,15 @@ static void test_wakeup_emits_selection_alert_and_activation(void) {
 static void test_switch_jtag_to_swd_emits_line_resets_and_command(void) {
     swd_dp_switch_jtag_to_swd();
 
-    for (uint32_t i = 0; i < 7u; i++) {
+    // 10 × 8-bit line-reset writes (80 bits ≥ the 50 required by ARM),
+    // followed by the 16-bit JTAG_TO_SWD select command, followed by
+    // another 10 × 8-bit line-reset block. See swd_dp.c:203.
+    for (uint32_t i = 0; i < 10u; i++) {
         assert_write_at(i * 2u, 8u, 0xffu);
     }
-    assert_write_at(14u, 16u, 0xe79eu);
-    for (uint32_t i = 0; i < 7u; i++) {
-        assert_write_at(16u + i * 2u, 8u, 0xffu);
+    assert_write_at(20u, 16u, 0xe79eu);
+    for (uint32_t i = 0; i < 10u; i++) {
+        assert_write_at(22u + i * 2u, 8u, 0xffu);
     }
 }
 

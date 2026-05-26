@@ -72,8 +72,10 @@ static void test_bad_crc_is_rejected(void) {
 }
 
 static void test_len_overflow_resets_parser(void) {
-    // CROWBAR_PROTO_MAX_PAYLOAD = 64, so len=0x0100 (256) overflows.
-    uint8_t hdr[4] = {CROWBAR_PROTO_SOF, CROWBAR_CMD_PING, 0x00, 0x01};
+    // CROWBAR_PROTO_MAX_PAYLOAD = 512 (bumped in F9-6 polish), so we
+    // need len > 512 to overflow. 0x0201 = 513 is the smallest value
+    // (little-endian: 0x01, 0x02).
+    uint8_t hdr[4] = {CROWBAR_PROTO_SOF, CROWBAR_CMD_PING, 0x01, 0x02};
     for (size_t i = 0; i < sizeof(hdr); i++)
         crowbar_proto_feed(hdr[i], 0u);
     uint8_t frame[6] = {CROWBAR_PROTO_SOF, CROWBAR_CMD_PING, 0, 0, 0, 0};
