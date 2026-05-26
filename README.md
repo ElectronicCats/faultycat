@@ -33,7 +33,7 @@ Faulty Cat is a low-cost Electromagnetic Fault Injection (EMFI) tool, designed s
   </a>
 </p>
 
-Faulty Cat is a high-end Electromagnetic Fault Injection (EMFI) tool a remix of the project [ChipSHOUTER PicoEMP](https://github.com/newaetech/chipshouter-picoemp) design optimization focused in rough order on (1) safe operation, (2) high performance, (3) usability, and finally (4) cost. This results in a tool that covers many use-cases, but may be overkill (and expensive) for many. 
+Faulty Cat is a high-end Electromagnetic Fault Injection (EMFI) tool a remix of the project [ChipSHOUTER PicoEMP](https://github.com/newaetech/chipshouter-picoemp) design optimization focused in rough order on (1) safe operation, (2) high performance, (3) usability, and finally (4) cost. This results in a tool that covers many use-cases, but may be overkill (and expensive) for many.
 
 We have created this project in KiCad and looking for alternatives to some components, we have left aside the Raspberry Pico board to use the RP2040 directly in the design. Tested in our laboratory before going on sale, even so, it is a product that must be handled with care, read the instructions for use.
 
@@ -138,7 +138,7 @@ You can see a demo of PicoEMP being used on a real attack in this [TI CC SimpleL
 **WARNING**: The high voltage will be applied across the SMA connector. If an injection tip (coil) is present, it will absorb most of the power. If you leave the SMA connector open, you will present a high voltage pulse across this SMA and could shock yourself. Do NOT touch the output SMA tip as a general "best practice", and treat the output as if it has a high voltage present.
 
 ## How to contribute <img src="https://electroniccats.com/wp-content/uploads/2018/01/fav.png" height="35"><img src="https://raw.githubusercontent.com/gist/ManulMax/2d20af60d709805c55fd784ca7cba4b9/raw/bcfeac7604f674ace63623106eb8bb8471d844a6/github.gif" height="30">
- Contributions are welcome! 
+ Contributions are welcome!
 
 Please read the document  [**Contribution Manual**](https://github.com/ElectronicCats/electroniccats-cla/blob/main/electroniccats-contribution-manual.md)  which will show you how to contribute your changes to the project.
 
@@ -153,4 +153,3 @@ See the  [**community code of conduct**](https://github.com/ElectronicCats/elect
 This project FaultyCat is adapted from [ChipSHOUTER PicoEMP](https://github.com/newaetech/chipshouter-picoemp) by [Colin O'Flynn](https://github.com/colinoflynn) is licensed under CC BY-SA 3.0, "FaultyCat" contains modifications such as: porting the project to Kicad, modifying BOM and dimensions is licensed under CC BY-SA 3.0 by ElectronicCats.
 
 Electronic Cats invests time and resources in providing this open-source design. Please support Electronic Cats and open-source hardware by purchasing products from Electronic Cats!
-
