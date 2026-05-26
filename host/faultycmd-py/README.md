@@ -1,260 +1,253 @@
-# faultycmd — herramienta del host para FaultyCat v3
+# faultycmd — host tool for FaultyCat v3
 
-CLI y TUI en Python para operar el firmware FaultyCat v3 (rama
-`rewrite/v3`, tags `v3.0-f0` en adelante). Sustituye a los scripts
-sueltos pre-v3 y a los cuatro clientes de referencia que había en
-`tools/`, unificándolos bajo un solo binario: `faultycmd`.
+Python CLI and TUI for driving the FaultyCat v3 firmware (`rewrite/v3`
+branch, tags `v3.0-f0` onwards). Replaces the loose pre-v3 scripts
+and the four reference clients that used to live under `tools/`,
+unifying them under a single binary: `faultycmd`.
 
-> **Nota de override (2026-04-28).** El plan §1 #6 originalmente
-> exigía un workspace en Rust con TUI ratatui. Al cerrar F9 se cambió
-> el stack del host a Python +
+> **Override note (2026-04-28).** Plan §1 #6 originally called for a
+> Rust workspace with a ratatui TUI. When F9 closed, the host stack
+> was switched to Python +
 > [Textual](https://textual.textualize.io/) +
-> [Rich](https://rich.readthedocs.io/). Los motivos —familiaridad del
-> equipo, reúso directo de los clientes de referencia ya escritos en
-> Python e iteración más rápida— están en `FAULTYCAT_REFACTOR_PLAN.md
-> §F10` y en el commit del override. Los protocolos sobre el cable
-> (wire protocols) **no cambian**.
+> [Rich](https://rich.readthedocs.io/). The reasons — team
+> familiarity, direct reuse of the reference clients already written
+> in Python, and faster iteration — are in
+> `FAULTYCAT_REFACTOR_PLAN.md §F10` and in the override commit. The
+> wire protocols **do not change**.
 
-## Estructura
+## Layout
 
 ```
 faultycmd/
-├── framing.py              CRC16-CCITT y armado/parseo de frames
-├── usb.py                  mapeo puerto → CDC multiplataforma:
-│                           pyserial list_ports en Linux/Windows/macOS,
-│                           con udevadm como respaldo en Linux
-├── persistence.py          almacén XDG del último config — un slot
-│                           por motor (emfi / crowbar / campaign /
+├── framing.py              CRC16-CCITT and frame build/parse
+├── usb.py                  cross-platform port → CDC mapping:
+│                           pyserial list_ports on Linux/Windows/macOS,
+│                           with udevadm as fallback on Linux
+├── persistence.py          XDG store for the last config — one slot
+│                           per engine (emfi / crowbar / campaign /
 │                           scanner)
 ├── protocols/
-│   ├── emfi.py             cliente de emfi_proto (CDC0, F4)
-│   ├── crowbar.py          cliente de crowbar_proto (CDC1, F5)
-│   ├── campaign.py         cliente de campaign_proto sobre CDC0/CDC1
-│   │                       (F9-4)
-│   ├── scanner.py          envoltorio del shell de texto en CDC2.
-│   │                       Superficie pública de esta versión:
+│   ├── emfi.py             EMFI protocol client
+│   ├── crowbar.py          crowbar protocol client
+│   ├── campaign.py         sweep protocol client
+│   │                       (multiplexed over EMFI / crowbar)
+│   ├── scanner.py          wrapper for the scanner text shell.
+│   │                       Public surface in this release:
 │   │                       `scan_swd`, `buspirate_enter`,
-│   │                       `serprog_enter` y `parse_scan_swd_match`.
-│   │                       Los verbos SWD de F6 y los JTAG de F8-1
+│   │                       `serprog_enter`, and `parse_scan_swd_match`.
+│   │                       The direct SWD and JTAG verbs
 │   │                       (`_swd_*` / `_jtag_*` / `_scan_jtag`)
-│   │                       están WIP y se conservan como métodos con
-│   │                       guion bajo para re-exponer en v3.1.
-│   └── dap.py              envoltorio pyocd / cmsis-dap (stub hasta
-│                           F7)
-├── cli.py                  CLI con click y salida renderizada con Rich
-├── tui.py                  dashboard Textual 2×2 (EMFI / Crowbar /
+│   │                       remain WIP and are kept as underscored
+│   │                       methods so v3.1 can re-expose them.
+│   └── dap.py              pyocd / cmsis-dap wrapper (stub)
+├── cli.py                  click-based CLI with Rich-rendered output
+├── tui.py                  2×2 Textual dashboard (EMFI / Crowbar /
 │                           Campaign / Diag-CDC2). Hotkeys: q r c s
 │                           e b p n.
-└── tui_modals.py           pantallas modales — una por motor:
+└── tui_modals.py           modal screens — one per engine:
                             • EmfiControlModal       (hotkey e)
                             • CrowbarControlModal    (hotkey b)
                             • CampaignControlModal   (hotkey p)
                             • ScannerControlModal    (hotkey n)
-                            • HvConfirmModal         (confirma el
-                                                      arm de EMFI)
+                            • HvConfirmModal         (confirms the
+                                                      EMFI arm)
 ```
 
-## Inicio rápido
+## Quick start
 
-### 1. Crear y activar el venv
+### 1. Create and activate the venv
 
 ```bash
-# Crear el entorno virtual dentro de host/faultycmd-py/
+# Create the virtual environment inside host/faultycmd-py/
 python -m venv venv
 
-# Activar (Linux / macOS / Git Bash / WSL)
+# Activate (Linux / macOS / Git Bash / WSL)
 source venv/bin/activate
 
-# Activar (Windows PowerShell)
-# Si PowerShell rechaza el script por la Execution Policy,
-# desbloquéalo SOLO para la sesión actual (no toca el resto
-# del sistema):
+# Activate (Windows PowerShell)
+# If PowerShell rejects the script because of the Execution Policy,
+# unblock it ONLY for the current session (does not touch the rest
+# of the system):
 #   Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
-# Luego:
+# Then:
 .\venv\Scripts\Activate.ps1
 
-# Activar (Windows Command Prompt / CMD)
+# Activate (Windows Command Prompt / CMD)
 venv\Scripts\activate.bat
 ```
 
-> **Execution Policy en Windows PowerShell.** Por seguridad, Windows
-> bloquea por defecto los scripts de PowerShell no firmados. Como
-> `Activate.ps1` no lleva firma, PowerShell lo rechaza con `running
-> scripts is disabled on this system`. La solución, válida solo
-> mientras esa terminal esté abierta:
+> **Execution Policy on Windows PowerShell.** For safety, Windows
+> blocks unsigned PowerShell scripts by default. Since `Activate.ps1`
+> is unsigned, PowerShell rejects it with `running scripts is
+> disabled on this system`. The fix, valid only while that terminal
+> stays open:
 >
 > ```powershell
 > Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 > ```
 >
-> `-Scope Process` limita el cambio a la sesión actual: al cerrar la
-> terminal, la política restrictiva vuelve. No hace falta abrir
-> PowerShell como administrador ni tocar la configuración global del
-> sistema.
+> `-Scope Process` limits the change to the current session: closing
+> the terminal restores the restrictive policy. You do not need to
+> open PowerShell as administrator or touch the system-wide policy.
 
-> **El venv depende de su ruta absoluta.** `python -m venv` graba la
-> ruta del intérprete dentro de los scripts de activación y de
-> `venv/pyvenv.cfg`. Si mueves o renombras la carpeta
-> `host/faultycmd-py/` (o el propio `venv/`), el entorno deja de
-> resolver y `faultycmd` no se encuentra. La solución es siempre la
-> misma: borrar `venv/` y recrearlo con `python -m venv venv` en la
-> nueva ubicación.
+> **The venv depends on its absolute path.** `python -m venv` bakes
+> the interpreter path into the activation scripts and into
+> `venv/pyvenv.cfg`. If you move or rename the `host/faultycmd-py/`
+> folder (or the `venv/` folder itself), the environment stops
+> resolving and `faultycmd` cannot be found. The fix is always the
+> same: delete `venv/` and recreate it with `python -m venv venv` at
+> the new location.
 
-### 2. Instalar el paquete
+### 2. Install the package
 
 ```bash
-# Modo editable + herramientas de dev (pytest, ruff)
+# Editable install + dev tools (pytest, ruff)
 pip install -e '.[dev]'
 ```
 
-### 3. Usar la CLI
+### 3. Use the CLI
 
 ```bash
+# Discover the connected board and inspect its state.
 faultycmd --help
+faultycmd info
 faultycmd emfi ping
-faultycmd campaign configure --engine crowbar \
+faultycmd emfi status
+
+# Run a crowbar parameter sweep (crowbar is the default engine).
+faultycmd campaign configure \
     --delay 1000:3000:1000 --width 200:300:100 --power 1
 faultycmd campaign start
 faultycmd campaign watch
 
-# Scanner (shell sobre CDC2) — descubrimiento de pinout.
-# En esta versión solo `scan-swd` es pública. Los verbos SWD directos
-# (init/deinit/idcode/connect/read32/write32/freq) y los JTAG
-# (init/deinit/chain/idcode + scan-jtag) siguen en WIP. `scan-swd`
-# transmite tal cual las líneas SCAN: del firmware
-# (MATCH/NO_MATCH/ERR) y termina; no inicia una sesión SWD después.
+# Scan the SWD pinout of the target.
 faultycmd scanner scan-swd
-faultycmd scanner scan-swd --targetsel 01002927 --timeout-s 60
 ```
 
-### 4. Lanzar la TUI
+`faultycmd --help` lists every command group available in this
+release; `faultycmd <group> --help` shows the subcommands and
+flags for each one.
+
+### 4. Launch the TUI
 
 ```bash
 faultycmd tui
 ```
 
-### Hotkeys de la TUI
+### TUI hotkeys
 
-Las letras que abren los modales (`e`, `b`, `p`, `n`) son mnemónicas
-sobre el nombre del motor: **E**MFI, crow**B**ar, cam**P**aign,
+The letters that open the modals (`e`, `b`, `p`, `n`) are mnemonics
+on the engine name: **E**MFI, crow**B**ar, cam**P**aign,
 sca**N** SWD.
 
-| Tecla | Acción |
-|-------|--------|
-| `q` | salir (si hay un modal abierto, lo cierra primero) |
-| `r` | reconectar (cierra y reabre las 4 CDC — útil tras reflashear) |
-| `c` | limpiar el log en vivo de campaign |
-| `s` | detener el sweep en curso (sin abrir modal) |
-| `e` | modal EMFI (configure / arm / fire / disarm / capture) |
-| `b` | modal Crowbar (configure / arm / fire / disarm) |
-| `p` | modal Campaign (parámetros del sweep + start / stop / drain) |
-| `n` | modal Scan SWD (un solo botón que dispara `scan swd` por CDC2) |
+| Key | Action |
+|-----|--------|
+| `q` | quit (if a modal is open, closes it first) |
+| `r` | reconnect (closes and reopens the 4 CDCs — handy after re-plugging the board) |
+| `c` | clear the campaign live log |
+| `s` | stop the running sweep (without opening a modal) |
+| `e` | EMFI modal (configure / arm / fire / disarm / capture) |
+| `b` | Crowbar modal (configure / arm / fire / disarm) |
+| `p` | Campaign modal (sweep parameters + start / stop / drain) |
+| `n` | Scan SWD modal (single button that fires `scan swd` over CDC2) |
 
-### Modal Scan SWD (`n`)
+### Scan SWD modal (`n`)
 
-Modal con un único botón que ejecuta `scan swd` por el shell de texto
-de CDC2 (P(8,2)=56 permutaciones, timeout de 30 s). Mientras corre el
-scan, el flujo de diagnóstico de CDC2 se pausa para no contaminar la
-salida, y se reanuda al terminar. Las líneas crudas del firmware
-(`MATCH` / `NO_MATCH` / `ERR`) aparecen en la línea de estado del
-modal.
+A single-button modal that runs `scan swd` over the CDC2 text shell
+(P(8,2)=56 permutations, 30 s timeout). While the scan is running the
+CDC2 diagnostic stream is paused so it doesn't contaminate the output,
+and it resumes when the scan finishes. The raw firmware lines
+(`MATCH` / `NO_MATCH` / `ERR`) appear on the modal's status line.
 
-En esta versión, un `MATCH` no abre un prompt para iniciar SWD a
-continuación: el verbo `swd init` directo sigue en WIP. Por el mismo
-motivo, las páginas manuales de init / deinit / freq / idcode /
-connect / read32 / write32 / reset y todas las páginas JTAG están
-retiradas del menú.
+### Supported platforms
 
-### Plataformas soportadas
-
-| Sistema       | Estado | Notas |
+| System        | Status | Notes |
 |---------------|--------|-------|
-| Linux         | ✓ verificado | Puertos en `/dev/ttyACM*`. Si aparece `Permission denied` al abrirlos, añade tu usuario al grupo `dialout` (`sudo usermod -aG dialout $USER`) y cierra sesión / vuelve a entrar. |
-| Windows 10/11 | ✓ verificado (2026-05-25) | Puertos `COM*` enumerados por `usbser.sys` (driver inbox). Requiere firmware `v3.0-f11-0d` o posterior — versiones anteriores no llegaban a enumerar por bugs en el descriptor y en el orden de init. |
-| macOS         | ⚠ no validado | La lógica multiplataforma (parsing de pyserial) debería bastar, pero no hay hardware para confirmarlo. |
+| Linux         | ✓ verified | Ports under `/dev/ttyACM*`. If you hit `Permission denied` when opening them, add your user to the `dialout` group (`sudo usermod -aG dialout $USER`) and log out / back in. |
+| Windows 10/11 | ✓ verified (2026-05-25) | `COM*` ports enumerated by `usbser.sys` (inbox driver). Requires firmware `v3.0-f11-0d` or later — earlier versions failed to enumerate because of bugs in the descriptor and in the init order. |
+| macOS         | ⚠ not validated | The cross-platform logic (pyserial parsing) should be enough, but no hardware on hand to confirm. |
 
-### Siguientes sesiones
+### Subsequent sessions
 
 ```bash
-cd /ruta/a/host/faultycmd-py
-# Activa el venv según tu consola (paso 1 de Inicio rápido)
+cd /path/to/host/faultycmd-py
+# Activate the venv for your shell (step 1 of Quick start)
 faultycmd tui
 ```
 
-Para salir del venv: `deactivate`.
+To leave the venv: `deactivate`.
 
-### Polaridad del trigger (EMFI / Crowbar)
+### Trigger polarity (EMFI / Crowbar)
 
-Ambos motores ofrecen los mismos cinco modos de trigger sobre el wire:
+Both engines expose the same five trigger modes on the wire:
 
-| Trigger          | Wire id | Programa PIO (WAITs)       | Evento que dispara el glitch |
-|------------------|---------|----------------------------|------------------------------|
-| `immediate`      | 0       | (ninguno)                  | arranca al instante con `fire` |
-| `ext_rising`     | 1       | `WAIT 0, WAIT 1`           | flanco de subida |
-| `ext_falling`    | 2       | `WAIT 1, WAIT 0`           | flanco de bajada |
-| `ext_pulse_pos`  | 3       | `WAIT 0, WAIT 1, WAIT 0`   | flanco de bajada al final de un pulso LOW→HIGH→LOW |
-| `ext_pulse_neg`  | 4       | `WAIT 1, WAIT 0, WAIT 1`   | flanco de subida al final de un pulso HIGH→LOW→HIGH |
+| Trigger          | Wire id | PIO program (WAITs)        | Event that fires the glitch |
+|------------------|---------|----------------------------|-----------------------------|
+| `immediate`      | 0       | (none)                     | starts immediately on `fire` |
+| `ext_rising`     | 1       | `WAIT 0, WAIT 1`           | rising edge |
+| `ext_falling`    | 2       | `WAIT 1, WAIT 0`           | falling edge |
+| `ext_pulse_pos`  | 3       | `WAIT 0, WAIT 1, WAIT 0`   | falling edge at the end of a LOW→HIGH→LOW pulse |
+| `ext_pulse_neg`  | 4       | `WAIT 1, WAIT 0, WAIT 1`   | rising edge at the end of a HIGH→LOW→HIGH pulse |
 
-Notas:
+Notes:
 
-- El nivel idle de la línea de trigger se fija una sola vez al
-  arrancar el firmware, en `main.c`
-  (`ext_trigger_init(EXT_TRIGGER_PULL_DOWN)`): LOW-idle para todo el
-  sistema. Los servicios no lo cambian en cada arm.
-- En consecuencia, `ext_falling` y `ext_pulse_neg` requieren que la
-  fuente externa lleve la línea a HIGH entre eventos. Sin esa
-  estimulación activa, el pull-down interno y el level-shifter del
-  board v2 mantienen la línea en LOW y el primer `WAIT 1` se queda
-  esperando para siempre.
-- La latencia desde el *evento de trigger* al pin de crowbar/EMFI es
-  la misma en los cuatro modos de flanco (~56 ns). Si mides desde el
-  *inicio* del pulso en vez de desde el flanco final que dispara el
-  glitch, sumas el ancho del pulso a la lectura — eso es la posición
-  del cursor en el osciloscopio, no overhead del firmware.
-- `ext_pulse_pos` y `ext_pulse_neg` son inversos. Elige el que case
-  con el nivel idle que genera tu fuente entre eventos; si no, el
-  primer `WAIT` se cuelga.
+- The idle level of the trigger line is set once when the firmware
+  boots, in `main.c`
+  (`ext_trigger_init(EXT_TRIGGER_PULL_DOWN)`): LOW-idle for the whole
+  system. Services do not change it on every arm.
+- As a consequence, `ext_falling` and `ext_pulse_neg` require the
+  external source to drive the line HIGH between events. Without
+  that active stimulation, the internal pull-down and the v2 board's
+  level-shifter keep the line LOW and the first `WAIT 1` waits
+  forever.
+- Latency from the *trigger event* to the crowbar/EMFI pin is the
+  same in all four edge modes (~56 ns). If you measure from the
+  *start* of the pulse instead of from the final edge that fires the
+  glitch, you add the pulse width to the reading — that's the cursor
+  position on your scope, not firmware overhead.
+- `ext_pulse_pos` and `ext_pulse_neg` are inverses. Pick the one that
+  matches the idle level your source produces between events;
+  otherwise the first `WAIT` hangs.
 
-### Timeout del trigger (EMFI / Crowbar fire)
+### Trigger timeout (EMFI / Crowbar fire)
 
-Cada llamada a `fire` acepta un `trigger_timeout_ms` que acota cuánto
-espera el firmware al trigger externo antes de cancelar la operación
-con `*_ERR_TRIGGER_TIMEOUT`. Los valores por defecto y la semántica
-son idénticos para EMFI y Crowbar:
+Every call to `fire` accepts a `trigger_timeout_ms` that bounds how
+long the firmware waits for the external trigger before cancelling
+with `*_ERR_TRIGGER_TIMEOUT`. The defaults and semantics are
+identical for EMFI and Crowbar:
 
-- Por defecto: **60 000 ms** (1 minuto). Suficiente para triggers
-  manuales sin tener que volver a la CLI a ajustar el valor.
-- `0` significa **esperar indefinidamente**. El firmware lo aplica en
-  `tick_waiting`; un `disarm` cancela la espera, libera la PIO y
-  resetea el estado.
+- Default: **60 000 ms** (1 minute). Enough for manual triggers
+  without having to go back to the CLI to adjust the value.
+- `0` means **wait forever**. The firmware honours it in
+  `tick_waiting`; a `disarm` cancels the wait, releases the PIO, and
+  resets the state.
 
-Dónde configurarlo:
+Where to configure it:
 
-- **TUI** (`e` / `b`): el formulario del modal expone un campo
-  `trigger-timeout-ms`. Se lee en cada `fire`, así que se puede
-  ajustar entre disparos sin volver a aplicar la configuración. El
-  valor se persiste junto al resto del formulario en
-  `last_config.json`.
-- **CLI**: `faultycmd emfi fire --trigger-timeout-ms <ms>` y
-  `faultycmd crowbar fire --trigger-timeout-ms <ms>`. Mismo valor por
-  defecto (60 000).
+- **TUI** (`e` / `b`): the modal form exposes a `trigger-timeout-ms`
+  field. It is read on every `fire`, so it can be tweaked between
+  shots without re-applying the configuration. The value is
+  persisted alongside the rest of the form in `last_config.json`.
+- **CLI**: `faultycmd emfi fire --trigger-timeout-ms <ms>` and
+  `faultycmd crowbar fire --trigger-timeout-ms <ms>`. Same default
+  (60 000).
 
-## Estado
+## Status
 
-F10 cerrado en el tag `v3.0-f10` (2026-04-29). F11-0 —la superficie
-completa de control en la TUI— está en desarrollo activo, con las
-sub-fases F11-0a..k aterrizando una a una sobre `rewrite/v3`.
-Progreso al checkpoint actual:
+F10 closed at tag `v3.0-f10` (2026-04-29). F11-0 — the full TUI
+control surface — is in active development, with sub-phases
+F11-0a..k landing one by one on `rewrite/v3`. Progress at the
+current checkpoint:
 
-| Sub-fase | Tema | Estado |
-|----------|------|--------|
-| F11-0a | Modal EMFI con confirmación HV y autosave de capture | ✓ |
-| F11-0b | Modal Crowbar y corrección del race en SharedSerial (CDC1) | ✓ |
-| F11-0c | Modal Campaign (MVP con `engine=crowbar`) | ✓ |
-| F11-0d | Modal Scan SWD (MVP de un solo botón; verbos JTAG / SWD directos siguen WIP) | ✓ MVP |
-| F11-0e..k | Panel target UART, reflash, help, ownership, hardening, docs y tag | pendiente |
+| Sub-phase | Topic | Status |
+|-----------|-------|--------|
+| F11-0a | EMFI modal with HV confirm and capture autosave | ✓ |
+| F11-0b | Crowbar modal and SharedSerial race fix (CDC1) | ✓ |
+| F11-0c | Campaign modal (MVP with `engine=crowbar`) | ✓ |
+| F11-0d | Scan SWD modal (single-button MVP; direct JTAG / SWD verbs still WIP) | ✓ MVP |
+| F11-0e..k | Target UART panel, reflash, help, ownership, hardening, docs and tag | pending |
 
-El roadmap autoritativo y el estado vigente viven en
+The authoritative roadmap and current status live in
 [`FAULTYCAT_REFACTOR_PLAN.md`](../../FAULTYCAT_REFACTOR_PLAN.md)
-(sección `§F11`) y en
+(section `§F11`) and in
 `.claude/skills/faultycat-fase-actual/SKILL.md`.
