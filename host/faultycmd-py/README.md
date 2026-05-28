@@ -128,6 +128,41 @@ faultycmd scanner scan-swd
 release; `faultycmd <group> --help` shows the subcommands and
 flags for each one.
 
+### Firmware ↔ host version parity
+
+`faultycmd` only talks to firmware that was built from the same
+release tag. Every protocol client validates this on connect, so a
+command like `faultycmd emfi status` against a mismatched board
+exits with code `3` and a message naming both versions:
+
+```
+$ faultycmd emfi status
+version mismatch firmware/host version mismatch:
+  firmware=3.0.0.0, host=3.0.1.0. Re-flash the matching UF2 from the
+  GitHub Release, or pass --ignore-version-mismatch to bypass
+  (unsafe — wire protocol may have shifted).
+```
+
+`faultycmd info` is the diagnostic path that never aborts on a
+mismatch: it lists the CDC interfaces, probes the EMFI CDC for the
+firmware version, and prints a coloured `match` / `mismatch` line.
+The TUI shows the same parity in its header subtitle
+(`host v3.0.1.0  ·  fw v3.0.0.0 ✗ (host v3.0.1.0)`).
+
+To bypass the check for a development build of the firmware:
+
+```bash
+faultycmd --ignore-version-mismatch tui
+```
+
+Use this only when iterating on a hand-built UF2 against a
+hand-built host package; in field operation a mismatched pairing is
+almost always a half-applied upgrade and produces silently-wrong
+results if the wire protocol drifted. See
+[`docs/RELEASES.md`](../../docs/RELEASES.md) for the full picture
+(version scheme, where the version lives in the source tree, how
+the firmware advertises it, how to cut a release).
+
 ### 4. Launch the TUI
 
 ```bash
