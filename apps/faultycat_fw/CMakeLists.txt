@@ -25,6 +25,7 @@ target_link_libraries(faultycat PRIVATE
     host_proto_emfi
     host_proto_crowbar
     usb_composite
+    firmware_version
 )
 
 # tusb_config.h must be visible to the tinyusb sources that pico-sdk

@@ -51,7 +51,7 @@ function(faultycat_add_service_emfi_test name)
         ${CMAKE_SOURCE_DIR}/services/host_proto/campaign_proto/campaign_proto.c
         ${CMAKE_SOURCE_DIR}/services/campaign_manager/campaign_manager.c
     )
-    target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_link_libraries(${name} PRIVATE unity hal_fake firmware_version)
     target_include_directories(${name} PRIVATE
         ${CMAKE_SOURCE_DIR}/drivers/include
         ${CMAKE_SOURCE_DIR}/drivers/emfi_pulse
@@ -109,7 +109,7 @@ function(faultycat_add_service_crowbar_test name)
         ${CMAKE_SOURCE_DIR}/services/host_proto/campaign_proto/campaign_proto.c
         ${CMAKE_SOURCE_DIR}/services/campaign_manager/campaign_manager.c
     )
-    target_link_libraries(${name} PRIVATE unity hal_fake)
+    target_link_libraries(${name} PRIVATE unity hal_fake firmware_version)
     target_include_directories(${name} PRIVATE
         ${CMAKE_SOURCE_DIR}/drivers/include
         ${CMAKE_SOURCE_DIR}/drivers/crowbar_mosfet

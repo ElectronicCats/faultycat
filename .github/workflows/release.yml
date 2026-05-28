@@ -1,0 +1,384 @@
+name: Create Release on Tag
+
+# Mirrors the Minino release flow, adapted to the pico-sdk
+# (RP2040) toolchain and to the FaultyCat host CLI/TUI Python package.
+#
+# Trigger: maintainer pushes a 4-segment tag `vMAJOR.MINOR.PATCH.TWEAK`
+# (with an optional `-suffix` for pre-releases). The workflow:
+#   1. Strips the `v` prefix and validates the version shape.
+#   2. Defensively rewrites the version literal in CMakeLists.txt,
+#      pyproject.toml and __init__.py (in the workflow checkout only —
+#      we do NOT commit-back, same as Minino).
+#   3. Installs the cross-compile toolchain + Python build deps.
+#   4. Delegates to `scripts/get_build.sh`, which produces a single
+#      versioned directory (`faultycat-release-X.Y.Z.W/`) holding the
+#      UF2, ELF, sdist, and wheel.
+#   5. Uploads the directory as a workflow artifact.
+#   6. Publishes a DRAFT GitHub Release with every file from the
+#      directory attached and a body that documents BOOTSEL flashing
+#      and the `pip install` command. `generateReleaseNotes: true`
+#      pulls the changelog from PRs/commits since the previous tag.
+#
+# Tag examples: `v3.0.0.0`, `v3.1.0.0`, `v3.1.0.1`, `v3.1.0.0-rc1`.
+on:
+  push:
+    tags:
+      - 'v*.*.*.*'
+      - 'v*.*.*.*-*'
+
+permissions:
+  contents: write
+
+# Opt JavaScript actions (checkout, setup-python, upload/download-artifact)
+# into Node.js 24 instead of the deprecated Node.js 20 runtime, so the
+# release log isn't flooded with "Node.js 20 actions are deprecated"
+# warnings. Node 24 is becoming the default on June 2nd, 2026; this
+# just brings the switch forward. Drop the env once GitHub flips the
+# default and the action versions all advertise Node 24 natively.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build firmware + host artifacts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: Extract tag + version
+        # Two flavours of the same number, used in different contexts:
+        #
+        #   TAG       — the full tag as the user sees it, e.g. `v3.0.0.1`
+        #               or `v3.0.0.1-rc1`. Goes into artifact names,
+        #               output directory under build/, and the UF2/ELF
+        #               filenames. The `v` prefix is intentional —
+        #               project convention.
+        #   VERSION   — the bare semver `3.0.0.1` (no `v`, no suffix).
+        #               This is what gets seded into CMake's
+        #               `project(VERSION ...)` and pyproject.toml's
+        #               `version = "..."` — both reject the `v` and the
+        #               pre-release suffix per their grammars.
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
+            echo "::error::Tag '${TAG}' does not match vMAJOR.MINOR.PATCH.TWEAK[-suffix]"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          VERSION="${VERSION%%-*}"
+          echo "TAG=${TAG}" >> $GITHUB_ENV
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Install firmware toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build zip \
+            gcc-arm-none-eabi \
+            libnewlib-arm-none-eabi \
+            libstdc++-arm-none-eabi-newlib
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python build backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Run scripts/get_build.sh
+        # Same delegation pattern as Minino: the workflow installs the
+        # toolchain, the script does the actual building + packaging.
+        # The script bumps the version literals in-place (CMakeLists.txt,
+        # pyproject.toml, __init__.py) so the firmware actually carries
+        # the tagged version in its `firmware_version.h` (and therefore
+        # in the PING reply, the CDC2 `version` command, and the USB
+        # bcdDevice). It then drops every release artifact in
+        # `build/apps/faultycat_fw/` — covered by `/**/build/` in
+        # .gitignore so the workflow checkout never sees these as
+        # tracked changes.
+        run: ./scripts/get_build.sh "${TAG}"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: faultycat-release-${{ env.TAG }}
+          path: build/apps/faultycat_fw
+          retention-days: 30
+          if-no-files-found: error
+
+  build-windows-exe:
+    name: Build Windows standalone .exe (PyInstaller)
+    # Runs in parallel with the firmware build. We ship the .exe as
+    # the primary Windows install path because the pip-installed
+    # console script lands in a Scripts/ directory that is not on the
+    # default user PATH on Windows — an operator that just runs
+    # `pip install faultycmd-X.Y.Z.W-py3-none-any.whl` outside a venv
+    # ends up having to invoke `<path-to-Scripts>\faultycmd.exe`
+    # explicitly. With a PyInstaller --onefile binary, the operator
+    # drops the .exe anywhere and double-clicks / runs it directly.
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Extract tag + version
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
+            echo "::error::Tag '${TAG}' does not match vMAJOR.MINOR.PATCH.TWEAK[-suffix]"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          VERSION="${VERSION%%-*}"
+          echo "TAG=${TAG}" >> $GITHUB_ENV
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Bump host version literals to match tag
+        # Same sed targets as scripts/get_build.sh on the Linux side
+        # (minus CMakeLists.txt, since this job does not build the
+        # firmware). Keeps the .exe in lock-step with the wheel/sdist
+        # produced by the Linux build.
+        shell: bash
+        run: |
+          sed -i -E "s/^(version = )\"[^\"]+\"/\1\"${VERSION}\"/" \
+            host/faultycmd-py/pyproject.toml
+          sed -i -E "s/^(__version__ = )\"[^\"]+\"/\1\"${VERSION}\"/" \
+            host/faultycmd-py/src/faultycmd/__init__.py
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package + PyInstaller
+        shell: bash
+        working-directory: host/faultycmd-py
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[build-binary]'
+
+      - name: Build the standalone .exe
+        # `--onefile` keeps the artifact to a single file the user can
+        # drop anywhere; the cost is a one-time extraction-to-tempdir
+        # on first invocation, acceptable for a CLI/TUI tool.
+        # `-p src --collect-all faultycmd` is what lets the
+        # PyInstaller bootloader resolve `from faultycmd.cli import
+        # _wrap_main` inside the frozen `__main__.py` (same setup the
+        # Linux smoke build uses in host-py.yml).
+        shell: bash
+        working-directory: host/faultycmd-py
+        run: |
+          pyinstaller --name faultycmd --onefile \
+            -p src \
+            --collect-all faultycmd \
+            --collect-all textual --collect-all rich --collect-all click \
+            src/faultycmd/__main__.py
+
+      - name: Verify the .exe boots
+        shell: bash
+        run: |
+          host/faultycmd-py/dist/faultycmd.exe --version
+
+      - name: Stage .exe with v-prefixed filename
+        shell: bash
+        run: |
+          mkdir -p staging
+          cp host/faultycmd-py/dist/faultycmd.exe \
+             staging/faultycmd_${TAG}.exe
+
+      - name: Upload Windows .exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: faultycmd-windows-${{ env.TAG }}
+          path: staging/faultycmd_*.exe
+          retention-days: 30
+          if-no-files-found: error
+
+  release:
+    name: Publish draft GitHub Release
+    needs: [build, build-windows-exe]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout (history + tags only, needed for the changelog)
+        uses: actions/checkout@v4
+        with:
+          # No submodules — the release job only walks `git log`; we
+          # don't rebuild anything here.
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: Extract tag + version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          VERSION="${VERSION%%-*}"
+          echo "TAG=${TAG}" >> $GITHUB_ENV
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Build the "Highlights" commit list
+        # Collects the most relevant commits since the previous
+        # release tag (matching `vMAJOR.MINOR.PATCH.TWEAK` with NO
+        # suffix — test/rc tags are skipped). "Relevant" = commit
+        # subjects whose conventional-commit prefix is feat / fix /
+        # perf / refactor / ci. chore / docs / style / test / build
+        # are filtered out as routine maintenance noise.
+        #
+        # Exposed as ${{ env.HIGHLIGHTS }} for the body block below.
+        # GitHub's `generateReleaseNotes: true` still appends the full
+        # auto-generated PR/commit summary at the bottom of the draft.
+        run: |
+          set -euo pipefail
+          PREV_TAG=$(git tag --sort=-creatordate \
+                      | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
+                      | grep -v -F "${TAG}" \
+                      | head -1 || true)
+          if [ -z "${PREV_TAG}" ]; then
+            RANGE="HEAD"
+            LIMIT="-n 30"
+            HEADER="_First tagged release — last 30 relevant commits:_"
+          else
+            RANGE="${PREV_TAG}..HEAD"
+            LIMIT=""
+            HEADER="_Relevant commits since \`${PREV_TAG}\`:_"
+          fi
+          # `|` separator lets us split subject + short-sha in awk.
+          COMMITS=$(git log $RANGE $LIMIT --no-merges --pretty=format:'%s|%h' \
+                     | grep -E '^(feat|fix|perf|refactor|ci)(\(.+\))?:' \
+                     || true)
+          if [ -z "${COMMITS}" ]; then
+            BODY="_No relevant commits in this release._"
+          else
+            BODY=$(echo "${COMMITS}" \
+                    | awk -F'|' '{ printf "- %s (`%s`)\n", $1, $2 }')
+          fi
+          {
+            echo "HIGHLIGHTS<<HIGHLIGHTS_EOF"
+            echo "${HEADER}"
+            echo
+            echo "${BODY}"
+            echo "HIGHLIGHTS_EOF"
+          } >> $GITHUB_ENV
+
+      - name: Download firmware + host distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: faultycat-release-${{ env.TAG }}
+          path: ./release/
+
+      - name: Download Windows standalone .exe
+        uses: actions/download-artifact@v4
+        with:
+          name: faultycmd-windows-${{ env.TAG }}
+          path: ./release/
+
+      - name: List release payload
+        run: ls -la release/
+
+      - name: Publish draft release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          name: FaultyCat ${{ github.ref_name }}
+          artifacts: release/*
+          draft: true
+          generateReleaseNotes: true
+          allowUpdates: true
+          body: |
+            # FaultyCat ${{ github.ref_name }}
+
+            Firmware (RP2040 UF2) and host CLI/TUI built from tag
+            `${{ github.ref_name }}`. The host package on this release
+            **only talks to firmware built from this same tag** —
+            re-flash the UF2 before upgrading the host package, or pass
+            `--ignore-version-mismatch` to bypass during development.
+
+            ## Highlights
+
+            ${{ env.HIGHLIGHTS }}
+
+            ## Flashing the firmware
+
+            1. Hold the BOOTSEL button on the FaultyCat and plug it
+               into USB. The board appears as a mass-storage volume
+               named `RPI-RP2`.
+            2. Drag `faultycat_${{ env.TAG }}.uf2` onto that volume.
+               The board reboots into the new firmware automatically
+               and re-enumerates as `1209:fa17`.
+
+            Verify with:
+
+            ```bash
+            faultycmd info
+            ```
+
+            The firmware row should show `v${{ env.VERSION }} (match)`.
+
+            ## Installing the host CLI/TUI
+
+            ### Windows — standalone `.exe` (no Python install needed)
+
+            Download `faultycmd_${{ env.TAG }}.exe`, drop it
+            wherever is convenient (a folder on `PATH`, your Desktop,
+            a project directory — anywhere), and run it. The .exe
+            bundles Python and every dependency.
+
+            From the same directory the `.exe` lives in (PowerShell
+            or `cmd.exe`), the `.\` prefix is required to tell the
+            shell to run the local file instead of searching `PATH`:
+
+            ```powershell
+            .\faultycmd_${{ env.TAG }}.exe info
+            .\faultycmd_${{ env.TAG }}.exe tui
+            ```
+
+            **Easier:** rename the file to something shorter
+            (e.g. `faultycmd.exe`), and the invocations become
+
+            ```powershell
+            .\faultycmd.exe info
+            .\faultycmd.exe tui
+            ```
+
+            And if you put that renamed `faultycmd.exe` in a folder
+            that is already on your `PATH`, you can drop the `.\`
+            too and just type `faultycmd info` from anywhere.
+
+            ### Linux / macOS / Windows-with-Python — wheel or sdist
+
+            Python wheels follow PEP 440 and do NOT carry the `v` prefix:
+
+            ```bash
+            pip install faultycmd-${{ env.VERSION }}-py3-none-any.whl
+            # or, from the source tarball:
+            pip install faultycmd-${{ env.VERSION }}.tar.gz
+            ```
+
+            ## Artifacts
+
+            | File                                              | Purpose                                          |
+            |---------------------------------------------------|--------------------------------------------------|
+            | `faultycat_${{ env.TAG }}.uf2`                    | RP2040 firmware (BOOTSEL flashable)              |
+            | `faultycmd_${{ env.TAG }}.exe`                    | Windows standalone CLI/TUI (no Python needed)    |
+            | `faultycmd-${{ env.VERSION }}-py3-none-any.whl`   | Host CLI/TUI wheel (Linux / macOS / Windows pip) |
+            | `faultycmd-${{ env.VERSION }}.tar.gz`             | Host source distribution                         |

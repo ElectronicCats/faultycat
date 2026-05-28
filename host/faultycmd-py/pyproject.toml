@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "faultycmd"
-version = "0.1.0"
+version = "3.0.0.5"
 description = "Host tool for FaultyCat v3 — click+Rich CLI and Textual TUI for EMFI / crowbar / SWD / JTAG / scanner / campaign over the USB composite."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -45,7 +45,13 @@ build-binary = [
 ]
 
 [project.scripts]
-faultycmd = "faultycmd.cli:main"
+# Point at _wrap_main (NOT main) so the installed `faultycmd` console
+# script applies the same VersionMismatchError / EngineError /
+# CampaignError / ScannerError translation that `python -m faultycmd`
+# does. With bare `main` the click group would let those bubble up as
+# Python tracebacks. The two invocation paths must stay symmetric so
+# operators get the same UX whether `faultycmd.exe` is on PATH or not.
+faultycmd = "faultycmd.cli:_wrap_main"
 
 [project.urls]
 Homepage = "https://github.com/ElectronicCats/faultycat"

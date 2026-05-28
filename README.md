@@ -83,6 +83,25 @@ legacy
 of the wiki (the **mechanism** is the same in v3 — only the firmware
 on top changed).
 
+The firmware UF2 and the host `faultycmd` CLI/TUI are versioned
+together as `vMAJOR.MINOR.PATCH.TWEAK` and are released as a paired
+set on the [GitHub Releases](https://github.com/ElectronicCats/faultycat/releases)
+page. Each release ships four files:
+
+  - `faultycat_vX.Y.Z.W.uf2` — firmware (drag onto BOOTSEL).
+  - `faultycmd_vX.Y.Z.W.exe` — Windows standalone CLI/TUI; no Python
+    install needed, just drop the `.exe` anywhere and run it.
+  - `faultycmd-X.Y.Z.W-py3-none-any.whl` — host package for
+    Linux/macOS or Windows-with-Python (`pip install`).
+  - `faultycmd-X.Y.Z.W.tar.gz` — source distribution of the same.
+
+The host package validates parity on every connect — a mismatched
+firmware/host pairing refuses to operate with a clear "re-flash the
+matching UF2 or re-install the matching wheel" message. See
+[`docs/RELEASES.md`](docs/RELEASES.md) for the full release scheme,
+how to cut a release as a maintainer, and how to flash + install a
+specific release as a user.
+
 ### Building the firmware
 
 The fastest way to build the firmware from source is the official
@@ -120,6 +139,7 @@ here. Click through for the full document:
 | [`docs/SAFETY.md`](docs/SAFETY.md) | High-voltage safety contract for the EMFI / crowbar drivers (signed by maintainer before each HV-touching commit). |
 | [`docs/MUTEX_INTERNALS.md`](docs/MUTEX_INTERNALS.md) | SWD bus cooperative mutex + Campaign manager wire stack (F9). |
 | [`docs/JTAG_INTERNALS.md`](docs/JTAG_INTERNALS.md) | JTAG/SWD scanner, BusPirate-compat shell, flashrom serprog (F8). |
+| [`docs/RELEASES.md`](docs/RELEASES.md) | Tag-driven release flow (`v*.*.*.*`), where the version lives in the tree, how firmware advertises it to the host, host-side parity check + `--ignore-version-mismatch`. |
 | [`host/faultycmd-py/README.md`](host/faultycmd-py/README.md) | **Install + usage of the `faultycmd` CLI and TUI** — venv setup on Linux, Windows (PowerShell / CMD / Git Bash), macOS. Hotkeys, trigger polarity, trigger timeout. |
 | [`LICENSES/README.md`](LICENSES/README.md) | License overview for vendored code (pico-sdk, debugprobe, free-dap, Unity, CMSIS-DAP headers). |
 

@@ -21,7 +21,11 @@ from tests.conftest import FakeSerial, make_fake_factory
 
 
 def _client(fake: FakeSerial) -> CrowbarClient:
-    return CrowbarClient("/dev/null", serial_factory=make_fake_factory(fake))
+    return CrowbarClient(
+        "/dev/null",
+        serial_factory=make_fake_factory(fake),
+        check_firmware_version=False,
+    )
 
 
 def test_ping_round_trip():

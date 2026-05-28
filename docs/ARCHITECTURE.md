@@ -378,6 +378,60 @@ target-UART into scanner CDC.
 **VID:PID:** `1209:FA17` in development (pid.codes dev range). A proper
 pid.codes allocation happens at v3.0.0 release (F11).
 
+## Version propagation (F11+)
+
+A single 4-segment version (`MAJOR.MINOR.PATCH.TWEAK`) ties the
+firmware and the host together. The flow:
+
+```
+                    project(... VERSION X.Y.Z.W ...)         ← single
+                              │  in top-level CMakeLists.txt   source
+                              ▼                                of truth
+                  CMake's PROJECT_VERSION_*
+                              │
+                              │  configure_file
+                              ▼
+                  build/<preset>/generated/firmware_version.h
+                              │
+                              ▼
+     ┌────────────────┬───────┴────────┬─────────────────┐
+     │                │                │                 │
+     ▼                ▼                ▼                 ▼
+ PING reply       SHELL: VERSION    Diag banner       USB bcdDevice
+ 6 bytes on       on CDC2           on CDC2           (0xMMmp,
+ CDC0/CDC1        text shell        connect           BCD-packed)
+     │                │                │                 │
+     └──── host's faultycmd.version_check (Exact match) ─┘
+```
+
+The firmware exposes its version through four channels because each
+host code path needs a different one: the binary protocol clients
+piggyback on PING (a round-trip they already make on every connect),
+the CDC2 text-shell client uses the dedicated `version` command, the
+operator sees the line in the diag banner without typing anything,
+and `lsusb -v` reads `bcdDevice` without opening any of the CDCs.
+
+`faultycmd.version_check` parses the firmware's report from whichever
+channel a given client uses, then asserts it matches
+`faultycmd.__version__` byte-for-byte (Exact policy). Mismatches
+raise `VersionMismatchError` and abort the connection. The CLI maps
+this to exit code 3; the TUI shows it via the Header subtitle and an
+inline notification. The `--ignore-version-mismatch` flag flips a
+global override for development against a hand-built UF2.
+
+The release workflow at `.github/workflows/release.yml` is what
+bumps the literal in `CMakeLists.txt` (and its mirrors in
+`pyproject.toml` + `__init__.py`) on every `vX.Y.Z.W` tag, then
+delegates to `scripts/get_build.sh` for the firmware UF2 + host
+sdist/wheel build. A parallel `build-windows-exe` job runs on a
+`windows-latest` runner and freezes the host package into a
+PyInstaller `--onefile` `faultycmd.exe` so Windows operators can
+install without touching pip/PATH — the `.exe`, the pip-installed
+`faultycmd.exe` shim, and `python -m faultycmd` all share the same
+`__main__.py` → `_wrap_main` entry, so error handling is identical
+across the three invocations. Full picture in
+[`docs/RELEASES.md`](RELEASES.md).
+
 ## SWD bus arbitration (F9)
 
 Three consumers can want SWD concurrently:

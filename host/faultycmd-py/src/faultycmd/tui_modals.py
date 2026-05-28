@@ -145,7 +145,7 @@ class EmfiControlModal(ModalScreen[None]):
         background: $panel;
         border: thick $accent;
         padding: 1 2;
-        width: 80;
+        width: 110;
         height: auto;
     }
     EmfiControlModal Input { width: 100%; }
@@ -590,7 +590,7 @@ class CrowbarControlModal(ModalScreen[None]):
         background: $panel;
         border: thick $accent;
         padding: 1 2;
-        width: 80;
+        width: 90;
         height: auto;
     }
     CrowbarControlModal Input { width: 100%; }

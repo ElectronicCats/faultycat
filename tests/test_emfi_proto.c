@@ -9,6 +9,7 @@
 #include "emfi_proto.h"
 #include "emfi_pulse.h"
 #include "ext_trigger.h"
+#include "firmware_version.h"
 #include "hal_fake_adc.h"
 #include "hal_fake_dma.h"
 #include "hal_fake_gpio.h"
@@ -59,11 +60,17 @@ static void test_ping_assembles_and_replies(void) {
     TEST_ASSERT_TRUE(feed_frame(frame, sizeof(frame)));
     uint8_t reply[32] = {0};
     size_t n          = emfi_proto_dispatch(reply, sizeof(reply));
-    TEST_ASSERT_EQUAL_UINT(10u, n); // SOF + CMD + 2 LEN + 4 payload + 2 CRC
+    // F11: PING reply grew from 4 to 6 payload bytes to carry the
+    // firmware version. Total frame = SOF+CMD+2 LEN+6 payload+2 CRC = 12.
+    TEST_ASSERT_EQUAL_UINT(12u, n);
     TEST_ASSERT_EQUAL_UINT8(EMFI_PROTO_SOF, reply[0]);
     TEST_ASSERT_EQUAL_UINT8(EMFI_CMD_PING | 0x80u, reply[1]);
     TEST_ASSERT_EQUAL_UINT8('F', reply[4]);
     TEST_ASSERT_EQUAL_UINT8('4', reply[5]);
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)FW_VERSION_MAJOR, reply[6]);
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)FW_VERSION_MINOR, reply[7]);
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)FW_VERSION_PATCH, reply[8]);
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)FW_VERSION_TWEAK, reply[9]);
 }
 
 static void test_bad_sof_is_ignored(void) {

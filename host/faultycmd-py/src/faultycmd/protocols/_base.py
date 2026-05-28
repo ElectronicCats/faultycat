@@ -71,6 +71,14 @@ class BinaryProtoClient:
     DEFAULT_TIMEOUT = 2.0
     PER_BYTE_TIMEOUT = 0.5
 
+    # PING opcode that returns the firmware version. Both emfi_proto
+    # and crowbar_proto reply to 0x01 with the 6-byte version payload;
+    # CampaignClient pings via this same opcode (the firmware
+    # multiplexes by CMD on the shared CDC, so the request still hits
+    # whichever of {emfi,crowbar}_proto owns the CDC and returns the
+    # firmware's version).
+    _VERSION_CHECK_CMD = 0x01
+
     def __init__(
         self,
         port: str,
@@ -78,12 +86,18 @@ class BinaryProtoClient:
         baud: int = DEFAULT_BAUD,
         timeout: float = DEFAULT_TIMEOUT,
         serial_factory: SerialFactory | None = None,
+        check_firmware_version: bool = True,
     ) -> None:
         self.port = port
         self.baud = baud
         self.timeout = timeout
         self._factory = serial_factory or _default_serial_factory
         self._ser: _SerialLike | None = None
+        self._check_firmware_version = check_firmware_version
+        # Populated on open() once the firmware PINGs back, or left as
+        # None if the connection was opened with check_firmware_version
+        # = False (tests, --ignore-version-mismatch dev path).
+        self.firmware_version: tuple[int, int, int, int] | None = None
 
     # -- lifecycle ----------------------------------------------------
 
@@ -91,6 +105,31 @@ class BinaryProtoClient:
         if self._ser is not None:
             return
         self._ser = self._factory(self.port, self.baud, self.PER_BYTE_TIMEOUT)
+        if self._check_firmware_version:
+            self._probe_and_check_firmware_version()
+
+    def _probe_and_check_firmware_version(self) -> None:
+        """Send PING and validate the version against the host's.
+
+        Raises VersionMismatchError on mismatch (unless the global
+        override is on). Closes the serial port on failure so the
+        caller doesn't end up holding a half-open client.
+        """
+        from ..version_check import (  # noqa: PLC0415 — avoid import cycle
+            assert_version_match,
+            parse_ping_version,
+        )
+
+        try:
+            payload = self._send(self._VERSION_CHECK_CMD)
+            self.firmware_version = parse_ping_version(payload)
+            assert_version_match(self.firmware_version)
+        except Exception:
+            # A half-open client is worse than no client.
+            if self._ser is not None:
+                self._ser.close()
+                self._ser = None
+            raise
 
     def close(self) -> None:
         if self._ser is None:

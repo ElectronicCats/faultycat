@@ -53,7 +53,38 @@ faultycmd/
                                                       EMFI arm)
 ```
 
-## Quick start
+## Install from a Release (recommended for end users)
+
+If you only want to **use** `faultycmd` against a flashed FaultyCat —
+not develop on it — grab the matching artifact from the
+[GitHub Release](https://github.com/ElectronicCats/faultycat/releases)
+that pairs with the UF2 you flashed:
+
+| Your platform                       | Download                                          | Run with                                            |
+|-------------------------------------|---------------------------------------------------|-----------------------------------------------------|
+| Windows (no Python needed)          | `faultycmd_vX.Y.Z.W.exe`                          | `.\faultycmd_vX.Y.Z.W.exe info` (see note below)    |
+| Windows with Python / Linux / macOS | `faultycmd-X.Y.Z.W-py3-none-any.whl`              | `pip install <wheel>` then `faultycmd info`         |
+| Building from source                | `faultycmd-X.Y.Z.W.tar.gz`                        | `pip install <tarball>` then `faultycmd info`       |
+
+> **Windows `.exe` note.** From the directory the `.exe` lives in
+> (PowerShell or `cmd.exe`), the `.\` prefix is required so the
+> shell runs the local file instead of searching `PATH`:
+> `.\faultycmd_vX.Y.Z.W.exe info`. If you want a shorter command,
+> rename the file (e.g. to `faultycmd.exe`); invocations then
+> become `.\faultycmd.exe info`. And if you move that renamed file
+> into a folder that is already on your `PATH`, the `.\` can be
+> dropped too and you can simply type `faultycmd info` from
+> anywhere.
+
+The host package validates firmware parity on every connect — see
+the "Firmware ↔ host version parity" subsection below. If you flash
+firmware `vX.Y.Z.W`, install host `vX.Y.Z.W`; the two are released
+together for that reason.
+
+The rest of this document covers the **developer** install (editable
+checkout + venv) used while iterating on the host code itself.
+
+## Quick start (developer install)
 
 ### 1. Create and activate the venv
 
@@ -107,6 +138,30 @@ pip install -e '.[dev]'
 
 ### 3. Use the CLI
 
+> **Windows note.** If you only need to run `faultycmd` and don't
+> want to deal with Python at all, download the standalone
+> `faultycmd_vX.Y.Z.W.exe` from the
+> [GitHub Release](https://github.com/ElectronicCats/faultycat/releases)
+> matching your firmware tag and put it anywhere convenient. The
+> `.exe` bundles Python + every dependency. Inside this Quick start
+> you'd skip steps 1 and 2 entirely and just run
+> `faultycmd_vX.Y.Z.W.exe info`.
+>
+> If you installed via `pip install --user` outside a venv and your
+> shell does not recognise the `faultycmd` command, your Python
+> user-install Scripts directory is probably not on `PATH`. Two
+> workarounds:
+>
+>   - Activate a venv (step 1 of Quick start). Inside the venv,
+>     `pip install` puts `faultycmd.exe` in `<venv>\Scripts\` which
+>     is added to `PATH` on activation.
+>   - Or use the module invocation which never depends on `PATH`:
+>     `python -m faultycmd info`, `python -m faultycmd tui`, etc.
+>
+> Linux and macOS users get this for free — `pip install` adds the
+> script to a directory that is already on `PATH` for any non-root
+> install backed by a venv.
+
 ```bash
 # Discover the connected board and inspect its state.
 faultycmd --help
@@ -127,6 +182,41 @@ faultycmd scanner scan-swd
 `faultycmd --help` lists every command group available in this
 release; `faultycmd <group> --help` shows the subcommands and
 flags for each one.
+
+### Firmware ↔ host version parity
+
+`faultycmd` only talks to firmware that was built from the same
+release tag. Every protocol client validates this on connect, so a
+command like `faultycmd emfi status` against a mismatched board
+exits with code `3` and a message naming both versions:
+
+```
+$ faultycmd emfi status
+version mismatch firmware/host version mismatch:
+  firmware=3.0.0.0, host=3.0.1.0. Re-flash the matching UF2 from the
+  GitHub Release, or pass --ignore-version-mismatch to bypass
+  (unsafe — wire protocol may have shifted).
+```
+
+`faultycmd info` is the diagnostic path that never aborts on a
+mismatch: it lists the CDC interfaces, probes the EMFI CDC for the
+firmware version, and prints a coloured `match` / `mismatch` line.
+The TUI shows the same parity in its header subtitle
+(`host v3.0.1.0  ·  fw v3.0.0.0 ✗ (host v3.0.1.0)`).
+
+To bypass the check for a development build of the firmware:
+
+```bash
+faultycmd --ignore-version-mismatch tui
+```
+
+Use this only when iterating on a hand-built UF2 against a
+hand-built host package; in field operation a mismatched pairing is
+almost always a half-applied upgrade and produces silently-wrong
+results if the wire protocol drifted. See
+[`docs/RELEASES.md`](../../docs/RELEASES.md) for the full picture
+(version scheme, where the version lives in the source tree, how
+the firmware advertises it, how to cut a release).
 
 ### 4. Launch the TUI
 
@@ -163,9 +253,9 @@ and it resumes when the scan finishes. The raw firmware lines
 
 | System        | Status | Notes |
 |---------------|--------|-------|
-| Linux         | ✓ verified | Ports under `/dev/ttyACM*`. If you hit `Permission denied` when opening them, add your user to the `dialout` group (`sudo usermod -aG dialout $USER`) and log out / back in. |
-| Windows 10/11 | ✓ verified (2026-05-25) | `COM*` ports enumerated by `usbser.sys` (inbox driver). Requires firmware `v3.0-f11-0d` or later — earlier versions failed to enumerate because of bugs in the descriptor and in the init order. |
-| macOS         | ⚠ not validated | The cross-platform logic (pyserial parsing) should be enough, but no hardware on hand to confirm. |
+| Linux         | ✓ verified | Ports under `/dev/ttyACM*`. If you hit `Permission denied` when opening them, add your user to the `dialout` group (`sudo usermod -aG dialout $USER`) and log out / back in. Install via wheel from a Release. |
+| Windows 10/11 | ✓ verified (2026-05-25) | `COM*` ports enumerated by `usbser.sys` (inbox driver). Requires firmware `v3.0-f11-0d` or later — earlier versions failed to enumerate because of bugs in the descriptor and in the init order. **Easiest install path: download `faultycmd_vX.Y.Z.W.exe` from the Release — no Python install needed.** If you prefer pip, use a venv so `Scripts/` ends up on `PATH`; otherwise `python -m faultycmd ...` works without PATH changes. |
+| macOS         | ⚠ not validated | The cross-platform logic (pyserial parsing) should be enough, but no hardware on hand to confirm. Install via wheel from a Release. |
 
 ### Subsequent sessions
 

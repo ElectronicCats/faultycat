@@ -46,7 +46,7 @@ class FakeShellSerial:
 
 def _client(fake: FakeShellSerial) -> ScannerClient:
     factory = lambda *_a, **_kw: fake  # noqa: E731
-    return ScannerClient("/dev/null", serial_factory=factory)
+    return ScannerClient("/dev/null", serial_factory=factory, check_firmware_version=False)
 
 
 # -- low-level send_line ------------------------------------------

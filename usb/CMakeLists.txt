@@ -19,4 +19,5 @@ target_link_libraries(usb_composite
     PRIVATE
         pico_unique_id
         pico_bootrom
+        firmware_version
 )

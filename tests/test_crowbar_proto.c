@@ -10,6 +10,7 @@
 #include "crowbar_pio.h"
 #include "crowbar_proto.h"
 #include "ext_trigger.h"
+#include "firmware_version.h"
 #include "hal_fake_gpio.h"
 #include "hal_fake_pio.h"
 #include "hal_fake_time.h"
@@ -54,11 +55,16 @@ static void test_ping_assembles_and_replies_with_F5(void) {
     TEST_ASSERT_TRUE(feed_frame(frame, sizeof(frame)));
     uint8_t reply[32] = {0};
     size_t n          = crowbar_proto_dispatch(reply, sizeof(reply));
-    TEST_ASSERT_EQUAL_UINT(10u, n);
+    // F11: PING reply grew from 4 to 6 payload bytes (version embed).
+    TEST_ASSERT_EQUAL_UINT(12u, n);
     TEST_ASSERT_EQUAL_UINT8(CROWBAR_PROTO_SOF, reply[0]);
     TEST_ASSERT_EQUAL_UINT8(CROWBAR_CMD_PING | 0x80u, reply[1]);
     TEST_ASSERT_EQUAL_UINT8('F', reply[4]);
     TEST_ASSERT_EQUAL_UINT8('5', reply[5]);
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)FW_VERSION_MAJOR, reply[6]);
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)FW_VERSION_MINOR, reply[7]);
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)FW_VERSION_PATCH, reply[8]);
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)FW_VERSION_TWEAK, reply[9]);
 }
 
 static void test_bad_sof_is_ignored(void) {
