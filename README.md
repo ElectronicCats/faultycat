@@ -83,11 +83,20 @@ legacy
 of the wiki (the **mechanism** is the same in v3 — only the firmware
 on top changed).
 
-The firmware UF2 and the host `faultycmd` package are versioned
+The firmware UF2 and the host `faultycmd` CLI/TUI are versioned
 together as `vMAJOR.MINOR.PATCH.TWEAK` and are released as a paired
 set on the [GitHub Releases](https://github.com/ElectronicCats/faultycat/releases)
-page. The host package validates parity on every connect — a
-mismatched pairing refuses to operate with a clear "re-flash the
+page. Each release ships four files:
+
+  - `faultycat_vX.Y.Z.W.uf2` — firmware (drag onto BOOTSEL).
+  - `faultycmd_vX.Y.Z.W.exe` — Windows standalone CLI/TUI; no Python
+    install needed, just drop the `.exe` anywhere and run it.
+  - `faultycmd-X.Y.Z.W-py3-none-any.whl` — host package for
+    Linux/macOS or Windows-with-Python (`pip install`).
+  - `faultycmd-X.Y.Z.W.tar.gz` — source distribution of the same.
+
+The host package validates parity on every connect — a mismatched
+firmware/host pairing refuses to operate with a clear "re-flash the
 matching UF2 or re-install the matching wheel" message. See
 [`docs/RELEASES.md`](docs/RELEASES.md) for the full release scheme,
 how to cut a release as a maintainer, and how to flash + install a

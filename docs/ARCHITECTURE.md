@@ -422,8 +422,15 @@ global override for development against a hand-built UF2.
 The release workflow at `.github/workflows/release.yml` is what
 bumps the literal in `CMakeLists.txt` (and its mirrors in
 `pyproject.toml` + `__init__.py`) on every `vX.Y.Z.W` tag, then
-delegates to `scripts/get_build.sh` for the actual build +
-packaging. Full picture in [`docs/RELEASES.md`](RELEASES.md).
+delegates to `scripts/get_build.sh` for the firmware UF2 + host
+sdist/wheel build. A parallel `build-windows-exe` job runs on a
+`windows-latest` runner and freezes the host package into a
+PyInstaller `--onefile` `faultycmd.exe` so Windows operators can
+install without touching pip/PATH — the `.exe`, the pip-installed
+`faultycmd.exe` shim, and `python -m faultycmd` all share the same
+`__main__.py` → `_wrap_main` entry, so error handling is identical
+across the three invocations. Full picture in
+[`docs/RELEASES.md`](RELEASES.md).
 
 ## SWD bus arbitration (F9)
 

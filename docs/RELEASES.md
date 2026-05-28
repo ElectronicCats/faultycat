@@ -166,7 +166,9 @@ protocol drifted.
 
 The release workflow lives at `.github/workflows/release.yml`. It
 fires on every tag matching `v*.*.*.*` (and `v*.*.*.*-*` for
-pre-releases). The steps:
+pre-releases). Three jobs run, in two parallel + one downstream:
+
+### `build` (ubuntu-24.04) — UF2 + wheel + sdist
 
   1. Validates the tag shape and rejects malformed tags up-front so a
      typo doesn't ship a broken release.
@@ -180,13 +182,39 @@ pre-releases). The steps:
          is regenerated with `PROJECT_VERSION_*` matching the tag,
        - builds the firmware (`build/fw-release/apps/faultycat_fw/faultycat.uf2`),
        - builds the host sdist + wheel via `python -m build`,
-       - copies the firmware artifacts to
-         `build/apps/faultycat_fw/faultycat_${TAG}.{uf2,elf}` and
-         the host distributions to the same directory.
-  4. Uploads `build/apps/faultycat_fw/` as a workflow artifact.
-  5. Publishes a **draft** GitHub Release with every file from the
-     directory attached. `generateReleaseNotes: true` pulls the
-     changelog from PRs and commits since the previous tag.
+       - copies the UF2 to
+         `build/apps/faultycat_fw/faultycat_${TAG}.uf2` and the host
+         distributions to the same directory.
+  4. Uploads `build/apps/faultycat_fw/` as artifact
+     `faultycat-release-${TAG}`.
+
+### `build-windows-exe` (windows-latest) — standalone `.exe`
+
+Runs in parallel with `build`. Bumps the same Python version literals
+(skipping CMakeLists, since this job doesn't build firmware), installs
+`pyinstaller` via the `[build-binary]` extra, then produces a
+single-file `faultycmd.exe` with:
+
+```text
+pyinstaller --name faultycmd --onefile -p src \
+  --collect-all faultycmd --collect-all textual \
+  --collect-all rich --collect-all click \
+  src/faultycmd/__main__.py
+```
+
+The resulting `.exe` is renamed `faultycmd_${TAG}.exe` and uploaded as
+artifact `faultycmd-windows-${TAG}`. It bundles Python + every host
+dependency (~30-50 MB) so the end user doesn't need a Python install
+on Windows — they download the `.exe`, drop it anywhere, and run it.
+
+### `release` (ubuntu-24.04) — publish draft
+
+`needs: [build, build-windows-exe]`. Downloads both artifacts to
+`./release/`, then publishes a **draft** GitHub Release with every
+file attached. `generateReleaseNotes: true` pulls the changelog from
+PRs and commits since the previous tag; an additional "Highlights"
+section in the body lists the filtered `feat/fix/perf/refactor/ci`
+commits since the previous non-suffix tag.
 
 The release is created as a draft so the maintainer reviews it, edits
 the notes if needed, and clicks publish manually.
@@ -242,6 +270,24 @@ git checkout -- \
 ```
 
 if the tree should stay clean.
+
+The Windows `.exe` is NOT produced by `scripts/get_build.sh` because
+PyInstaller's output is platform-specific (a Linux runner can't
+produce a Windows `.exe` without cross-compile gymnastics we
+intentionally don't run locally). The release workflow's
+`build-windows-exe` job is what builds it on a `windows-latest`
+runner. To reproduce locally on a Windows machine:
+
+```cmd
+cd host\faultycmd-py
+python -m venv .venv && .venv\Scripts\activate
+pip install -e .[build-binary]
+pyinstaller --name faultycmd --onefile -p src ^
+  --collect-all faultycmd --collect-all textual ^
+  --collect-all rich --collect-all click ^
+  src\faultycmd\__main__.py
+dist\faultycmd.exe --version
+```
 
 Pre-release tags work the same way:
 
@@ -302,17 +348,40 @@ that you upgraded one side without the other — either re-flash the
 matching UF2 or re-install the matching wheel. The mismatch message
 includes both versions so it's clear which one needs to move.
 
+## Entry points — `faultycmd`, `python -m faultycmd`, and the `.exe`
+
+All three invocations route through `faultycmd.cli:_wrap_main` (not
+the bare `main` click group). That keeps the user-visible behaviour
+symmetric:
+
+| Invocation                         | What runs                                |
+|------------------------------------|------------------------------------------|
+| `faultycmd ...`                    | pip-installed console script, configured in `pyproject.toml` `[project.scripts]` |
+| `python -m faultycmd ...`          | `src/faultycmd/__main__.py`              |
+| `faultycmd_vX.Y.Z.W.exe ...`       | PyInstaller-frozen `__main__.py`         |
+
+The wrapper catches `VersionMismatchError` (→ exit 3),
+`EngineError` / `CampaignError` / `ScannerError` (→ exit 2 with
+styled message), and `FileNotFoundError` (→ exit 2). Anything else
+propagates as a Python traceback. Both `python -m faultycmd` and
+the standalone `.exe` are documented as Windows-friendly fallbacks
+when the user-install `Scripts/` directory is not on `PATH`.
+
 ## Related files
 
 | File | Purpose |
 |---|---|
 | `CMakeLists.txt` | `project(... VERSION ...)` — firmware-side SSoT. |
 | `cmake/firmware_version.h.in` | Template `configure_file` fills with `PROJECT_VERSION_*`. |
+| `host/faultycmd-py/src/faultycmd/__init__.py` | `__version__` literal — host SSoT. |
+| `host/faultycmd-py/src/faultycmd/__main__.py` | `python -m faultycmd` + PyInstaller `.exe` entry. Calls `_wrap_main`. |
+| `host/faultycmd-py/src/faultycmd/cli.py` | `_wrap_main` exception wrapper + click groups. |
 | `host/faultycmd-py/src/faultycmd/version_check.py` | Host-side parse + assert + global override. |
 | `host/faultycmd-py/src/faultycmd/protocols/_base.py` | `_probe_and_check_firmware_version()` on `open()`. |
 | `host/faultycmd-py/src/faultycmd/protocols/scanner.py` | Shell-version probe for CDC2. |
-| `scripts/get_build.sh` | Local + CI build wrapper. |
-| `.github/workflows/release.yml` | Tag-driven release workflow. |
+| `host/faultycmd-py/pyproject.toml` | `version = "..."` + `[project.scripts]` → `_wrap_main`. |
+| `scripts/get_build.sh` | Local + CI build wrapper (firmware UF2 + host sdist/wheel; NOT the Windows `.exe`). |
+| `.github/workflows/release.yml` | Tag-driven release workflow (`build` + `build-windows-exe` + `release` jobs). |
 | `services/host_proto/{emfi,crowbar}_proto/*.c` | 6-byte PING reply. |
 | `apps/faultycat_fw/main.c` | Diag banner + `version` shell command. |
 | `usb/src/usb_descriptors.c` | `bcdDevice` derived from `FW_VERSION_BCD`. |

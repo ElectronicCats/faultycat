@@ -53,7 +53,28 @@ faultycmd/
                                                       EMFI arm)
 ```
 
-## Quick start
+## Install from a Release (recommended for end users)
+
+If you only want to **use** `faultycmd` against a flashed FaultyCat —
+not develop on it — grab the matching artifact from the
+[GitHub Release](https://github.com/ElectronicCats/faultycat/releases)
+that pairs with the UF2 you flashed:
+
+| Your platform                       | Download                                          | Run with                                  |
+|-------------------------------------|---------------------------------------------------|-------------------------------------------|
+| Windows (no Python needed)          | `faultycmd_vX.Y.Z.W.exe`                          | `faultycmd_vX.Y.Z.W.exe info`             |
+| Windows with Python / Linux / macOS | `faultycmd-X.Y.Z.W-py3-none-any.whl`              | `pip install <wheel>` then `faultycmd info` |
+| Building from source                | `faultycmd-X.Y.Z.W.tar.gz`                        | `pip install <tarball>` then `faultycmd info` |
+
+The host package validates firmware parity on every connect — see
+the "Firmware ↔ host version parity" subsection below. If you flash
+firmware `vX.Y.Z.W`, install host `vX.Y.Z.W`; the two are released
+together for that reason.
+
+The rest of this document covers the **developer** install (editable
+checkout + venv) used while iterating on the host code itself.
+
+## Quick start (developer install)
 
 ### 1. Create and activate the venv
 
@@ -222,9 +243,9 @@ and it resumes when the scan finishes. The raw firmware lines
 
 | System        | Status | Notes |
 |---------------|--------|-------|
-| Linux         | ✓ verified | Ports under `/dev/ttyACM*`. If you hit `Permission denied` when opening them, add your user to the `dialout` group (`sudo usermod -aG dialout $USER`) and log out / back in. |
-| Windows 10/11 | ✓ verified (2026-05-25) | `COM*` ports enumerated by `usbser.sys` (inbox driver). Requires firmware `v3.0-f11-0d` or later — earlier versions failed to enumerate because of bugs in the descriptor and in the init order. |
-| macOS         | ⚠ not validated | The cross-platform logic (pyserial parsing) should be enough, but no hardware on hand to confirm. |
+| Linux         | ✓ verified | Ports under `/dev/ttyACM*`. If you hit `Permission denied` when opening them, add your user to the `dialout` group (`sudo usermod -aG dialout $USER`) and log out / back in. Install via wheel from a Release. |
+| Windows 10/11 | ✓ verified (2026-05-25) | `COM*` ports enumerated by `usbser.sys` (inbox driver). Requires firmware `v3.0-f11-0d` or later — earlier versions failed to enumerate because of bugs in the descriptor and in the init order. **Easiest install path: download `faultycmd_vX.Y.Z.W.exe` from the Release — no Python install needed.** If you prefer pip, use a venv so `Scripts/` ends up on `PATH`; otherwise `python -m faultycmd ...` works without PATH changes. |
+| macOS         | ⚠ not validated | The cross-platform logic (pyserial parsing) should be enough, but no hardware on hand to confirm. Install via wheel from a Release. |
 
 ### Subsequent sessions
 
