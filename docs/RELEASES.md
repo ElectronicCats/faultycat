@@ -226,7 +226,6 @@ The same script CI runs is callable from the repo root:
 ./scripts/get_build.sh v3.0.1.0
 ls build/apps/faultycat_fw/
 # faultycat_v3.0.1.0.uf2
-# faultycat_v3.0.1.0.elf
 # faultycmd-3.0.1.0-py3-none-any.whl
 # faultycmd-3.0.1.0.tar.gz
 ```
@@ -257,26 +256,30 @@ Pre-release tags work the same way:
 
 ## Installing a release (end-user guide)
 
-Each GitHub Release ships four files. Pick the firmware artifact
-matching your board (always the RP2040 UF2 for v2.x hardware) and
+Each GitHub Release ships three files. Pick the firmware UF2 and
 install the matching host package on your workstation:
 
-```bash
-# 1. Flash the firmware.
-#    Hold BOOTSEL on the FaultyCat, plug it in. The board appears
-#    as the RPI-RP2 mass-storage volume. Drag the UF2 onto it.
-#    Equivalent via picotool:
-picotool load -x faultycat_v3.0.1.0.uf2
+  1. **Flash the firmware.** Hold the BOOTSEL button on the FaultyCat
+     while plugging the USB cable. The board appears as a
+     mass-storage volume named `RPI-RP2`. Drag
+     `faultycat_v3.0.1.0.uf2` onto that volume; the board reboots
+     into the new firmware automatically and re-enumerates as
+     `1209:fa17`.
 
-# 2. Install the host package.
-pip install faultycmd-3.0.1.0-py3-none-any.whl
-# or, from source:
-pip install faultycmd-3.0.1.0.tar.gz
+  2. **Install the matching host package.**
 
-# 3. Verify parity.
-faultycmd info
-# Expected: `firmware: v3.0.1.0 (match)`
-```
+     ```bash
+     pip install faultycmd-3.0.1.0-py3-none-any.whl
+     # or, from source:
+     pip install faultycmd-3.0.1.0.tar.gz
+     ```
+
+  3. **Verify parity.**
+
+     ```bash
+     faultycmd info
+     # Expected: `firmware: v3.0.1.0 (match)`
+     ```
 
 If `faultycmd info` reports a mismatch, the most common cause is
 that you upgraded one side without the other — either re-flash the

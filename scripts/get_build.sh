@@ -10,8 +10,7 @@
 #
 # Output layout (all under `build/apps/faultycat_fw/`):
 #
-#   faultycat_vX.Y.Z.W.uf2         drag onto BOOTSEL to flash
-#   faultycat_vX.Y.Z.W.elf         symbols for GDB / picotool decoding
+#   faultycat_vX.Y.Z.W.uf2         drag onto the BOOTSEL volume to flash
 #   faultycmd-X.Y.Z.W-py3-none-any.whl   PEP 440 forbids `v` in wheel names,
 #   faultycmd-X.Y.Z.W.tar.gz             so the host pkgs keep the bare number
 #
@@ -125,13 +124,14 @@ cmake --build build/fw-release --parallel
 
 echo "==> Inspecting firmware artifact"
 ls -la build/fw-release/apps/faultycat_fw/
+# `arm-none-eabi-size` reads section sizes from the ELF — useful CI
+# diagnostic even though we no longer ship the ELF as a release asset
+# (it just confirmed the image is sane before we copy the UF2).
 arm-none-eabi-size build/fw-release/apps/faultycat_fw/faultycat.elf
 
-echo "==> Publishing firmware artifacts as ${OUT_DIR}/faultycat_${TAG}.{uf2,elf}"
+echo "==> Publishing firmware artifact as ${OUT_DIR}/faultycat_${TAG}.uf2"
 cp build/fw-release/apps/faultycat_fw/faultycat.uf2 \
    "${OUT_DIR}/faultycat_${TAG}.uf2"
-cp build/fw-release/apps/faultycat_fw/faultycat.elf \
-   "${OUT_DIR}/faultycat_${TAG}.elf"
 
 # -----------------------------------------------------------------------------
 # Host CLI/TUI (sdist + wheel). PEP 440 forbids the `v` prefix in

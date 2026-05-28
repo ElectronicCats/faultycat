@@ -29,6 +29,15 @@ on:
 permissions:
   contents: write
 
+# Opt JavaScript actions (checkout, setup-python, upload/download-artifact)
+# into Node.js 24 instead of the deprecated Node.js 20 runtime, so the
+# release log isn't flooded with "Node.js 20 actions are deprecated"
+# warnings. Node 24 is becoming the default on June 2nd, 2026; this
+# just brings the switch forward. Drop the env once GitHub flips the
+# default and the action versions all advertise Node 24 natively.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -118,6 +127,14 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      - name: Checkout (history + tags only, needed for the changelog)
+        uses: actions/checkout@v4
+        with:
+          # No submodules — the release job only walks `git log`; we
+          # don't rebuild anything here.
+          fetch-tags: true
+          fetch-depth: 0
+
       - name: Extract tag + version
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
@@ -125,6 +142,50 @@ jobs:
           VERSION="${VERSION%%-*}"
           echo "TAG=${TAG}" >> $GITHUB_ENV
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Build the "Highlights" commit list
+        # Collects the most relevant commits since the previous
+        # release tag (matching `vMAJOR.MINOR.PATCH.TWEAK` with NO
+        # suffix — test/rc tags are skipped). "Relevant" = commit
+        # subjects whose conventional-commit prefix is feat / fix /
+        # perf / refactor / ci. chore / docs / style / test / build
+        # are filtered out as routine maintenance noise.
+        #
+        # Exposed as ${{ env.HIGHLIGHTS }} for the body block below.
+        # GitHub's `generateReleaseNotes: true` still appends the full
+        # auto-generated PR/commit summary at the bottom of the draft.
+        run: |
+          set -euo pipefail
+          PREV_TAG=$(git tag --sort=-creatordate \
+                      | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
+                      | grep -v -F "${TAG}" \
+                      | head -1 || true)
+          if [ -z "${PREV_TAG}" ]; then
+            RANGE="HEAD"
+            LIMIT="-n 30"
+            HEADER="_First tagged release — last 30 relevant commits:_"
+          else
+            RANGE="${PREV_TAG}..HEAD"
+            LIMIT=""
+            HEADER="_Relevant commits since \`${PREV_TAG}\`:_"
+          fi
+          # `|` separator lets us split subject + short-sha in awk.
+          COMMITS=$(git log $RANGE $LIMIT --no-merges --pretty=format:'%s|%h' \
+                     | grep -E '^(feat|fix|perf|refactor|ci)(\(.+\))?:' \
+                     || true)
+          if [ -z "${COMMITS}" ]; then
+            BODY="_No relevant commits in this release._"
+          else
+            BODY=$(echo "${COMMITS}" \
+                    | awk -F'|' '{ printf "- %s (`%s`)\n", $1, $2 }')
+          fi
+          {
+            echo "HIGHLIGHTS<<HIGHLIGHTS_EOF"
+            echo "${HEADER}"
+            echo
+            echo "${BODY}"
+            echo "HIGHLIGHTS_EOF"
+          } >> $GITHUB_ENV
 
       - name: Download release artifact
         uses: actions/download-artifact@v4
@@ -153,22 +214,18 @@ jobs:
             re-flash the UF2 before upgrading the host package, or pass
             `--ignore-version-mismatch` to bypass during development.
 
-            ## Flashing the firmware
+            ## Highlights
 
-            ### BOOTSEL drag-and-drop (no extra tools)
+            ${{ env.HIGHLIGHTS }}
+
+            ## Flashing the firmware
 
             1. Hold the BOOTSEL button on the FaultyCat and plug it
                into USB. The board appears as a mass-storage volume
                named `RPI-RP2`.
             2. Drag `faultycat_${{ env.TAG }}.uf2` onto that volume.
-               The board reboots into the new firmware automatically and
-               re-enumerates as `1209:fa17`.
-
-            ### Via [picotool](https://github.com/raspberrypi/picotool)
-
-            ```bash
-            picotool load -x faultycat_${{ env.TAG }}.uf2
-            ```
+               The board reboots into the new firmware automatically
+               and re-enumerates as `1209:fa17`.
 
             Verify with:
 
@@ -193,6 +250,5 @@ jobs:
             | File                                              | Purpose                              |
             |---------------------------------------------------|--------------------------------------|
             | `faultycat_${{ env.TAG }}.uf2`                    | RP2040 firmware (BOOTSEL flashable)  |
-            | `faultycat_${{ env.TAG }}.elf`                    | Symbols for GDB / panic decoding     |
             | `faultycmd-${{ env.VERSION }}-py3-none-any.whl`   | Host CLI/TUI wheel                   |
             | `faultycmd-${{ env.VERSION }}.tar.gz`             | Host source distribution             |
