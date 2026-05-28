@@ -22,7 +22,14 @@ from tests.conftest import FakeSerial, make_fake_factory
 
 
 def _client(fake: FakeSerial) -> EmfiClient:
-    return EmfiClient("/dev/null", serial_factory=make_fake_factory(fake))
+    # check_firmware_version=False keeps these unit tests from having
+    # to queue a PING reply ahead of every op-under-test; the version
+    # gate is covered separately in test_version_check.py.
+    return EmfiClient(
+        "/dev/null",
+        serial_factory=make_fake_factory(fake),
+        check_firmware_version=False,
+    )
 
 
 # -- ping ---------------------------------------------------------

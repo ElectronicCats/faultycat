@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "faultycmd"
-version = "0.1.0"
+version = "3.0.0.5"
 description = "Host tool for FaultyCat v3 — click+Rich CLI and Textual TUI for EMFI / crowbar / SWD / JTAG / scanner / campaign over the USB composite."
 readme = "README.md"
 requires-python = ">=3.10"

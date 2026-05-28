@@ -96,18 +96,44 @@ class ScannerClient:
         baud: int = DEFAULT_BAUD,
         timeout: float = DEFAULT_TIMEOUT,
         serial_factory: SerialFactory | None = None,
+        check_firmware_version: bool = True,
     ) -> None:
         self.port = port
         self.baud = baud
         self.timeout = timeout
         self._factory = serial_factory or _default_serial_factory
         self._ser: _SerialLike | None = None
+        self._check_firmware_version = check_firmware_version
+        self.firmware_version: tuple[int, int, int, int] | None = None
 
     # -- lifecycle ---------------------------------------------------
 
     def open(self) -> None:
         if self._ser is None:
             self._ser = self._factory(self.port, self.baud, self.PER_BYTE_TIMEOUT)
+            if self._check_firmware_version:
+                self._probe_and_check_firmware_version()
+
+    def _probe_and_check_firmware_version(self) -> None:
+        """Send `version` to the shell and validate against host.
+
+        Firmware emits ``SHELL: VERSION X.Y.Z.W``. Closes the serial
+        on failure to keep the client in a consistent state.
+        """
+        from ..version_check import (  # noqa: PLC0415 — avoid import cycle
+            assert_version_match,
+            parse_shell_version,
+        )
+
+        try:
+            line = self.send_line("version", accept_prefixes=("SHELL:",))
+            self.firmware_version = parse_shell_version(line)
+            assert_version_match(self.firmware_version)
+        except Exception:
+            if self._ser is not None:
+                self._ser.close()
+                self._ser = None
+            raise
 
     def close(self) -> None:
         if self._ser is not None:

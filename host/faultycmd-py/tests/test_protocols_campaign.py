@@ -25,7 +25,12 @@ from tests.conftest import FakeSerial, make_fake_factory
 
 
 def _client(fake: FakeSerial, engine: str = "crowbar") -> CampaignClient:
-    return CampaignClient("/dev/null", engine=engine, serial_factory=make_fake_factory(fake))
+    return CampaignClient(
+        "/dev/null",
+        engine=engine,
+        serial_factory=make_fake_factory(fake),
+        check_firmware_version=False,
+    )
 
 
 # -- configure ----------------------------------------------------
