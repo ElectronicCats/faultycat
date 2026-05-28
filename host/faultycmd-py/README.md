@@ -107,6 +107,30 @@ pip install -e '.[dev]'
 
 ### 3. Use the CLI
 
+> **Windows note.** If you only need to run `faultycmd` and don't
+> want to deal with Python at all, download the standalone
+> `faultycmd_vX.Y.Z.W.exe` from the
+> [GitHub Release](https://github.com/ElectronicCats/faultycat/releases)
+> matching your firmware tag and put it anywhere convenient. The
+> `.exe` bundles Python + every dependency. Inside this Quick start
+> you'd skip steps 1 and 2 entirely and just run
+> `faultycmd_vX.Y.Z.W.exe info`.
+>
+> If you installed via `pip install --user` outside a venv and your
+> shell does not recognise the `faultycmd` command, your Python
+> user-install Scripts directory is probably not on `PATH`. Two
+> workarounds:
+>
+>   - Activate a venv (step 1 of Quick start). Inside the venv,
+>     `pip install` puts `faultycmd.exe` in `<venv>\Scripts\` which
+>     is added to `PATH` on activation.
+>   - Or use the module invocation which never depends on `PATH`:
+>     `python -m faultycmd info`, `python -m faultycmd tui`, etc.
+>
+> Linux and macOS users get this for free — `pip install` adds the
+> script to a directory that is already on `PATH` for any non-root
+> install backed by a venv.
+
 ```bash
 # Discover the connected board and inspect its state.
 faultycmd --help

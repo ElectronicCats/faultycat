@@ -120,9 +120,102 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+  build-windows-exe:
+    name: Build Windows standalone .exe (PyInstaller)
+    # Runs in parallel with the firmware build. We ship the .exe as
+    # the primary Windows install path because the pip-installed
+    # console script lands in a Scripts/ directory that is not on the
+    # default user PATH on Windows — an operator that just runs
+    # `pip install faultycmd-X.Y.Z.W-py3-none-any.whl` outside a venv
+    # ends up having to invoke `<path-to-Scripts>\faultycmd.exe`
+    # explicitly. With a PyInstaller --onefile binary, the operator
+    # drops the .exe anywhere and double-clicks / runs it directly.
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Extract tag + version
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
+            echo "::error::Tag '${TAG}' does not match vMAJOR.MINOR.PATCH.TWEAK[-suffix]"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          VERSION="${VERSION%%-*}"
+          echo "TAG=${TAG}" >> $GITHUB_ENV
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Bump host version literals to match tag
+        # Same sed targets as scripts/get_build.sh on the Linux side
+        # (minus CMakeLists.txt, since this job does not build the
+        # firmware). Keeps the .exe in lock-step with the wheel/sdist
+        # produced by the Linux build.
+        shell: bash
+        run: |
+          sed -i -E "s/^(version = )\"[^\"]+\"/\1\"${VERSION}\"/" \
+            host/faultycmd-py/pyproject.toml
+          sed -i -E "s/^(__version__ = )\"[^\"]+\"/\1\"${VERSION}\"/" \
+            host/faultycmd-py/src/faultycmd/__init__.py
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package + PyInstaller
+        shell: bash
+        working-directory: host/faultycmd-py
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[build-binary]'
+
+      - name: Build the standalone .exe
+        # `--onefile` keeps the artifact to a single file the user can
+        # drop anywhere; the cost is a one-time extraction-to-tempdir
+        # on first invocation, acceptable for a CLI/TUI tool.
+        # `-p src --collect-all faultycmd` is what lets the
+        # PyInstaller bootloader resolve `from faultycmd.cli import
+        # _wrap_main` inside the frozen `__main__.py` (same setup the
+        # Linux smoke build uses in host-py.yml).
+        shell: bash
+        working-directory: host/faultycmd-py
+        run: |
+          pyinstaller --name faultycmd --onefile \
+            -p src \
+            --collect-all faultycmd \
+            --collect-all textual --collect-all rich --collect-all click \
+            src/faultycmd/__main__.py
+
+      - name: Verify the .exe boots
+        shell: bash
+        run: |
+          host/faultycmd-py/dist/faultycmd.exe --version
+
+      - name: Stage .exe with v-prefixed filename
+        shell: bash
+        run: |
+          mkdir -p staging
+          cp host/faultycmd-py/dist/faultycmd.exe \
+             staging/faultycmd_${TAG}.exe
+
+      - name: Upload Windows .exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: faultycmd-windows-${{ env.TAG }}
+          path: staging/faultycmd_*.exe
+          retention-days: 30
+          if-no-files-found: error
+
   release:
     name: Publish draft GitHub Release
-    needs: build
+    needs: [build, build-windows-exe]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
@@ -187,10 +280,16 @@ jobs:
             echo "HIGHLIGHTS_EOF"
           } >> $GITHUB_ENV
 
-      - name: Download release artifact
+      - name: Download firmware + host distributions
         uses: actions/download-artifact@v4
         with:
           name: faultycat-release-${{ env.TAG }}
+          path: ./release/
+
+      - name: Download Windows standalone .exe
+        uses: actions/download-artifact@v4
+        with:
+          name: faultycmd-windows-${{ env.TAG }}
           path: ./release/
 
       - name: List release payload
@@ -237,6 +336,23 @@ jobs:
 
             ## Installing the host CLI/TUI
 
+            ### Windows — standalone `.exe` (no Python install needed)
+
+            Download `faultycmd_${{ env.TAG }}.exe`, drop it
+            wherever is convenient (a folder on `PATH`, your Desktop,
+            a project directory — anywhere), and run it. The .exe
+            bundles Python and every dependency.
+
+            ```cmd
+            faultycmd_${{ env.TAG }}.exe info
+            faultycmd_${{ env.TAG }}.exe tui
+            ```
+
+            If you want a shorter command, rename it to `faultycmd.exe`
+            and place it in a directory on your `PATH`.
+
+            ### Linux / macOS / Windows-with-Python — wheel or sdist
+
             Python wheels follow PEP 440 and do NOT carry the `v` prefix:
 
             ```bash
@@ -247,8 +363,9 @@ jobs:
 
             ## Artifacts
 
-            | File                                              | Purpose                              |
-            |---------------------------------------------------|--------------------------------------|
-            | `faultycat_${{ env.TAG }}.uf2`                    | RP2040 firmware (BOOTSEL flashable)  |
-            | `faultycmd-${{ env.VERSION }}-py3-none-any.whl`   | Host CLI/TUI wheel                   |
-            | `faultycmd-${{ env.VERSION }}.tar.gz`             | Host source distribution             |
+            | File                                              | Purpose                                          |
+            |---------------------------------------------------|--------------------------------------------------|
+            | `faultycat_${{ env.TAG }}.uf2`                    | RP2040 firmware (BOOTSEL flashable)              |
+            | `faultycmd_${{ env.TAG }}.exe`                    | Windows standalone CLI/TUI (no Python needed)    |
+            | `faultycmd-${{ env.VERSION }}-py3-none-any.whl`   | Host CLI/TUI wheel (Linux / macOS / Windows pip) |
+            | `faultycmd-${{ env.VERSION }}.tar.gz`             | Host source distribution                         |

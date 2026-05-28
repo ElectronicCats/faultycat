@@ -256,8 +256,8 @@ Pre-release tags work the same way:
 
 ## Installing a release (end-user guide)
 
-Each GitHub Release ships three files. Pick the firmware UF2 and
-install the matching host package on your workstation:
+Each GitHub Release ships four files. Pick the firmware UF2 plus the
+host distribution that matches your platform:
 
   1. **Flash the firmware.** Hold the BOOTSEL button on the FaultyCat
      while plugging the USB cable. The board appears as a
@@ -266,13 +266,29 @@ install the matching host package on your workstation:
      into the new firmware automatically and re-enumerates as
      `1209:fa17`.
 
-  2. **Install the matching host package.**
+  2. **Install the matching host CLI/TUI.**
 
-     ```bash
-     pip install faultycmd-3.0.1.0-py3-none-any.whl
-     # or, from source:
-     pip install faultycmd-3.0.1.0.tar.gz
-     ```
+     - **On Windows:** download `faultycmd_v3.0.1.0.exe` and drop it
+       wherever is convenient — Desktop, project directory, a folder
+       already on `PATH`. The `.exe` bundles Python and every
+       dependency, so no `pip` / venv setup is needed.
+
+       ```cmd
+       faultycmd_v3.0.1.0.exe info
+       faultycmd_v3.0.1.0.exe tui
+       ```
+
+       Rename it to `faultycmd.exe` and put it on `PATH` if you want
+       a shorter invocation.
+
+     - **On Linux / macOS, or on Windows with Python already
+       installed:**
+
+       ```bash
+       pip install faultycmd-3.0.1.0-py3-none-any.whl
+       # or, from source:
+       pip install faultycmd-3.0.1.0.tar.gz
+       ```
 
   3. **Verify parity.**
 

@@ -45,7 +45,13 @@ build-binary = [
 ]
 
 [project.scripts]
-faultycmd = "faultycmd.cli:main"
+# Point at _wrap_main (NOT main) so the installed `faultycmd` console
+# script applies the same VersionMismatchError / EngineError /
+# CampaignError / ScannerError translation that `python -m faultycmd`
+# does. With bare `main` the click group would let those bubble up as
+# Python tracebacks. The two invocation paths must stay symmetric so
+# operators get the same UX whether `faultycmd.exe` is on PATH or not.
+faultycmd = "faultycmd.cli:_wrap_main"
 
 [project.urls]
 Homepage = "https://github.com/ElectronicCats/faultycat"
