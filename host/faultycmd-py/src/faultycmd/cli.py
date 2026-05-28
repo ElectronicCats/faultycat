@@ -40,6 +40,7 @@ from .protocols import (
 from .protocols.crowbar import CrowbarOutput, CrowbarTrigger
 from .protocols.emfi import EmfiTrigger
 from .usb import discover
+from .version_check import VersionMismatchError, set_allow_mismatch
 
 console = Console()
 
@@ -82,8 +83,17 @@ def _print_status_table(title: str, rows: list[tuple[str, str]]) -> None:
 
 @click.group()
 @click.version_option(__version__, prog_name="faultycmd")
-def main() -> None:
+@click.option(
+    "--ignore-version-mismatch",
+    is_flag=True,
+    default=False,
+    help="Bypass the firmware/host version parity check on every connect. "
+    "Unsafe — only use for development against a hand-built UF2.",
+)
+def main(ignore_version_mismatch: bool) -> None:
     """faultycmd — host tool for FaultyCat v3."""
+    if ignore_version_mismatch:
+        set_allow_mismatch(True)
 
 
 # -----------------------------------------------------------------------------
@@ -94,6 +104,8 @@ def main() -> None:
 @main.command()
 def info() -> None:
     """List FaultyCat interfaces detected on this machine."""
+    console.print(f"[b]faultycmd[/b] v{__version__} (host)")
+
     ports = discover()
     if not ports:
         console.print(
@@ -118,6 +130,38 @@ def info() -> None:
             p.device,
         )
     console.print(table)
+
+    # Best-effort firmware version probe via the emfi CDC PING. Use the
+    # ignore-mismatch path so a mismatch is reported here without
+    # aborting — the operator is running `info` precisely to diagnose
+    # that case.
+    fw_str: str
+    fw_match: bool | None
+    try:
+        emfi_port = next((p.device for p in ports if p.interface == 0x00), None)
+        if emfi_port is None:
+            fw_str, fw_match = "(no emfi CDC)", None
+        else:
+            probe = EmfiClient(emfi_port, check_firmware_version=False)
+            with probe as cli:
+                payload = cli.ping()
+            from .version_check import host_version_tuple, parse_ping_version
+
+            fw_tuple = parse_ping_version(payload)
+            fw_str = ".".join(str(v) for v in fw_tuple)
+            fw_match = fw_tuple == host_version_tuple()
+    except (VersionMismatchError, OSError, RuntimeError) as e:
+        fw_str, fw_match = f"unreachable ({e})", None
+
+    if fw_match is True:
+        console.print(f"firmware: [green]v{fw_str}[/green]  ([b]match[/b])")
+    elif fw_match is False:
+        console.print(
+            f"firmware: [red]v{fw_str}[/red]  (host v{__version__} — "
+            f"[b]mismatch[/b], re-flash to recover)"
+        )
+    else:
+        console.print(f"firmware: [yellow]{fw_str}[/yellow]")
 
 
 # -----------------------------------------------------------------------------
@@ -637,6 +681,9 @@ def _wrap_main() -> None:
     user-friendly click messages."""
     try:
         main()
+    except VersionMismatchError as e:
+        console.print(f"[red]version mismatch[/red] {e}")
+        raise SystemExit(3) from e
     except (EngineError, CampaignError, ScannerError) as e:
         console.print(f"[red]error[/red] {e}")
         raise SystemExit(2) from e

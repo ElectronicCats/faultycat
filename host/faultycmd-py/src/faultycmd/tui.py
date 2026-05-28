@@ -51,10 +51,12 @@ from dataclasses import dataclass, field
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Grid, Vertical
+from textual.message import Message
 from textual.reactive import reactive
 from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Header, Label, Static
 
+from . import __version__
 from .persistence import LastConfig
 from .protocols import (
     CampaignClient,
@@ -80,6 +82,7 @@ from .tui_modals import (
     ScannerFormState,
 )
 from .usb import PortDiscoveryError, cdc_for
+from .version_check import VersionMismatchError, allow_mismatch, host_version_tuple
 
 # -----------------------------------------------------------------------------
 # Diag snapshot parser — matches the line emitted every 500 ms by
@@ -229,6 +232,9 @@ class Connections:
             self.campaign.open()
 
             self.cdc2_serial = serial.Serial(cdc_for("scanner"), 115200, timeout=0.2)
+        except VersionMismatchError as e:
+            self.last_error = str(e)
+            self.close()
         except (PortDiscoveryError, OSError) as e:
             self.last_error = f"open: {e}"
             self.close()
@@ -246,6 +252,35 @@ class Connections:
         if self.cdc2_serial:
             self.cdc2_serial.close()
         self.cdc2_serial = None
+
+    def force_close_serials(self) -> None:
+        """Close the underlying serial handles WITHOUT acquiring the
+        SharedSerial lock. Used by the App's on_unmount BEFORE joining
+        workers so any worker stuck in `serial.read()` returns with
+        OSError immediately, lets the worker drop out of its poll
+        cycle, and unblocks the subsequent `join()`. Calling close()
+        from a different thread while the lock holder is in read()
+        is the supported pyserial pattern for cancelling a blocking
+        read on Linux/macOS (the read returns b'' or raises OSError).
+        """
+        try:
+            if self.emfi and self.emfi._ser is not None:
+                self.emfi._ser.close()
+        except OSError:
+            pass
+        try:
+            if self.cdc1_shared:
+                # Bypass the lock — that's the whole point. A worker
+                # holding the lock is stuck in read(); we MUST close
+                # the fd from this thread to break it.
+                self.cdc1_shared._ser.close()  # type: ignore[attr-defined]
+        except OSError:
+            pass
+        try:
+            if self.cdc2_serial:
+                self.cdc2_serial.close()  # type: ignore[attr-defined]
+        except OSError:
+            pass
 
 
 # -----------------------------------------------------------------------------
@@ -341,6 +376,23 @@ class CampaignPanel(Static):
 # -----------------------------------------------------------------------------
 
 
+class WorkerCallback(Message):
+    """Generic thread → UI bridge.
+
+    `_post` posts one of these from a daemon worker; the App's
+    `on_worker_callback` handler runs `fn(*args)` on the UI thread.
+    Replaces a previous direct `call_from_thread` call that blocked
+    the worker until the UI thread drained the future, which deadlocked
+    quit-during-poll (see on_unmount). `post_message` is thread-safe and
+    non-blocking, which is what makes the deadlock unreachable now.
+    """
+
+    def __init__(self, fn, args) -> None:
+        super().__init__()
+        self.fn = fn
+        self.args = args
+
+
 class FaultycmdTUI(App[None]):
     """Live FaultyCat dashboard."""
 
@@ -403,17 +455,54 @@ class FaultycmdTUI(App[None]):
 
     def on_mount(self) -> None:
         self.conn.open()
+        self._refresh_subtitle()
         if self.conn.last_error:
             self.notify(self.conn.last_error, severity="error")
             return
         self._spawn_workers()
 
+    def _refresh_subtitle(self) -> None:
+        """Render the firmware version + parity status in the Header
+        subtitle. Called after every (re)connect."""
+        fw = self.conn.emfi.firmware_version if self.conn.emfi else None
+        if fw is None:
+            tag = "fw ?"
+        else:
+            fw_str = ".".join(str(v) for v in fw)
+            matched = fw == host_version_tuple()
+            if matched:
+                tag = f"fw v{fw_str} ✓"
+            elif allow_mismatch():
+                tag = f"fw v{fw_str} (mismatch — override active)"
+            else:
+                tag = f"fw v{fw_str} ✗ (host v{__version__})"
+        self.sub_title = f"host v{__version__}  ·  {tag}"
+
     def on_unmount(self) -> None:
-        # Mark closing BEFORE setting the stop event so any worker
-        # racing past `_stop_workers.is_set()` still sees the close
-        # flag in its `finally`.
+        # Quit-while-polling used to deadlock indefinitely:
+        #
+        #   1. Worker is mid-poll, finished a `serial.read`, calls
+        #      `self._post(...)` → `self.call_from_thread(...)`.
+        #      Textual's `call_from_thread` does
+        #      `future.result()` with NO timeout, so the worker
+        #      blocks waiting for the UI thread to drain the future.
+        #   2. Meanwhile the UI thread enters on_unmount and calls
+        #      `t.join(...)` on the worker — and `cdc1_shared.really_close()`
+        #      acquires a lock the worker still holds across the poll
+        #      cycle. Both sides are now waiting for the other.
+        #
+        # Fix:
+        #   * `_post` was rewritten to use `post_message` (non-blocking,
+        #     thread-safe), so a worker never blocks waiting for the UI
+        #     thread to render its update.
+        #   * Here we set `_closing` + the stop event, then FORCE-close
+        #     the underlying serial fds from the UI thread before
+        #     joining. That bypasses the SharedSerial lock and unblocks
+        #     any worker stuck in a `serial.read()` so the `join()`
+        #     below completes promptly.
         self._closing = True
         self._stop_workers.set()
+        self.conn.force_close_serials()
         for t in self._poll_threads:
             t.join(timeout=1.0)
         self.conn.close()
@@ -421,15 +510,31 @@ class FaultycmdTUI(App[None]):
     # -- workers ------------------------------------------------------
 
     def _post(self, fn, *args) -> None:
-        """Bridge daemon-thread → Textual UI thread. Swallows the
-        RuntimeError that Textual raises when ``call_from_thread`` is
-        invoked after the asyncio loop has started shutting down — the
-        polling threads can race past ``_stop_workers.set()`` and try
-        one more call before joining."""
+        """Bridge daemon-thread → Textual UI thread.
+
+        Uses `post_message` (thread-safe + fire-and-forget) instead of
+        the older `call_from_thread`. The latter blocks the calling
+        worker on `future.result()` with no timeout, which deadlocked
+        against on_unmount's `join()` whenever a poll cycle was
+        mid-flight at quit time. Trading the return value (which we
+        never used) for non-blocking semantics is what unblocks quit.
+        """
+        if self._closing:
+            return
         try:
-            self.call_from_thread(fn, *args)
-        except RuntimeError:
+            self.post_message(WorkerCallback(fn, args))
+        except Exception:
+            # App not running yet / already torn down — drop the update.
             pass
+
+    def on_worker_callback(self, message: WorkerCallback) -> None:
+        """Run a worker-dispatched callback on the UI thread."""
+        try:
+            message.fn(*message.args)
+        except Exception as e:
+            # The worker already round-tripped successfully; if the UI
+            # update itself blows up, log it and keep the app alive.
+            self.notify(f"render error: {e}", severity="error", timeout=2)
 
     def _spawn_workers(self) -> None:
         self._stop_workers.clear()
@@ -676,6 +781,7 @@ class FaultycmdTUI(App[None]):
             t.join(timeout=1.0)
         self.conn.close()
         self.conn.open()
+        self._refresh_subtitle()
         if self.conn.last_error:
             self.notify(self.conn.last_error, severity="error")
             return
