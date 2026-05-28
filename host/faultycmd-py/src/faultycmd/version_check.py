@@ -103,9 +103,7 @@ def parse_ping_version(payload: bytes) -> VersionTuple:
     cryptic 0.0.0.0 mismatch.
     """
     if len(payload) < 2 or payload[0:1] != b"F":
-        raise VersionMismatchError(
-            None, __version__, hint=f"unexpected ping reply: {payload!r}"
-        )
+        raise VersionMismatchError(None, __version__, hint=f"unexpected ping reply: {payload!r}")
     if len(payload) < 6:
         raise VersionMismatchError(
             None, __version__, hint="firmware predates the version-in-PING extension"
@@ -117,9 +115,7 @@ def parse_shell_version(line: str) -> VersionTuple:
     """Parse the CDC2 `version` reply (``SHELL: VERSION X.Y.Z.W``)."""
     m = _SHELL_VERSION_RE.match(line.strip())
     if not m:
-        raise VersionMismatchError(
-            None, __version__, hint=f"bad shell version reply: {line!r}"
-        )
+        raise VersionMismatchError(None, __version__, hint=f"bad shell version reply: {line!r}")
     return int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
 
 
