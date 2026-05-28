@@ -67,10 +67,7 @@ def _macos_port(
         device=dev,
         vid=vid,
         pid=pid,
-        hwid=(
-            f"USB VID:PID={vid:04X}:{pid:04X} "
-            "SER=FLT3-E6633C805B3A3827 LOCATION=20-2"
-        ),
+        hwid=(f"USB VID:PID={vid:04X}:{pid:04X} " "SER=FLT3-E6633C805B3A3827 LOCATION=20-2"),
         location="20-2",
         interface=iface_string,
     )
