@@ -60,11 +60,21 @@ not develop on it — grab the matching artifact from the
 [GitHub Release](https://github.com/ElectronicCats/faultycat/releases)
 that pairs with the UF2 you flashed:
 
-| Your platform                       | Download                                          | Run with                                  |
-|-------------------------------------|---------------------------------------------------|-------------------------------------------|
-| Windows (no Python needed)          | `faultycmd_vX.Y.Z.W.exe`                          | `faultycmd_vX.Y.Z.W.exe info`             |
-| Windows with Python / Linux / macOS | `faultycmd-X.Y.Z.W-py3-none-any.whl`              | `pip install <wheel>` then `faultycmd info` |
-| Building from source                | `faultycmd-X.Y.Z.W.tar.gz`                        | `pip install <tarball>` then `faultycmd info` |
+| Your platform                       | Download                                          | Run with                                            |
+|-------------------------------------|---------------------------------------------------|-----------------------------------------------------|
+| Windows (no Python needed)          | `faultycmd_vX.Y.Z.W.exe`                          | `.\faultycmd_vX.Y.Z.W.exe info` (see note below)    |
+| Windows with Python / Linux / macOS | `faultycmd-X.Y.Z.W-py3-none-any.whl`              | `pip install <wheel>` then `faultycmd info`         |
+| Building from source                | `faultycmd-X.Y.Z.W.tar.gz`                        | `pip install <tarball>` then `faultycmd info`       |
+
+> **Windows `.exe` note.** From the directory the `.exe` lives in
+> (PowerShell or `cmd.exe`), the `.\` prefix is required so the
+> shell runs the local file instead of searching `PATH`:
+> `.\faultycmd_vX.Y.Z.W.exe info`. If you want a shorter command,
+> rename the file (e.g. to `faultycmd.exe`); invocations then
+> become `.\faultycmd.exe info`. And if you move that renamed file
+> into a folder that is already on your `PATH`, the `.\` can be
+> dropped too and you can simply type `faultycmd info` from
+> anywhere.
 
 The host package validates firmware parity on every connect — see
 the "Firmware ↔ host version parity" subsection below. If you flash

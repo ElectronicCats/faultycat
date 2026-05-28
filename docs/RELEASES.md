@@ -319,13 +319,20 @@ host distribution that matches your platform:
        already on `PATH`. The `.exe` bundles Python and every
        dependency, so no `pip` / venv setup is needed.
 
-       ```cmd
-       faultycmd_v3.0.1.0.exe info
-       faultycmd_v3.0.1.0.exe tui
+       From the same directory the `.exe` lives in (PowerShell or
+       `cmd.exe`), the `.\` prefix is required so the shell runs the
+       local file instead of searching `PATH`:
+
+       ```powershell
+       .\faultycmd_v3.0.1.0.exe info
+       .\faultycmd_v3.0.1.0.exe tui
        ```
 
-       Rename it to `faultycmd.exe` and put it on `PATH` if you want
-       a shorter invocation.
+       **Easier:** rename the file to something shorter
+       (e.g. `faultycmd.exe`), and the invocations become
+       `.\faultycmd.exe info`. And if you put that renamed file in a
+       folder that is already on `PATH`, you can drop the `.\` and
+       just type `faultycmd info` from anywhere.
 
      - **On Linux / macOS, or on Windows with Python already
        installed:**

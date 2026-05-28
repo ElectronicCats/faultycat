@@ -343,13 +343,26 @@ jobs:
             a project directory — anywhere), and run it. The .exe
             bundles Python and every dependency.
 
-            ```cmd
-            faultycmd_${{ env.TAG }}.exe info
-            faultycmd_${{ env.TAG }}.exe tui
+            From the same directory the `.exe` lives in (PowerShell
+            or `cmd.exe`), the `.\` prefix is required to tell the
+            shell to run the local file instead of searching `PATH`:
+
+            ```powershell
+            .\faultycmd_${{ env.TAG }}.exe info
+            .\faultycmd_${{ env.TAG }}.exe tui
             ```
 
-            If you want a shorter command, rename it to `faultycmd.exe`
-            and place it in a directory on your `PATH`.
+            **Easier:** rename the file to something shorter
+            (e.g. `faultycmd.exe`), and the invocations become
+
+            ```powershell
+            .\faultycmd.exe info
+            .\faultycmd.exe tui
+            ```
+
+            And if you put that renamed `faultycmd.exe` in a folder
+            that is already on your `PATH`, you can drop the `.\`
+            too and just type `faultycmd info` from anywhere.
 
             ### Linux / macOS / Windows-with-Python — wheel or sdist
 
