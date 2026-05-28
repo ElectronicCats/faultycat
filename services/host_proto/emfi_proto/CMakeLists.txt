@@ -9,4 +9,6 @@ target_link_libraries(host_proto_emfi
     PUBLIC
         service_emfi
         host_proto_campaign
+    PRIVATE
+        firmware_version
 )

@@ -14,6 +14,7 @@
 #include "tusb.h"
 #include "pico/unique_id.h"
 
+#include "firmware_version.h"
 #include "usb_composite.h"
 
 // ---------------------------------------------------------------------------
@@ -26,9 +27,11 @@
 #ifndef FAULTYCAT_USB_PID
 #define FAULTYCAT_USB_PID 0xFA17 // dev allocation for this project
 #endif
-#ifndef FAULTYCAT_USB_BCD
-#define FAULTYCAT_USB_BCD 0x0300 // 3.00 — v3 firmware
-#endif
+
+// bcdDevice now derives from /VERSION via firmware_version.h. The
+// 16-bit BCD field encodes MAJOR.MINOR.PATCH; TWEAK is reachable via
+// PING and the dedicated USB string descriptor below.
+#define FAULTYCAT_USB_BCD FW_VERSION_BCD
 
 static const tusb_desc_device_t s_device_desc = {
     .bLength         = sizeof(tusb_desc_device_t),

@@ -4,6 +4,7 @@
 
 #include "campaign_proto.h"
 #include "emfi_campaign.h"
+#include "firmware_version.h"
 
 // Parser state ---------------------------------------------------------------
 
@@ -173,7 +174,20 @@ size_t emfi_proto_dispatch(uint8_t* reply, size_t reply_cap) {
 
     switch (s_frame_cmd) {
         case EMFI_CMD_PING: {
-            static const uint8_t pong[] = {'F', '4', 0, 0};
+            // F11 release: PING reply now carries the firmware version
+            // so the host can fail-closed on a CLI/firmware mismatch.
+            // Layout: 'F', family ('4' for emfi), MAJ, MIN, PATCH, TWEAK.
+            // Older firmware replied with 4 bytes (the trailing 0,0
+            // were placeholder); the host treats a 4-byte reply as a
+            // pre-versioning firmware and refuses to connect.
+            static const uint8_t pong[] = {
+                'F',
+                '4',
+                (uint8_t)FW_VERSION_MAJOR,
+                (uint8_t)FW_VERSION_MINOR,
+                (uint8_t)FW_VERSION_PATCH,
+                (uint8_t)FW_VERSION_TWEAK,
+            };
             memcpy(rpl, pong, sizeof(pong));
             rpl_len = (uint16_t)sizeof(pong);
             break;

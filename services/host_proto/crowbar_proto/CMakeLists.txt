@@ -9,4 +9,6 @@ target_link_libraries(host_proto_crowbar
     PUBLIC
         service_crowbar
         host_proto_campaign
+    PRIVATE
+        firmware_version
 )

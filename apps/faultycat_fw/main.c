@@ -37,6 +37,7 @@
 #include "swd_mem.h"
 #include "swd_phy.h"
 #include "target_monitor.h"
+#include "firmware_version.h"
 #include "ui_buttons.h"
 #include "ui_leds.h"
 #include "usb_composite.h"
@@ -103,6 +104,7 @@ static void diag_printf(const char* fmt, ...) {
 static void diag_banner(void) {
     diag_printf("\n========================================\n");
     diag_printf("FaultyCat v3 — F8 diag (composite scanner CDC + unified shell)\n");
+    diag_printf("Firmware version: %s\n", FW_VERSION_STR);
     diag_printf("========================================\n");
     diag_printf("!! HV WARNING — plastic shield + coil MUST be installed.\n");
     diag_printf("!! Do NOT leave the SMA open with HV armed.\n\n");
@@ -170,6 +172,7 @@ static void shell_printf(const char* fmt, ...) {
 static void shell_help(void) {
     shell_print("SHELL: commands —\n");
     shell_print("SHELL:   ? | help\n");
+    shell_print("SHELL:   version                                       report firmware version\n");
     shell_print("SHELL: --- Pinout scan ---\n");
     shell_print("SHELL:   scan swd  [<targetsel_hex>]                  P(8,2)=56 perms\n");
     shell_print("SHELL: --- Campaign (F9) ---\n");
@@ -1055,6 +1058,14 @@ static void process_shell_line(char* line) {
 
     if (!strcmp(argv[0], "?") || !strcmp(argv[0], "help")) {
         shell_help();
+        return;
+    }
+    if (!strcmp(argv[0], "version")) {
+        // Stable single-line reply the host's ScannerClient parses on
+        // connect to validate firmware/CLI parity. Same shape as the
+        // PING reply on CDC0/CDC1 — host treats absence as
+        // pre-versioning firmware (refuse to connect).
+        shell_printf("SHELL: VERSION %s\n", FW_VERSION_STR);
         return;
     }
     if (!strcmp(argv[0], "scan")) {

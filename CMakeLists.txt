@@ -44,9 +44,34 @@ if(FAULTYCAT_BUILD_FIRMWARE)
 endif()
 
 project(faultycat
-    VERSION      3.0.0
+    # 4-segment version (MAJOR.MINOR.PATCH.TWEAK). Bumped in-place by
+    # the release workflow's `sed` step on every `vX.Y.Z.W` tag push;
+    # mirrored to host/faultycmd-py/pyproject.toml and
+    # host/faultycmd-py/src/faultycmd/__init__.py. The workflow rejects
+    # tags that don't match the 4-segment shape.
+    VERSION      3.0.0.5
     LANGUAGES    C CXX ASM
     DESCRIPTION  "FaultyCat v3 firmware (rewrite, runs on HW v2.x)"
+)
+
+# -----------------------------------------------------------------------------
+# Generated firmware_version.h — single point where the version
+# propagates from CMake's PROJECT_VERSION_* (filled from the
+# `project(... VERSION ...)` line above, which the release workflow
+# `sed`s on every `vX.Y.Z.W` tag) into C code. Exposed as an
+# INTERFACE library so any target that needs the macros just links
+# `firmware_version` and `#include <firmware_version.h>`. Configured
+# for both firmware and host-test builds so the Unity tests can
+# sanity-check the PING reply against the expected version too.
+# -----------------------------------------------------------------------------
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/firmware_version.h.in
+    ${CMAKE_BINARY_DIR}/generated/firmware_version.h
+    @ONLY
+)
+add_library(firmware_version INTERFACE)
+target_include_directories(firmware_version INTERFACE
+    ${CMAKE_BINARY_DIR}/generated
 )
 
 # -----------------------------------------------------------------------------

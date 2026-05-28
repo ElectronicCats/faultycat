@@ -5,6 +5,7 @@
 #include "campaign_proto.h"
 #include "crowbar_campaign.h"
 #include "crowbar_pio.h"
+#include "firmware_version.h"
 
 // Parser state ---------------------------------------------------------------
 
@@ -187,7 +188,17 @@ size_t crowbar_proto_dispatch(uint8_t* reply, size_t reply_cap) {
 
     switch (s_frame_cmd) {
         case CROWBAR_CMD_PING: {
-            static const uint8_t pong[] = {'F', '5', 0, 0};
+            // F11 release: see emfi_proto.c for the rationale. Family
+            // byte stays '5' to keep the same shape across the two CDC
+            // protocols; only the family byte distinguishes them.
+            static const uint8_t pong[] = {
+                'F',
+                '5',
+                (uint8_t)FW_VERSION_MAJOR,
+                (uint8_t)FW_VERSION_MINOR,
+                (uint8_t)FW_VERSION_PATCH,
+                (uint8_t)FW_VERSION_TWEAK,
+            };
             memcpy(rpl, pong, sizeof(pong));
             rpl_len = (uint16_t)sizeof(pong);
             break;
