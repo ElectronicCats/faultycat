@@ -1,0 +1,214 @@
+# FaultyCat HW v2.x — pinout reference
+
+> Firmware v3.0 targets this hardware. **Production version shipped is
+> v2.2** (per maintainer Sabas, 2026-04-23); v2.1 → v2.2 changed only
+> silkscreen labels, not nets. All pin assignments below apply to both.
+
+> **F11 release cut (2026-05-19):** the CDC2 shell commands listed
+> below (`swd init/deinit/freq/connect/idcode/read32/write32/reset`,
+> `jtag init/deinit/reset/trst/chain/idcode`, `scan jtag`) are
+> WIP-gated in this release. The firmware shell answers
+> `<PREFIX>: ERR wip (not available in this release)`. Only
+> `scan swd` is publicly exposed. The HW notes in this document
+> describe the **pinout and electrical contract** — they remain
+> the authoritative reference for when v3.1 re-exposes the verbs.
+
+Authoritative sources used to build this map (historic — the legacy
+v2.x C firmware was removed in F11 cleanup, see commit `a42131c`):
+
+- `firmware/c/board_config.h` of the legacy v2.x firmware (proven in
+  the field).
+- `firmware/c/glitcher/glitcher.c` of the legacy v2.x firmware (for
+  `GlitchOutput_{LP,HP,EMP}` → GPIO mapping, with legacy-quirk
+  annotations).
+- `Hardware/FaultyCat.kicad_sch` (net labels cross-referenced).
+
+The live cross-reference in the v3 tree is now `drivers/include/board_v2.h`
+plus each driver's `*_init()`. The schematic stays the schematic.
+
+## 1. GPIO → function map (RP2040 QFN-56)
+
+| GPIO | Schematic net   | Function                         | v3 driver         | Notes |
+|------|-----------------|----------------------------------|-------------------|-------|
+| GP0  | GP0             | Scanner CH0                      | `scanner_io`      | |
+| GP1  | GP1             | Scanner CH1                      | `scanner_io`      | legacy `main.c` drove GP1 as target-RESET — that's policy, not pinout; moves to `services/` |
+| GP2  | GP2             | Scanner CH2                      | `scanner_io`      | |
+| GP3  | GP3             | Scanner CH3                      | `scanner_io`      | |
+| GP4  | GP4             | Scanner CH4                      | `scanner_io`      | |
+| GP5  | GP5             | Scanner CH5                      | `scanner_io`      | |
+| GP6  | GP6             | Scanner CH6                      | `scanner_io`      | |
+| GP7  | GP7             | Scanner CH7                      | `scanner_io`      | last of the 8 scanner channels |
+| GP8  | TRIGGER_IN      | External trigger in (v2.1+)      | `ext_trigger`     | level-shifted via TRIGGER_VREF |
+| GP9  | —               | LED "HV DETECTED"                | `ui_leds`         | lights while the HV capacitor is charged — driven by the `CHARGED` feedback (GP18) with a 500 ms hold to avoid flicker. Legacy `board_config.h` mis-names it `PIN_LED_HV_ARMED`; v3 renames to reflect actual behaviour. Physically confirmed on v2.2, 2026-04-23. |
+| GP10 | —               | LED "STATUS"                     | `ui_leds`         | **NOT** a scanner channel. Used by the F0 blink. Physically confirmed on v2.2, 2026-04-23. |
+| GP11 | —               | BTN "PULSE"                      | `ui_buttons`      | active-low, pullup + input-invert |
+| GP14 | HVPULSE         | EMFI HV pulse out (PIO-driven)   | `emfi_pulse`      | **HV domain — see §3** |
+| GP16 | HPGLITCH2       | Crowbar N-MOSFET gate (IRLML0060)| `crowbar_mosfet`  | **the real voltage glitch path** |
+| GP17 | LPGLITCH2       | Crowbar low-power path           | `crowbar_mosfet`  | |
+| GP18 | CHARGED         | HV feedback "charged" (act-low)  | `hv_charger`      | **HV domain** |
+| GP20 | HVPWM           | HV flyback PWM ~2.5 kHz          | `hv_charger`      | **HV domain** |
+| GP25 | —               | NOT CONNECTED on v2.x            | —                 | legacy `board_config.h` has `PIN_LED_STATUS = 25` — that is a Pico-module relic; the v2.x PCB wires RP2040 directly and GP25 goes nowhere. Do not use. |
+| GP27 | —               | LED "CHARGE ON"                  | `ui_leds`         | on while the flyback PWM on GP20 is actively charging. Physically confirmed on v2.2, 2026-04-23. See §4 quirk. |
+| GP28 | —               | BTN "ARM"                        | `ui_buttons`      | active-high, pulldown |
+| GP29 | ANALOG (ADC3)   | Target monitor analog in (v2.1+) | `target_monitor`  | |
+
+GPIOs not listed (GP12, GP13, GP15, GP19, GP21, GP22, GP23, GP24, GP26)
+are not connected to meaningful nets on v2.x and are reserved for
+future use.
+
+## 2. Scanner header — `Conn_01x10`
+
+- Footprint: `Connector_PinSocket_2.54mm:PinSocket_1x10_P2.54mm_Vertical`.
+- **8 signal pins** (GP0–GP7) + **VCC** + **GND** = 10 pins total.
+- A JTAGulator-style algorithm enumerates every permutation of the
+  8 channels to auto-discover JTAG and SWD pins on the target.
+- **SWD over the scanner header (F6).** v2.x has no dedicated SWD
+  header for `services/swd_core` to use. F6 routes SWD over two of
+  the eight scanner channels — defaults `BOARD_GP_SWCLK_DEFAULT`
+  = CH0 (GP0), `BOARD_GP_SWDIO_DEFAULT` = CH1 (GP1),
+  `BOARD_GP_SWRST_DEFAULT` = CH2 (GP2). The CDC2 shell command
+  `swd init <swclk> <swdio> [<nrst>]` re-pins them at runtime.
+- **TXS0108EPW level shifter on the scanner header — known issue.**
+  All 8 scanner channels pass through a TI TXS0108EPW
+  auto-direction level shifter (OE permanently pulled high via 4.7 kΩ
+  to VREF). The TXS0108E is documented to misbehave with push-pull
+  bidirectional protocols where both endpoints actively drive the
+  same line at different times — the chip's one-shot accelerator on
+  the host-release side fights the target's drive during the SWD
+  ACK window, so the target's LOW gets clamped HIGH before the host
+  PIO samples it. Symptom: every SWD transaction returns
+  `ACK = 0b111 = NO_TARGET` even though SWCLK and SWDIO toggle
+  cleanly on the wire.
+  - Verified by flashing canonical raspberrypi/debugprobe firmware
+    onto FaultyCat (GP0=SWCLK, GP1=SWDIO) and running OpenOCD
+    against an external Pi Pico target — also fails with
+    "Failed to connect multidrop rp2040.dap0", confirming the bug
+    is HW-path, not in our F6 implementation.
+  - **F6 software workaround**: `services/swd_core/swd_phy.c`
+    emulates open-drain on SWDIO — the PIO bitloop writes pin
+    *direction* instead of pin *value* (release for HIGH, drive
+    for LOW). The chip handles open-drain bidirectional cleanly
+    because only one side ever sources current at a time.
+  - **Future board revs** should swap the TXS0108E for either
+    direct-bypass (both ends at 3.3 V already, level shifter is
+    redundant) or 74LVC1T45 with explicit DIR control.
+- **JTAG over the scanner header (F8-1).** Same physical situation as
+  SWD — v2.x has no dedicated JTAG header, so `services/jtag_core`
+  routes TDI/TDO/TMS/TCK (and optional TRST) over four (or five) of
+  the eight scanner channels. The operator chooses which via
+  `jtag init <tdi> <tdo> <tms> <tck> [<trst>]` on the CDC2 shell;
+  F8-2's `pinout_scanner` will auto-discover. **The TXS0108E
+  bidirectional bug that breaks SWD does NOT apply to JTAG** — TCK,
+  TMS and TDI are host-driven push-pull unidirectional, TDO is
+  target-driven push-pull unidirectional, so the level shifter's
+  auto-direction logic handles them cleanly. F8-1 was therefore
+  validated host-side (24 unit tests via `test_jtag_core`) and is
+  expected to validate physically without the HW workaround needed
+  for SWD. (Physical smoke test pending a JTAG-equipped target —
+  RP2040 has no JTAG, so a Pi Pico is not a valid F8 target.)
+- **Mutual exclusion contract (F6 → F8-1 → F9).** `drivers/scanner_io`,
+  `services/swd_core`, `services/jtag_core` (F8-1), and
+  `services/pinout_scanner` (F8-2) all share GP0..GP7 — only one
+  may own a given pin at a time. F8-1 enforces this with a
+  shell-level soft-lock (`swd init` refuses while `jtag_is_inited`,
+  and vice versa, with explicit error messages). F9 promotes the
+  soft-lock to a formal `pico-sdk mutex_t` covering daplink_usb +
+  pinout_scanner too, with priority
+  `campaign > scanner > daplink_host`.
+
+## 3. HV domain — safety
+
+GP14 (`HVPULSE`), GP18 (`CHARGED`), GP20 (`HVPWM`), plus the `VREF`
+tree, touch the ~250 V flyback-cap output stage. **Rules enforced by
+this project:**
+
+1. Any commit that modifies `drivers/hv_charger/`, `drivers/emfi_pulse/`,
+   or `drivers/crowbar_mosfet/` MUST include an explicit safety
+   checklist signed in the commit body by the maintainer.
+2. The plastic shield must be installed before any HV test. Never
+   touch the SMA output or the exposed HV capacitor while armed.
+3. The 60-second auto-disarm in the legacy firmware carries over to v3
+   as a **driver-level safety** (in `drivers/hv_charger/`), not a
+   policy knob — disabling it requires a build flag, not a runtime
+   command.
+
+(Full SAFETY.md lives beside this file and is updated in F2 when the
+HV driver lands.)
+
+## 4. Known legacy quirks (won't be ported as-is)
+
+- The legacy v2.x firmware defined `PIN_EXT1 = 27`, which **collides**
+  with `PIN_LED_CHARGE_ON = 27`. On v2.x, GP27 is the charge-on LED
+  (confirmed by the maintainer on 2026-04-23). v3 does not port
+  `PIN_EXT1` at all. Crowbar uses GP16 (`HPGLITCH2`).
+- `firmware/c/board_config.h` has `PIN_LED_STATUS = 25`, but on v2.x
+  **GP25 is not connected to anything** — the Pico-module assumption
+  is stale (FaultyCat v2.x uses bare RP2040). The real STATUS LED is
+  on GP10. Confirmed by flashing the F0 blink on both pins against a
+  physical v2.2 board on 2026-04-23 — GP25 was dark, GP10 blinks.
+- `firmware/c/picoemp.c` unrolls `#undef` macro hacks to rename pins
+  from `board_config.h` — those disappear in v3 because each driver
+  owns its pin set directly.
+- The legacy `main.c` calls `gpio_init(1); gpio_set_dir(1, GPIO_OUT);
+  gpio_put(1, 1);` inside `main()` — this is an undocumented
+  target-RESET assertion. v3 models it as `drivers/scanner_io/` pin
+  behaviour driven by an explicit `pinout_scanner` call, not a
+  hard-coded init.
+
+## 5. LEDs summary (the full set on v2.2)
+
+Only **three** LEDs exist on the FaultyCat v2.2 physical board — all
+three confirmed by the maintainer on 2026-04-23 by flashing F0 test
+blinks:
+
+| GPIO | Silk / function | When it lights |
+|------|-----------------|----------------|
+| GP9  | HV DETECTED     | capacitor is charged to HV threshold (hysteresis 500 ms). |
+| GP10 | STATUS          | free-form status indicator; F0 blink uses this. |
+| GP27 | CHARGE ON       | flyback PWM is actively pushing into the capacitor. |
+
+The legacy `firmware/c/board_config.h` references a `PIN_LED_STATUS =
+25` that does **not** exist on the v2.x PCB (see §4). v3 drivers will
+not initialise GP25 for any purpose.
+
+## 6. Confirmations open
+
+None for HW v2.x pinout as of 2026-04-23. This document is **closed for
+F0**; future amendments ride along with the driver work in F2.
+
+## 7. F8 scanner-header observations (2026-04-28)
+
+Closing F8 (tag `v3.0-f8`) added one observation worth recording for
+future work on the scanner header:
+
+- **Scanner-header noise from a parasitic non-target device.**
+  During F8-2 physical smoke an RP2040 was wired into the scanner
+  channels (powered separately, running its own firmware — *not* an
+  intended JTAG target). `scan jtag` reported a fake match
+  (`idcode = 0x6B5AD5AD` on perm `tdi=GP2 tdo=GP1 tms=GP3 tck=GP4`)
+  even though RP2040 has no JTAG TAP. The bit pattern passed
+  `jtag_idcode_is_valid` (bit 0 = 1, mfg id = 86, bank = 5 — all
+  individually plausible). The TXS0108E auto-direction logic
+  evidently amplified parasitic edges from the parasitic device into
+  enough of a signal that one of the 1680 brute-force permutations
+  hit a "valid-looking" pattern.
+
+  Mitigation lives in `services/pinout_scanner` as a 3-read
+  consistency check (F8-6 — see [`JTAG_INTERNALS.md §3`](JTAG_INTERNALS.md)).
+  No HW change required.
+
+- **JTAG-through-TXS0108E confirmed clean for unidirectional
+  push-pull.** F8-1's `jtag init/chain/idcode/deinit` cycle works
+  end-to-end with no HW workaround needed (unlike F6 SWD which
+  requires the open-drain emulation on SWDIO due to the TXS0108E
+  bidirectional bug). All four JTAG signals are unidirectional
+  push-pull at any given moment — TCK / TMS / TDI host→target,
+  TDO target→host — so the level shifter's auto-direction sniff
+  resolves them cleanly.
+
+- **`scan swd` still inherits the F6 HW gate.** Even with the F8-6
+  stability check in place, `scan swd` against an SWD target wired
+  through the scanner header still fails at the wire layer for the
+  same reason F6 SWD physical validation is blocked. Unblocks
+  together with F6 once a board rev or scanner-header fly-wire
+  bypass replaces the TXS0108EPW (see §2 above).
