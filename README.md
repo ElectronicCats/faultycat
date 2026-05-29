@@ -59,7 +59,11 @@ As an open-source project and as a remix of the project [ChipSHOUTER PicoEMP](ht
 - Trigger using dedicated pins, available in the new pinout.
 - Trigger voltage reference, for more accurate response every time a voltage glitch is attempted to be sent.
 - Analog input to monitor the target device’s status during the glitching process.
-- JTAG/SWD scanner.
+- JTAG/SWD scanner. **(Firmware v3.0 status: `scan swd` is the only
+  scanner verb publicly exposed. JTAG scan, direct JTAG verbs, and
+  direct SWD verbs are gated as WIP for v3.1 — see
+  [`docs/JTAG_INTERNALS.md`](docs/JTAG_INTERNALS.md) for the
+  details.)**
 
 ### Two attack engines (EMFI and Crowbar)
 
@@ -157,7 +161,7 @@ here. Click through for the full document:
 | [`docs/SAFETY.md`](docs/SAFETY.md) | High-voltage safety contract for the EMFI / crowbar drivers (signed by maintainer before each HV-touching commit). |
 | [`docs/MUTEX_INTERNALS.md`](docs/MUTEX_INTERNALS.md) | SWD bus cooperative mutex + Campaign manager wire stack (F9). |
 | [`docs/GLITCHING.md`](docs/GLITCHING.md) | The two glitching techniques (EMFI vs Crowbar) and the two operational modes (Direct single-shot vs Campaign sweep) — wire-protocol routing, host-CLI map, and the 2×2 of how they compose. |
-| [`docs/JTAG_INTERNALS.md`](docs/JTAG_INTERNALS.md) | JTAG/SWD scanner, BusPirate-compat shell, flashrom serprog (F8). |
+| [`docs/JTAG_INTERNALS.md`](docs/JTAG_INTERNALS.md) | JTAG/SWD scanner, BusPirate-compat shell, flashrom serprog (F8). **In v3.0 the JTAG verbs + `scan jtag` are WIP-gated** — only `scan swd`, `buspirate enter`, and `serprog enter` are publicly exposed. The service-layer code is still compiled in; the gate is purely at the dispatcher / CLI / TUI surface. |
 | [`docs/RELEASES.md`](docs/RELEASES.md) | Tag-driven release flow (`v*.*.*.*`), where the version lives in the tree, how firmware advertises it to the host, host-side parity check + `--ignore-version-mismatch`. |
 | [`host/faultycmd-py/README.md`](host/faultycmd-py/README.md) | **Install + usage of the `faultycmd` CLI and TUI** — venv setup on Linux, Windows (PowerShell / CMD / Git Bash), macOS. Hotkeys, trigger polarity, trigger timeout. |
 | [`LICENSES/README.md`](LICENSES/README.md) | License overview for vendored code (pico-sdk, debugprobe, free-dap, Unity, CMSIS-DAP headers). |

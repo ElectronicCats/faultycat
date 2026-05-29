@@ -5,9 +5,18 @@
 Layered C/C++ firmware for RP2040, running on the existing FaultyCat
 **v2.x hardware** (no board change). Exposes a USB composite device
 that talks to a Python host tool (`faultycmd`) for two distinct
-attack types — **EMFI** (electromagnetic, legacy FaultyCat speciality)
-and **crowbar** (voltage glitching, added in HW v2.1) — plus a **JTAG /
-SWD pinout scanner** and a standard **CMSIS-DAP** probe.
+fault-injection techniques — **EMFI** (electromagnetic, legacy
+FaultyCat speciality) and **Crowbar** (voltage glitching, added in
+HW v2.1) — each available in two operational modes (Direct single
+shot · Campaign parameter sweep), plus an **SWD pinout scanner**
+(`scan swd`). The technique × mode matrix is described in
+[`GLITCHING.md`](GLITCHING.md).
+
+> **In v3.0** only `scan swd` ships as the public scanner verb.
+> Direct JTAG verbs, direct SWD verbs, `scan jtag`, and the
+> **CMSIS-DAP** probe (F7) are WIP for v3.1 — see the "JTAG /
+> direct-SWD WIP cut" callout in the next section for the exact
+> gate and how it is implemented.
 
 See [`FAULTYCAT_REFACTOR_PLAN.md`](../FAULTYCAT_REFACTOR_PLAN.md) for
 the full phased roadmap (F0 → F11) and the 16 frozen design decisions.
