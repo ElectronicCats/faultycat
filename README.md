@@ -35,6 +35,15 @@ Faulty Cat is a low-cost Electromagnetic Fault Injection (EMFI) tool, designed s
 
 Faulty Cat is a high-end Electromagnetic Fault Injection (EMFI) tool a remix of the project [ChipSHOUTER PicoEMP](https://github.com/newaetech/chipshouter-picoemp) design optimization focused in rough order on (1) safe operation, (2) high performance, (3) usability, and finally (4) cost. This results in a tool that covers many use-cases, but may be overkill (and expensive) for many.
 
+> **How the glitching works.** Firmware v3 ships two physical
+> fault-injection techniques — **EMFI** (electromagnetic) and
+> **Crowbar** (voltage glitching) — each available as **direct**
+> single-shot fires or as parameter-swept **Campaigns**. For the
+> full breakdown of what each engine does, the parameter matrix
+> that differentiates them, and how the four combinations are
+> driven from the host tool, see
+> [`docs/GLITCHING.md`](docs/GLITCHING.md).
+
 We have created this project in KiCad and looking for alternatives to some components, we have left aside the Raspberry Pico board to use the RP2040 directly in the design. Tested in our laboratory before going on sale, even so, it is a product that must be handled with care, read the instructions for use.
 
 Please **only** use Faulty Cat when you have purchased it from us and control it yourself, with full knowledge of the operation and risks. It is *not* designed for use in professional or educational environments, where tools are expected to meet safety certifications.
@@ -51,6 +60,15 @@ As an open-source project and as a remix of the project [ChipSHOUTER PicoEMP](ht
 - Trigger voltage reference, for more accurate response every time a voltage glitch is attempted to be sent.
 - Analog input to monitor the target device’s status during the glitching process.
 - JTAG/SWD scanner.
+
+### Two attack engines (EMFI and Crowbar)
+
+Firmware v3 exposes two physical fault-injection techniques (EMFI
+and Crowbar voltage glitching) and two operational modes (direct
+single-shot fires and Campaign parameter sweeps over delay/width/
+power). They compose freely — both engines work in both modes.
+The full matrix, wire-protocol routing, and host-CLI map live in
+[`docs/GLITCHING.md`](docs/GLITCHING.md).
 
 
 ## Thanks / Contributors
@@ -138,6 +156,7 @@ here. Click through for the full document:
 | [`docs/PORTING.md`](docs/PORTING.md) | Per-file legacy→rewrite migration table (what was rewritten, what was discarded, what survives as reference). |
 | [`docs/SAFETY.md`](docs/SAFETY.md) | High-voltage safety contract for the EMFI / crowbar drivers (signed by maintainer before each HV-touching commit). |
 | [`docs/MUTEX_INTERNALS.md`](docs/MUTEX_INTERNALS.md) | SWD bus cooperative mutex + Campaign manager wire stack (F9). |
+| [`docs/GLITCHING.md`](docs/GLITCHING.md) | The two glitching techniques (EMFI vs Crowbar) and the two operational modes (Direct single-shot vs Campaign sweep) — wire-protocol routing, host-CLI map, and the 2×2 of how they compose. |
 | [`docs/JTAG_INTERNALS.md`](docs/JTAG_INTERNALS.md) | JTAG/SWD scanner, BusPirate-compat shell, flashrom serprog (F8). |
 | [`docs/RELEASES.md`](docs/RELEASES.md) | Tag-driven release flow (`v*.*.*.*`), where the version lives in the tree, how firmware advertises it to the host, host-side parity check + `--ignore-version-mismatch`. |
 | [`host/faultycmd-py/README.md`](host/faultycmd-py/README.md) | **Install + usage of the `faultycmd` CLI and TUI** — venv setup on Linux, Windows (PowerShell / CMD / Git Bash), macOS. Hotkeys, trigger polarity, trigger timeout. |
