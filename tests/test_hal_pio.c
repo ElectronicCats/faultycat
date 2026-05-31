@@ -28,7 +28,13 @@ static void test_add_program_returns_offset_and_marks_loaded(void) {
     uint32_t offset = 0xFFFFFFFF;
     TEST_ASSERT_TRUE(hal_pio_add_program(pio, &p, &offset));
     TEST_ASSERT_EQUAL_UINT32(0u, offset);
-    TEST_ASSERT_FALSE(hal_pio_can_add_program(pio, &p)); // slot full
+    // A program that would overflow the remaining instruction budget is rejected.
+    // 3 instructions are now used; HAL_FAKE_PIO_PROGRAM_MAX is 32, so 29 remain.
+    // A 30-instruction program must not fit.
+    uint16_t big[30];
+    for (int i = 0; i < 30; i++) big[i] = 0xE000u;
+    hal_pio_program_t big_p = {.instructions = big, .length = 30, .origin = -1};
+    TEST_ASSERT_FALSE(hal_pio_can_add_program(pio, &big_p)); // budget full
     TEST_ASSERT_TRUE(hal_fake_pio_insts[0].program.loaded);
     TEST_ASSERT_EQUAL_UINT32(3u, hal_fake_pio_insts[0].program.length);
 }

@@ -21,35 +21,79 @@ static hal_fake_pio_inst_state_t* as_state(hal_pio_inst_t* pio) {
     return (hal_fake_pio_inst_state_t*)pio;
 }
 
+// Count total instructions used across both program slots.
+static uint32_t used_instructions(const hal_fake_pio_inst_state_t* s) {
+    uint32_t n = 0u;
+    if (s->program.loaded)
+        n += s->program.length;
+    if (s->program2.loaded)
+        n += s->program2.length;
+    return n;
+}
+
+// Find a free program slot (first-fit).
+static hal_fake_pio_program_slot_t* find_free_slot(hal_fake_pio_inst_state_t* s) {
+    if (!s->program.loaded)
+        return &s->program;
+    if (!s->program2.loaded)
+        return &s->program2;
+    return NULL;
+}
+
+// Find the slot whose base_offset matches `offset`.
+static hal_fake_pio_program_slot_t* find_slot_by_offset(hal_fake_pio_inst_state_t* s,
+                                                         uint32_t offset) {
+    if (s->program.loaded && s->program.base_offset == offset)
+        return &s->program;
+    if (s->program2.loaded && s->program2.base_offset == offset)
+        return &s->program2;
+    // Fallback: return whichever is loaded (for tests that don't track offsets).
+    if (s->program.loaded)
+        return &s->program;
+    return &s->program2;
+}
+
 bool hal_pio_can_add_program(hal_pio_inst_t* pio, const hal_pio_program_t* p) {
     if (!pio || !p)
         return false;
     hal_fake_pio_inst_state_t* s = as_state(pio);
-    if (s->program.loaded)
+    // Reject if no free slot exists.
+    if (!find_free_slot(s))
         return false;
-    return p->length <= HAL_FAKE_PIO_PROGRAM_MAX;
+    // Reject if the program doesn't fit in the remaining instruction budget.
+    return (used_instructions(s) + p->length) <= HAL_FAKE_PIO_PROGRAM_MAX;
 }
 
 bool hal_pio_add_program(hal_pio_inst_t* pio, const hal_pio_program_t* p, uint32_t* offset_out) {
     if (!hal_pio_can_add_program(pio, p))
         return false;
-    hal_fake_pio_inst_state_t* s = as_state(pio);
-    memcpy(s->program.instructions, p->instructions, p->length * sizeof(uint16_t));
-    s->program.length      = p->length;
-    s->program.base_offset = (p->origin >= 0) ? (uint32_t)p->origin : 0u;
-    s->program.loaded      = true;
+    hal_fake_pio_inst_state_t* s    = as_state(pio);
+    hal_fake_pio_program_slot_t* sl = find_free_slot(s);
+    // Base offset: honour explicit origin; otherwise pack after existing programs.
+    uint32_t base;
+    if (p->origin >= 0) {
+        base = (uint32_t)p->origin;
+    } else if (sl == &s->program) {
+        base = 0u; // first program always starts at 0
+    } else {
+        base = s->program.base_offset + s->program.length; // pack after slot 0
+    }
+    memcpy(sl->instructions, p->instructions, p->length * sizeof(uint16_t));
+    sl->length      = p->length;
+    sl->base_offset = base;
+    sl->loaded      = true;
     if (offset_out)
-        *offset_out = s->program.base_offset;
+        *offset_out = base;
     return true;
 }
 
 void hal_pio_remove_program(hal_pio_inst_t* pio, const hal_pio_program_t* p, uint32_t offset) {
     (void)p;
-    (void)offset;
     if (!pio)
         return;
-    hal_fake_pio_inst_state_t* s = as_state(pio);
-    memset(&s->program, 0, sizeof(s->program));
+    hal_fake_pio_inst_state_t* s    = as_state(pio);
+    hal_fake_pio_program_slot_t* sl = find_slot_by_offset(s, offset);
+    memset(sl, 0, sizeof(*sl));
 }
 
 void hal_pio_clear_instruction_memory(hal_pio_inst_t* pio) {
@@ -57,6 +101,7 @@ void hal_pio_clear_instruction_memory(hal_pio_inst_t* pio) {
         return;
     hal_fake_pio_inst_state_t* s = as_state(pio);
     memset(&s->program, 0, sizeof(s->program));
+    memset(&s->program2, 0, sizeof(s->program2));
     s->clear_memory_calls++;
 }
 

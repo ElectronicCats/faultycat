@@ -58,7 +58,12 @@ typedef struct {
 
 typedef struct {
     hal_fake_pio_sm_state_t sm[HAL_FAKE_PIO_SM_PER_INST];
-    hal_fake_pio_program_slot_t program; // single-slot model is enough for F4
+    // Primary program slot (backward-compatible field name used by all
+    // pre-Inc-1 tests). The real RP2040 PIO has 32 instruction slots
+    // shared by all programs; Inc-1 target_serial loads TX (4 instr) +
+    // RX (6 instr) into pio1, so a second slot is added here.
+    hal_fake_pio_program_slot_t program;   // slot 0 — backward-compat
+    hal_fake_pio_program_slot_t program2;  // slot 1 — added for Inc-1
     bool irq[HAL_FAKE_PIO_IRQ_COUNT];
     uint32_t gpio_init_bitmap; // bit N = gpio_init called for pin N
     uint32_t clear_memory_calls;
