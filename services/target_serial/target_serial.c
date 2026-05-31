@@ -16,7 +16,7 @@ static uint32_t s_baud               = TARGET_SERIAL_BAUD_DEFAULT;
 
 uint32_t target_serial_baud_to_divider(uint32_t baud) {
     if (baud == 0u)
-        return 0xFFFFu;
+        return 0xFFFFu; // defensive only — enable()/set_baud() reject baud 0 first
     uint32_t denom = baud * TS_CYCLES_PER_BIT;
     uint32_t div   = (TS_SYSCLK_HZ + denom / 2u) / denom; // round to nearest
     if (div == 0u)

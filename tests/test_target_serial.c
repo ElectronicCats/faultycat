@@ -223,6 +223,33 @@ void test_rx_drain_bounded_by_capacity(void) {
     TEST_ASSERT_EQUAL_UINT(3u, n);
 }
 
+// --- regression guards (code-review additions) ---
+
+void test_enable_after_rejected_enable_still_works(void) {
+    // A rejected enable (bad pin) must leave the module cleanly DISABLED
+    // so a subsequent valid enable succeeds — guards against state
+    // corruption on the rejection path.
+    TEST_ASSERT_FALSE(target_serial_enable(8u, 5u, 115200u));
+    TEST_ASSERT_TRUE(target_serial_enable(4u, 5u, 115200u));
+}
+
+void test_enable_disable_enable_recycle(void) {
+    TEST_ASSERT_TRUE(target_serial_enable(4u, 5u, 115200u));
+    target_serial_disable();
+    TEST_ASSERT_EQUAL_INT(SWD_BUS_OWNER_IDLE, swd_bus_owner());
+    // Second enable must re-acquire the bus and re-claim the SMs cleanly.
+    TEST_ASSERT_TRUE(target_serial_enable(4u, 5u, 115200u));
+    TEST_ASSERT_EQUAL_INT(SWD_BUS_OWNER_SERIAL, swd_bus_owner());
+    TEST_ASSERT_TRUE(hal_fake_pio_insts[TS_INST].sm[TS_TX_SM].claimed);
+    TEST_ASSERT_TRUE(hal_fake_pio_insts[TS_INST].sm[TS_RX_SM].claimed);
+}
+
+void test_get_status_null_guard_does_not_crash(void) {
+    // NULL out-pointer must be a safe no-op (not a segfault).
+    target_serial_get_status(NULL);
+    TEST_ASSERT_TRUE(true);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_pio_init_claims_both_sms_and_loads_programs);
@@ -251,5 +278,8 @@ int main(void) {
     RUN_TEST(test_tx_byte_puts_to_tx_sm);
     RUN_TEST(test_rx_drain_returns_pushed_bytes);
     RUN_TEST(test_rx_drain_bounded_by_capacity);
+    RUN_TEST(test_enable_after_rejected_enable_still_works);
+    RUN_TEST(test_enable_disable_enable_recycle);
+    RUN_TEST(test_get_status_null_guard_does_not_crash);
     return UNITY_END();
 }
