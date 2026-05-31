@@ -32,6 +32,7 @@
 #include "board_v2.h"
 #include "pinout_scanner.h"
 #include "swd_bus_lock.h"
+#include "target_serial.h"
 #include "scanner_io.h"
 #include "swd_dp.h"
 #include "swd_mem.h"
@@ -181,6 +182,12 @@ static void shell_help(void) {
     shell_print("SHELL:   campaign drain [<n>]                         pop up to N results\n");
     shell_print(
         "SHELL:   campaign demo crowbar                        6-step LP sweep (HV-safe)\n");
+    shell_print("SHELL: --- Target UART passthrough (Inc 1) ---\n");
+    shell_print("SHELL:   serial init [<tx_gp> <rx_gp> <baud>]         defaults: 4 5 115200\n");
+    shell_print("SHELL:   serial baud <n>                              live baud change\n");
+    shell_print("SHELL:   serial deinit                                release bus + pins\n");
+    shell_print("SHELL:   serial status                                show state/pins/baud\n");
+    shell_print("SHELL:   (data flows on CDC3 - open it as a normal serial port)\n");
     shell_print("SHELL: --- Mode switches (binary protocols) ---\n");
     shell_print(
         "SHELL:   buspirate enter [<tdi> <tdo> <tms> <tck>]    OpenOCD via BPv1 binary (F8-4)\n");
@@ -1042,6 +1049,64 @@ static FW_WIP_UNUSED void process_jtag_subcmd(int argc, char** argv) {
     }
 }
 
+// -----------------------------------------------------------------------------
+// `serial` verbs — target-UART passthrough control (Inc 1). Data flows
+// on CDC3; only configuration/enable goes through this CDC2 shell.
+// -----------------------------------------------------------------------------
+
+static void cmd_serial_init(int argc, char** argv) {
+    uint8_t tx = (argc >= 3) ? (uint8_t)strtoul(argv[2], NULL, 0) : TARGET_SERIAL_TX_GP_DEFAULT;
+    uint8_t rx = (argc >= 4) ? (uint8_t)strtoul(argv[3], NULL, 0) : TARGET_SERIAL_RX_GP_DEFAULT;
+    uint32_t baud = (argc >= 5) ? (uint32_t)strtoul(argv[4], NULL, 0) : TARGET_SERIAL_BAUD_DEFAULT;
+    if (target_serial_enable(tx, rx, baud)) {
+        shell_printf("SERIAL: OK tx=GP%u rx=GP%u baud=%lu\n", tx, rx, (unsigned long)baud);
+    } else {
+        shell_print("SERIAL: ERR enable_failed (bus busy / pins not 0..7 / same pin / "
+                    "already enabled)\n");
+    }
+}
+
+static void cmd_serial_baud(int argc, char** argv) {
+    if (argc < 3) {
+        shell_print("SERIAL: ERR baud needs <n>\n");
+        return;
+    }
+    uint32_t baud = (uint32_t)strtoul(argv[2], NULL, 0);
+    if (target_serial_set_baud(baud)) {
+        shell_printf("SERIAL: OK baud=%lu\n", (unsigned long)baud);
+    } else {
+        shell_print("SERIAL: ERR not_enabled_or_bad_baud\n");
+    }
+}
+
+static void cmd_serial_status(void) {
+    target_serial_status_t st;
+    target_serial_get_status(&st);
+    shell_printf("SERIAL: state=%s tx=GP%u rx=GP%u baud=%lu\n",
+                 st.state == TARGET_SERIAL_ENABLED ? "ENABLED" : "DISABLED", st.tx_gp, st.rx_gp,
+                 (unsigned long)st.baud);
+}
+
+static void process_serial_subcmd(int argc, char** argv) {
+    if (argc < 2) {
+        shell_print("SERIAL: ERR serial needs subcommand: init|baud|deinit|status\n");
+        return;
+    }
+    const char* sub = argv[1];
+    if (!strcmp(sub, "init")) {
+        cmd_serial_init(argc, argv);
+    } else if (!strcmp(sub, "baud")) {
+        cmd_serial_baud(argc, argv);
+    } else if (!strcmp(sub, "deinit")) {
+        target_serial_disable();
+        shell_print("SERIAL: OK deinit\n");
+    } else if (!strcmp(sub, "status")) {
+        cmd_serial_status();
+    } else {
+        shell_printf("SERIAL: ERR unknown_subcmd: %s\n", sub);
+    }
+}
+
 static void process_shell_line(char* line) {
     // Tokenize on whitespace; up to 8 tokens — `jtag init <tdi> <tdo>
     // <tms> <tck> <trst>` is the longest at 7 tokens.
@@ -1082,6 +1147,10 @@ static void process_shell_line(char* line) {
     }
     if (!strcmp(argv[0], "serprog")) {
         process_serprog_subcmd(argc, argv);
+        return;
+    }
+    if (!strcmp(argv[0], "serial")) {
+        process_serial_subcmd(argc, argv);
         return;
     }
     // F11 release: the JTAG sub-shell and the direct-SWD sub-shell are
@@ -1283,6 +1352,27 @@ static void pump_crowbar_cdc(void) {
     }
 }
 
+// Pump CDC3 (target-uart) <-> the PIO UART bridge. Transparent: raw
+// bytes both ways, no framing. No-op while the bridge is DISABLED
+// (target_serial_tx_byte / _rx_drain return false / 0). Called from
+// the top-level main loop only, so 64 B stack buffers are safe.
+static void pump_target_cdc(void) {
+    // Host -> target.
+    uint8_t in[64];
+    size_t n = usb_composite_cdc_read(USB_CDC_TARGET, in, sizeof(in));
+    for (size_t i = 0; i < n; i++) {
+        // Drop on TX-FIFO-full: a transparent bridge mirrors a real
+        // USB-serial adapter; backpressure is the host's problem.
+        (void)target_serial_tx_byte(in[i]);
+    }
+    // Target -> host (drain bounded by the buffer size).
+    uint8_t out[64];
+    size_t m = target_serial_rx_drain(out, sizeof(out));
+    if (m > 0) {
+        usb_composite_cdc_write(USB_CDC_TARGET, out, m);
+    }
+}
+
 // -----------------------------------------------------------------------------
 // main
 // -----------------------------------------------------------------------------
@@ -1316,6 +1406,7 @@ int main(void) {
 
     // F9-1 / F9-3 — service-layer SWD bus mutex + sweep orchestrator.
     swd_bus_lock_init();
+    target_serial_init();
     campaign_manager_init();
     campaign_manager_set_step_executor(campaign_dispatch_executor, NULL);
 
@@ -1330,6 +1421,7 @@ int main(void) {
         pump_emfi_cdc();
         pump_crowbar_cdc();
         pump_shell_cdc();
+        pump_target_cdc();
         emfi_campaign_tick();
         crowbar_campaign_tick();
         campaign_manager_tick();

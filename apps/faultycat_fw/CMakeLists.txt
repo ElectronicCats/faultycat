@@ -21,6 +21,7 @@ target_link_libraries(faultycat PRIVATE
     service_buspirate_compat
     service_flashrom_serprog
     service_swd_bus_lock
+    service_target_serial
     service_campaign_manager
     host_proto_emfi
     host_proto_crowbar
