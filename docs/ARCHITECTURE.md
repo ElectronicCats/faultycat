@@ -374,7 +374,7 @@ Configuration Descriptor (Miscellaneous class, IAD-based)
 ├── IAD + CDC 0 "EMFI Control"       IF 0 (notif) + IF 1 (data)  ✓ F4 emfi_proto
 ├── IAD + CDC 1 "Crowbar Control"    IF 2 (notif) + IF 3 (data)  ✓ F5 crowbar_proto
 ├── IAD + CDC 2 "Scanner Shell"      IF 4 (notif) + IF 5 (data)  ✓ F6 swd_shell + diag (F8 → full blueTag shell)
-├── IAD + CDC 3 "Target UART"        IF 6 (notif) + IF 7 (data)  → PIO UART passthru
+├── IAD + CDC 3 "Target UART"        IF 6 (notif) + IF 7 (data)  ✓ Inc1 transparent PIO-UART passthrough (services/target_serial, pio1/SM1+SM2; `serial` verbs on CDC2)
 ├── Vendor IF   "CMSIS-DAP v2"       IF 8 (2 bulk eps)           → daplink_usb (v2)
 └── HID IF      "CMSIS-DAP v1"       IF 9 (1 int ep)             → daplink_usb (v1)
 ```
