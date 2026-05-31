@@ -65,6 +65,11 @@ Increment-2 sniffer's second RX.
 
 ## Notes
 
+- **No host→target flow control.** The host→target direction has no
+  backpressure: if the PIO TX FIFO is full (host writing faster than
+  the target baud drains, e.g. a paste at 9600), excess bytes are
+  dropped — the same behavior as a plain USB-serial adapter. Interactive
+  use never hits this; bulk transfers at low baud can.
 - The 1200-baud BOOTSEL escape still works on every CDC, including
   CDC3 — `tud_cdc_line_coding_cb` is unchanged.
 - Baud is set via the shell, **not** via CDC3's line-coding. Opening
