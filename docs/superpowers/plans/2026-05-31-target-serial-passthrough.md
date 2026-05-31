@@ -37,9 +37,13 @@
 
 ## Build / Test Commands (reference)
 
-- Host tests (all): `bash scripts/run_tests.sh`
-- Host tests (one): `cmake --preset host-tests >/dev/null && cmake --build build-host -j"$(nproc)" >/dev/null && ctest --test-dir build-host -R test_target_serial --output-on-failure`
-- Firmware compile: `bash scripts/build_firmware.sh`
+These are the only build entry points (verified against `CMakePresets.json`; the build dir is `build/host-tests`). There is no `scripts/run_tests.sh` — use the presets directly.
+
+- Configure host tests (once / after CMakeLists changes): `cmake --preset host-tests`
+- Build host tests: `cmake --build --preset host-tests -j"$(nproc)"`
+- Run all host tests: `ctest --preset host-tests`
+- Run one host test: `ctest --preset host-tests -R test_target_serial`
+- Firmware compile: `cmake --preset fw-release && cmake --build --preset fw-release -j"$(nproc)"` → `.uf2` under `build/fw-release/apps/faultycat_fw/`
 
 ---
 
@@ -71,7 +75,7 @@ And register it inside that file's `main()` next to the other `RUN_TEST(...)` li
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cmake --preset host-tests >/dev/null && cmake --build build-host -j"$(nproc)" 2>&1 | tail -20`
+Run: `cmake --preset host-tests && cmake --build --preset host-tests -j"$(nproc)" 2>&1 | tail -20`
 Expected: COMPILE ERROR — `SWD_BUS_OWNER_SERIAL` undeclared.
 
 - [ ] **Step 3: Add the enum value**
@@ -90,7 +94,7 @@ typedef enum {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cmake --build build-host -j"$(nproc)" >/dev/null && ctest --test-dir build-host -R test_swd_bus_lock --output-on-failure`
+Run: `cmake --build --preset host-tests -j"$(nproc)" && ctest --preset host-tests -R test_swd_bus_lock`
 Expected: PASS, all `test_swd_bus_lock` cases green.
 
 - [ ] **Step 5: Commit**
@@ -370,7 +374,7 @@ faultycat_add_service_target_serial_test(test_target_serial)
 
 - [ ] **Step 5: Run test to verify it fails**
 
-Run: `cmake --preset host-tests >/dev/null && cmake --build build-host -j"$(nproc)" 2>&1 | tail -20`
+Run: `cmake --preset host-tests && cmake --build --preset host-tests -j"$(nproc)" 2>&1 | tail -20`
 Expected: LINK ERROR — undefined references to `target_serial_pio_init` etc. (and `target_serial.c` empty / missing symbols). The compile of the test proves the headers and CMake are correct; the link fails because no `.c` bodies exist yet.
 
 - [ ] **Step 6: Write the PIO-layer implementation**
@@ -580,7 +584,7 @@ size_t target_serial_rx_drain(uint8_t* buf, size_t cap) {
 
 - [ ] **Step 8: Run test to verify it passes**
 
-Run: `cmake --build build-host -j"$(nproc)" >/dev/null && ctest --test-dir build-host -R test_target_serial --output-on-failure`
+Run: `cmake --build --preset host-tests -j"$(nproc)" && ctest --preset host-tests -R test_target_serial`
 Expected: PASS, 6 PIO-layer cases green.
 
 - [ ] **Step 9: Commit**
@@ -744,7 +748,7 @@ Register them in `main()` (add after the existing `RUN_TEST` lines, before `retu
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cmake --build build-host -j"$(nproc)" >/dev/null && ctest --test-dir build-host -R test_target_serial --output-on-failure`
+Run: `cmake --build --preset host-tests -j"$(nproc)" && ctest --preset host-tests -R test_target_serial`
 Expected: FAIL — the stub returns `false`/`1`, so e.g. `test_enable_claims_sms_and_acquires_lock` and `test_baud_to_divider_115200` fail.
 
 - [ ] **Step 3: Replace the stub with the real implementation**
@@ -859,12 +863,12 @@ size_t target_serial_rx_drain(uint8_t* buf, size_t cap) {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cmake --build build-host -j"$(nproc)" >/dev/null && ctest --test-dir build-host -R test_target_serial --output-on-failure`
+Run: `cmake --build --preset host-tests -j"$(nproc)" && ctest --preset host-tests -R test_target_serial`
 Expected: PASS — all 22 cases (6 PIO + 16 logic) green.
 
 - [ ] **Step 5: Run the full host suite (no regressions)**
 
-Run: `bash scripts/run_tests.sh`
+Run: `ctest --preset host-tests`
 Expected: 100% tests passed (includes `test_swd_bus_lock` and `test_target_serial`).
 
 - [ ] **Step 6: Commit**
@@ -904,7 +908,7 @@ Then delete the now-unused `echo_cdc` function definition (the whole `static voi
 
 - [ ] **Step 2: Verify the firmware still compiles**
 
-Run: `bash scripts/build_firmware.sh 2>&1 | tail -20`
+Run: `cmake --preset fw-release && cmake --build --preset fw-release -j"$(nproc)" 2>&1 | tail -20`
 Expected: builds clean to `.uf2` (no `unused-function` warning/error for `echo_cdc`).
 
 > If `echo_cdc` is referenced anywhere else, the build will fail at the call site — grep `echo_cdc` first to confirm it is only the deleted loop (it is, per the codebase survey).
@@ -1075,12 +1079,12 @@ In `shell_help()`, add a `serial` section (insert after the `campaign` block, be
 
 - [ ] **Step 8: Verify the firmware compiles**
 
-Run: `bash scripts/build_firmware.sh 2>&1 | tail -20`
+Run: `cmake --preset fw-release && cmake --build --preset fw-release -j"$(nproc)" 2>&1 | tail -20`
 Expected: builds clean to `.uf2`, no warnings about unused statics (`cmd_serial_*`, `process_serial_subcmd`, `pump_target_cdc` are all referenced).
 
 - [ ] **Step 9: Run the full host suite (no regressions)**
 
-Run: `bash scripts/run_tests.sh`
+Run: `ctest --preset host-tests`
 Expected: 100% tests passed.
 
 - [ ] **Step 10: Commit**
@@ -1173,8 +1177,9 @@ Per the maintainer rules (`feedback_smoke_before_tag`, `feedback_ext_trigger_nee
 - [ ] **Step 1: Flash and run the bridge**
 
 ```bash
-bash scripts/build_firmware.sh
-bash scripts/flash.sh   # or cp build/apps/faultycat_fw/faultycat.uf2 to RPI-RP2
+cmake --preset fw-release && cmake --build --preset fw-release -j"$(nproc)"
+# enter BOOTSEL (1200-baud touch on any CDC, or hold the button at reset), then:
+cp build/fw-release/apps/faultycat_fw/faultycat.uf2 /media/$USER/RPI-RP2/
 ```
 
 - [ ] **Step 2: Loopback test**
