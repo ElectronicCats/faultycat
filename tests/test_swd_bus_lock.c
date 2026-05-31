@@ -134,6 +134,18 @@ static void test_try_acquire_alias_of_timeout_zero(void) {
 }
 
 // -----------------------------------------------------------------------------
+// Serial passthrough owner (Inc 1)
+// -----------------------------------------------------------------------------
+
+static void test_serial_owner_acquire_release(void) {
+    swd_bus_lock_init();
+    TEST_ASSERT_TRUE(swd_bus_acquire(SWD_BUS_OWNER_SERIAL, SWD_BUS_TIMEOUT_NONE));
+    TEST_ASSERT_EQUAL_INT(SWD_BUS_OWNER_SERIAL, swd_bus_owner());
+    swd_bus_release(SWD_BUS_OWNER_SERIAL);
+    TEST_ASSERT_EQUAL_INT(SWD_BUS_OWNER_IDLE, swd_bus_owner());
+}
+
+// -----------------------------------------------------------------------------
 // Runner
 // -----------------------------------------------------------------------------
 
@@ -158,6 +170,8 @@ int main(void) {
     RUN_TEST(test_each_owner_can_acquire);
 
     RUN_TEST(test_try_acquire_alias_of_timeout_zero);
+
+    RUN_TEST(test_serial_owner_acquire_release);
 
     return UNITY_END();
 }

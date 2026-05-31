@@ -36,6 +36,7 @@ typedef enum {
     SWD_BUS_OWNER_CAMPAIGN = 1, // glitch_engine post-fire SWD verify (F9)
     SWD_BUS_OWNER_SCANNER  = 2, // pinout_scanner during P(8,k) sweep (F8-2)
     SWD_BUS_OWNER_DAPLINK  = 3, // CMSIS-DAP from external host (F7)
+    SWD_BUS_OWNER_SERIAL   = 4, // target_serial passthrough (Inc 1)
 } swd_bus_owner_t;
 
 // Reset to IDLE state. Safe to call repeatedly.
