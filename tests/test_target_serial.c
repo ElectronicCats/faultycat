@@ -120,6 +120,19 @@ void test_baud_to_divider_9600(void) {
     TEST_ASSERT_EQUAL_UINT32(1628u, target_serial_baud_to_divider(9600u));
 }
 
+void test_baud_to_divider_921600(void) {
+    // 125e6 / (921600*8) = 16.95 -> 17 (spec's high-rate case)
+    TEST_ASSERT_EQUAL_UINT32(17u, target_serial_baud_to_divider(921600u));
+}
+
+void test_baud_to_divider_huge_does_not_divide_by_zero(void) {
+    // A baud large enough that baud*8 would wrap uint32 to 0 must be
+    // clamped (no divide-by-zero HardFault) and yield a valid 1..0xFFFF
+    // divider. 0xFFFFFFFF * 8 wraps; the clamp catches it.
+    uint32_t div = target_serial_baud_to_divider(0xFFFFFFFFu);
+    TEST_ASSERT_TRUE(div >= 1u && div <= 0xFFFFu);
+}
+
 // --- state machine ---
 
 void test_init_is_disabled(void) {
@@ -264,6 +277,8 @@ int main(void) {
     RUN_TEST(test_pio_deinit_restores_rx_pull);
     RUN_TEST(test_baud_to_divider_115200);
     RUN_TEST(test_baud_to_divider_9600);
+    RUN_TEST(test_baud_to_divider_921600);
+    RUN_TEST(test_baud_to_divider_huge_does_not_divide_by_zero);
     RUN_TEST(test_init_is_disabled);
     RUN_TEST(test_enable_claims_sms_and_acquires_lock);
     RUN_TEST(test_enable_rejects_out_of_range_pins);

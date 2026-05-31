@@ -1,13 +1,19 @@
 #include "target_serial.h"
 
-#include "swd_bus_lock.h"
 #include "target_serial_pio.h"
+#include "swd_bus_lock.h"
 
 // RP2040 default boot clock; the PIO UART programs run at 8 cycles per
 // bit, so SM clock target = baud * 8. Matches the sysclk assumption in
 // swd_phy.c (SWD_SYSCLK_KHZ = 125000).
 #define TS_SYSCLK_HZ      125000000u
 #define TS_CYCLES_PER_BIT 8u
+
+// Highest baud whose `baud * TS_CYCLES_PER_BIT` still fits in uint32_t.
+// Past this the multiply wraps — at worst to 0, which would divide-by-
+// zero (a HardFault on the Cortex-M0+). No real UART runs anywhere near
+// this; the clamp just keeps the public function total for any input.
+#define TS_MAX_BAUD (0xFFFFFFFFu / TS_CYCLES_PER_BIT)
 
 static target_serial_state_t s_state = TARGET_SERIAL_DISABLED;
 static uint8_t s_tx_gp               = TARGET_SERIAL_TX_GP_DEFAULT;
@@ -17,12 +23,14 @@ static uint32_t s_baud               = TARGET_SERIAL_BAUD_DEFAULT;
 uint32_t target_serial_baud_to_divider(uint32_t baud) {
     if (baud == 0u)
         return 0xFFFFu; // defensive only — enable()/set_baud() reject baud 0 first
+    if (baud > TS_MAX_BAUD)
+        baud = TS_MAX_BAUD; // guard the multiply below against uint32 wrap
     uint32_t denom = baud * TS_CYCLES_PER_BIT;
     uint32_t div   = (TS_SYSCLK_HZ + denom / 2u) / denom; // round to nearest
     if (div == 0u)
         div = 1u;
     if (div > 0xFFFFu)
-        div = 0xFFFFu;
+        div = 0xFFFFu; // RP2040 PIO clkdiv integer field is 16 bits
     return div;
 }
 
