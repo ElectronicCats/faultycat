@@ -794,7 +794,7 @@ void target_serial_init(void) {
 bool target_serial_enable(uint8_t tx_gp, uint8_t rx_gp, uint32_t baud) {
     if (s_state == TARGET_SERIAL_ENABLED)
         return false;
-    if (tx_gp >= BOARD_GP_SCANNER_COUNT || rx_gp >= BOARD_GP_SCANNER_COUNT)
+    if (tx_gp >= BOARD_SCANNER_CHANNEL_COUNT || rx_gp >= BOARD_SCANNER_CHANNEL_COUNT)
         return false;
     if (tx_gp == rx_gp)
         return false;
