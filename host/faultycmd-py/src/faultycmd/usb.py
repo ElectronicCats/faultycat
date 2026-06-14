@@ -119,6 +119,37 @@ _INTERFACE_BY_STRING: dict[str, int] = {
 _MACOS_USBMODEM_RE = re.compile(r"\.usbmodem\d+?(\d)$")
 
 
+def _get_win_pnp_id(port_name: str) -> str | None:
+    try:
+        import winreg
+        usb_path = r"SYSTEM\CurrentControlSet\Enum\USB"
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, usb_path) as usb_key:
+            num_devices = winreg.QueryInfoKey(usb_key)[0]
+            for i in range(num_devices):
+                dev_name = winreg.EnumKey(usb_key, i)
+                try:
+                    with winreg.OpenKey(usb_key, dev_name) as dev_key:
+                        num_instances = winreg.QueryInfoKey(dev_key)[0]
+                        for j in range(num_instances):
+                            inst_name = winreg.EnumKey(dev_key, j)
+                            try:
+                                with winreg.OpenKey(dev_key, inst_name) as inst_key:
+                                    try:
+                                        with winreg.OpenKey(inst_key, "Device Parameters") as params_key:
+                                            port, _ = winreg.QueryValueEx(params_key, "PortName")
+                                            if port == port_name:
+                                                return f"USB\\{dev_name}\\{inst_name}"
+                                    except OSError:
+                                        pass
+                            except OSError:
+                                pass
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return None
+
+
 def _interface_from_port(port) -> int | None:
     """Best-effort interface-number extraction from a ListPortInfo.
 
@@ -142,6 +173,16 @@ def _interface_from_port(port) -> int | None:
     m = _LOCATION_IFACE_RE.search(loc)
     if m:
         return int(m.group(1))
+
+    # Windows fallback: query PNP Device ID via registry to find MI_XX
+    import sys
+    if sys.platform == "win32" and port.device:
+        pnp_id = _get_win_pnp_id(port.device)
+        if pnp_id:
+            m = _WIN_MI_RE.search(pnp_id)
+            if m:
+                return int(m.group(1), 16)
+
 
     if shutil.which("udevadm"):
         try:
