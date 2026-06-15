@@ -87,6 +87,13 @@ Increment-2 sniffer's second RX.
   the target baud drains, e.g. a paste at 9600), excess bytes are
   dropped — the same behavior as a plain USB-serial adapter. Interactive
   use never hits this; bulk transfers at low baud can.
+- **RX throughput depends on how often the bridge is pumped.** The PIO
+  RX FIFO is only 4 deep and the RX SM stalls (dropping bytes off the
+  wire) once it fills. The main loop's cooperative-sleep therefore drains
+  the bridge every ~100 us, not once per ~20 ms iteration — otherwise
+  sustained target→host RX caps at ~1200-2400 baud. With the 100 us drain,
+  target→host is loss-free at 115200 (verified on v2.2 with an FT232 at
+  3V3, 64-byte bursts, every baud 1200..115200).
 - The 1200-baud BOOTSEL escape still works on every CDC, including
   CDC3 — `tud_cdc_line_coding_cb` is unchanged.
 - Baud is set via the shell, **not** via CDC3's line-coding. Opening

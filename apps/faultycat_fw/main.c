@@ -1487,9 +1487,21 @@ int main(void) {
         // pico-sdk is a busy-wait that does NOT service tud_task, so
         // Windows SETUPs arriving during that 20 ms window pile up
         // and trigger Code 43 / DEVICE_DESCRIPTOR_FAILURE.
-        for (uint32_t i = 0; i < BUTTON_POLL_PERIOD_MS; i++) {
-            usb_composite_task();
-            hal_busy_wait_us(1000);
+        //
+        // Also drain the target-serial bridge every ~100 us here. The PIO
+        // RX FIFO is only 4 deep and the RX SM stalls (dropping wire bytes)
+        // once it fills, so pumping just once per main-loop iteration capped
+        // sustained RX at ~1200-2400 baud. At 100 us granularity fewer than
+        // 4 bytes arrive between drains even at 115200 (1 byte / 87 us),
+        // so the FIFO no longer overflows. usb_composite_task() keeps its
+        // ~1 ms cadence (every 10th step). pump_target_cdc() is a no-op while
+        // the bridge is disabled.
+        for (uint32_t i = 0; i < BUTTON_POLL_PERIOD_MS * 10u; i++) {
+            if ((i % 10u) == 0u) {
+                usb_composite_task();
+            }
+            pump_target_cdc();
+            hal_busy_wait_us(100);
         }
     }
 }
