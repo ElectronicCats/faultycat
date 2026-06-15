@@ -1357,14 +1357,43 @@ static void pump_crowbar_cdc(void) {
 // (target_serial_tx_byte / _rx_drain return false / 0). Called from
 // the top-level main loop only, so 64 B stack buffers are safe.
 static void pump_target_cdc(void) {
-    // Host -> target.
-    uint8_t in[64];
-    size_t n = usb_composite_cdc_read(USB_CDC_TARGET, in, sizeof(in));
-    for (size_t i = 0; i < n; i++) {
-        // Drop on TX-FIFO-full: a transparent bridge mirrors a real
-        // USB-serial adapter; backpressure is the host's problem.
-        (void)target_serial_tx_byte(in[i]);
+    // One byte we read from CDC3 but couldn't place in the PIO TX FIFO
+    // yet. Held across calls so we never drop it; retried before reading
+    // more (preserves byte order).
+    static uint8_t s_tx_pending      = 0u;
+    static bool s_tx_pending_present = false;
+
+    target_serial_status_t st;
+    target_serial_get_status(&st);
+    if (st.state != TARGET_SERIAL_ENABLED) {
+        // Bridge off: discard anything queued on CDC3 so it can't back up
+        // the host, and drop a byte stashed during a previous session.
+        uint8_t junk[64];
+        (void)usb_composite_cdc_read(USB_CDC_TARGET, junk, sizeof(junk));
+        s_tx_pending_present = false;
+        return;
     }
+
+    // Host -> target, WITH backpressure. The PIO TX FIFO is only 4 deep;
+    // rather than read a big chunk from CDC3 and drop whatever doesn't fit,
+    // read only as far as the FIFO accepts. When it's full we stop reading,
+    // so bytes stay in CDC3's USB RX buffer and the host blocks — proper
+    // flow control instead of silent loss. Bounded: the loop ends as soon
+    // as the FIFO fills (<= its depth) or CDC3 runs dry.
+    if (s_tx_pending_present && target_serial_tx_byte(s_tx_pending)) {
+        s_tx_pending_present = false;
+    }
+    while (!s_tx_pending_present) {
+        uint8_t b;
+        if (usb_composite_cdc_read(USB_CDC_TARGET, &b, 1) != 1) {
+            break; // no more host data
+        }
+        if (!target_serial_tx_byte(b)) {
+            s_tx_pending       = b; // FIFO full: stash, stop reading
+            s_tx_pending_present = true;
+        }
+    }
+
     // Target -> host (drain bounded by the buffer size).
     uint8_t out[64];
     size_t m = target_serial_rx_drain(out, sizeof(out));

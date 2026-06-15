@@ -82,11 +82,13 @@ Increment-2 sniffer's second RX.
 
 ## Notes
 
-- **No host→target flow control.** The host→target direction has no
-  backpressure: if the PIO TX FIFO is full (host writing faster than
-  the target baud drains, e.g. a paste at 9600), excess bytes are
-  dropped — the same behavior as a plain USB-serial adapter. Interactive
-  use never hits this; bulk transfers at low baud can.
+- **Host→target flow control.** `pump_target_cdc` only pulls bytes off
+  CDC3 as fast as the 4-deep PIO TX FIFO drains; the byte that doesn't
+  fit is stashed and retried, and no more are read until it does. Excess
+  bytes therefore stay in CDC3's USB RX buffer and the host blocks
+  (proper backpressure) instead of being dropped — a bulk paste at any
+  baud arrives intact. (Earlier revisions dropped on TX-FIFO-full; that
+  is no longer the case.)
 - **RX throughput depends on how often the bridge is pumped.** The PIO
   RX FIFO is only 4 deep and the RX SM stalls (dropping bytes off the
   wire) once it fills. The main loop's cooperative-sleep therefore drains
