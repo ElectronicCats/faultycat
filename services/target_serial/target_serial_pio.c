@@ -85,6 +85,13 @@ bool target_serial_pio_init(uint8_t tx_gp, uint8_t rx_gp, uint32_t divider) {
         .sideset_optional  = true,
         .sideset_pindirs   = false,
         .out_shift_right   = true, // UART is LSB-first
+        // The uart_tx program has no explicit jmp-back; it loops between
+        // bytes via WRAP (last instr -> pull). Must set it: the HAL leaves
+        // the SDK default wrap (0,31) when these are unset, so the SM would
+        // run off the end of the 4-instruction program after the first byte
+        // and never transmit a second. (RX self-loops with `jmp 0`.)
+        .wrap_target       = 0u,                  // -> instr 0 (pull)
+        .wrap_end          = TS_TX_PROG_LEN - 1u, // last instr (jmp x--)
         .clk_div           = (float)divider,
     };
     hal_pio_sm_configure(s_pio, TS_TX_SM, s_tx_off, &txc);
