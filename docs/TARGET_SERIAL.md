@@ -62,6 +62,23 @@ Increment-2 sniffer's second RX.
   two hand-encoded UART PIO programs (from pico-examples, BSD-3),
   SM claim/config, byte put/get. RX drain is bounded so a flood can
   never starve `tud_task()` / the magic-baud BOOTSEL recovery path.
+  - **TX program loops via WRAP — the SM config MUST set it.** The
+    `uart_tx` program (4 instr: `pull`/`set`/`out`/`jmp x--`) has no
+    explicit jump back to `pull`; between bytes it relies on the SM
+    wrapping from the last instruction to the first. `hal_pio_sm_configure`
+    only applies wrap when `wrap_end > wrap_target`, so the `txc` config
+    sets `wrap_target = 0`, `wrap_end = TS_TX_PROG_LEN - 1`. The RX
+    program instead self-loops with an explicit `jmp 0`, so it needs no
+    wrap. **History (2026-06-15):** these wrap fields were initially
+    unset, leaving the SDK default wrap `(0,31)`; the TX SM ran off the
+    end of its 4-instruction program after the *first* byte and never
+    transmitted a second. Symptom on a GP4↔GP5 loopback: exactly one
+    byte round-trips, then stall — baud- and pull-independent. It looked
+    like the TXS0108E level-shifter at first; the giveaway was sampling
+    the CDC2 `SCAN` heartbeat during a transmit and seeing GP4 never
+    toggle low, i.e. the TX line was idle, not a HW issue. Fixed by
+    setting the wrap. Isolated/gapped single-byte loopback is now 20/20
+    at 115200 and 9600.
 
 ## Notes
 
