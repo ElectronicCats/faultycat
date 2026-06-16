@@ -124,19 +124,31 @@ def _interface_from_port(port) -> int | None:
 
     Tries (in order):
       1. ``MI_XX`` in ``hwid`` (Windows convention).
-      2. Trailing ``.<n>`` in ``location`` (Linux + some pyserial
+      2. ``LOCATION=bus:x.N`` embedded inside ``hwid`` (Windows — when
+         ``port.location`` is ``None`` but pyserial still encodes the
+         location token inside the normalised hwid string).
+      3. Trailing ``.<n>`` in ``location`` (Linux + some pyserial
          versions on macOS).
-      3. ``udevadm info`` for ``ID_USB_INTERFACE_NUM`` (Linux fallback).
-      4. iInterface string in ``port.interface`` matches one of the
+      4. ``udevadm info`` for ``ID_USB_INTERFACE_NUM`` (Linux fallback).
+      5. iInterface string in ``port.interface`` matches one of the
          firmware's CDC descriptors (macOS-friendly; works anywhere
          pyserial populates the field).
-      5. Trailing digit of ``/dev/cu.usbmodem<...><N>`` device name
+      6. Trailing digit of ``/dev/cu.usbmodem<...><N>`` device name
          (macOS — `N` is the **data** interface, control = `N` - 1).
     """
     hwid = port.hwid or ""
     m = _WIN_MI_RE.search(hwid)
     if m:
         return int(m.group(1), 16)
+
+    # Windows fallback: pyserial normalises hwid to
+    # "USB VID:PID=... SER=... LOCATION=bus-hub:x.N" when port.location
+    # is absent (common for some CDC interfaces on Windows). Extract N
+    # directly from the embedded LOCATION token — same approach used by
+    # usb_connection.py Strategy 1c.
+    m = re.search(r"LOCATION=\S+:(?:\w+)\.(\d+)", hwid, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
 
     loc = port.location or ""
     m = _LOCATION_IFACE_RE.search(loc)
