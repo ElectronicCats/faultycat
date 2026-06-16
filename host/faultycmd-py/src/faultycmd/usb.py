@@ -211,7 +211,9 @@ def discover() -> list[FaultyCatPort]:
     if unresolved:
         claimed = {p.interface for p in found}
         remaining_ifaces = [n for n in sorted(INTERFACE_NUMBERS.values()) if n not in claimed]
-        for port, iface in zip(sorted(unresolved, key=lambda p: p.device), remaining_ifaces):
+        for port, iface in zip(
+            sorted(unresolved, key=lambda p: p.device), remaining_ifaces, strict=False
+        ):
             log.warning(
                 "assigning FaultyCat CDC at %s to interface 0x%02X by COM-port position "
                 "(hwid=%r, location=%r) — cross-check the role if behaviour seems wrong",
