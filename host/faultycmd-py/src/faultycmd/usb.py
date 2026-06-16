@@ -122,7 +122,7 @@ _MACOS_USBMODEM_RE = re.compile(r"\.usbmodem\d+?(\d)$")
 def _get_win_pnp_id(port_name: str) -> str | None:
     try:
         import winreg
-        
+
         usb_path = r"SYSTEM\CurrentControlSet\Enum\USB"
         with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, usb_path) as usb_key:
             num_devices = winreg.QueryInfoKey(usb_key)[0]
