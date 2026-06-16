@@ -187,20 +187,41 @@ def _interface_from_port(port) -> int | None:
 def discover() -> list[FaultyCatPort]:
     """Return all FaultyCat composite CDC ports, sorted by interface."""
     found: list[FaultyCatPort] = []
+    unresolved: list = []
     for port in list_ports.comports():
         if port.vid != VID_FAULTYCAT or port.pid != PID_FAULTYCAT:
             continue
         iface = _interface_from_port(port)
         if iface is None:
-            log.warning(
+            log.debug(
                 "found FaultyCat CDC at %s but could not determine its "
-                "interface number (hwid=%r, location=%r) — skipping",
+                "interface number (hwid=%r, location=%r) — deferring to positional fallback",
                 port.device,
                 port.hwid,
                 port.location,
             )
+            unresolved.append(port)
             continue
         found.append(FaultyCatPort(interface=iface, device=port.device))
+
+    # Positional fallback: Windows typically assigns COM numbers in ascending
+    # order of USB interface index for a composite device, so sorting by device
+    # name gives the right interface ordering. Assign only the interface slots
+    # not already claimed by ports that resolved cleanly.
+    if unresolved:
+        claimed = {p.interface for p in found}
+        remaining_ifaces = [n for n in sorted(INTERFACE_NUMBERS.values()) if n not in claimed]
+        for port, iface in zip(sorted(unresolved, key=lambda p: p.device), remaining_ifaces):
+            log.warning(
+                "assigning FaultyCat CDC at %s to interface 0x%02X by COM-port position "
+                "(hwid=%r, location=%r) — cross-check the role if behaviour seems wrong",
+                port.device,
+                iface,
+                port.hwid,
+                port.location,
+            )
+            found.append(FaultyCatPort(interface=iface, device=port.device))
+
     found.sort(key=lambda p: p.interface)
     return found
 
