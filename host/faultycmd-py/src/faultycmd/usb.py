@@ -124,19 +124,31 @@ def _interface_from_port(port) -> int | None:
 
     Tries (in order):
       1. ``MI_XX`` in ``hwid`` (Windows convention).
-      2. Trailing ``.<n>`` in ``location`` (Linux + some pyserial
+      2. ``LOCATION=bus:x.N`` embedded inside ``hwid`` (Windows — when
+         ``port.location`` is ``None`` but pyserial still encodes the
+         location token inside the normalised hwid string).
+      3. Trailing ``.<n>`` in ``location`` (Linux + some pyserial
          versions on macOS).
-      3. ``udevadm info`` for ``ID_USB_INTERFACE_NUM`` (Linux fallback).
-      4. iInterface string in ``port.interface`` matches one of the
+      4. ``udevadm info`` for ``ID_USB_INTERFACE_NUM`` (Linux fallback).
+      5. iInterface string in ``port.interface`` matches one of the
          firmware's CDC descriptors (macOS-friendly; works anywhere
          pyserial populates the field).
-      5. Trailing digit of ``/dev/cu.usbmodem<...><N>`` device name
+      6. Trailing digit of ``/dev/cu.usbmodem<...><N>`` device name
          (macOS — `N` is the **data** interface, control = `N` - 1).
     """
     hwid = port.hwid or ""
     m = _WIN_MI_RE.search(hwid)
     if m:
         return int(m.group(1), 16)
+
+    # Windows fallback: pyserial normalises hwid to
+    # "USB VID:PID=... SER=... LOCATION=bus-hub:x.N" when port.location
+    # is absent (common for some CDC interfaces on Windows). Extract N
+    # directly from the embedded LOCATION token — same approach used by
+    # usb_connection.py Strategy 1c.
+    m = re.search(r"LOCATION=\S+:(?:\w+)\.(\d+)", hwid, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
 
     loc = port.location or ""
     m = _LOCATION_IFACE_RE.search(loc)
@@ -175,20 +187,43 @@ def _interface_from_port(port) -> int | None:
 def discover() -> list[FaultyCatPort]:
     """Return all FaultyCat composite CDC ports, sorted by interface."""
     found: list[FaultyCatPort] = []
+    unresolved: list = []
     for port in list_ports.comports():
         if port.vid != VID_FAULTYCAT or port.pid != PID_FAULTYCAT:
             continue
         iface = _interface_from_port(port)
         if iface is None:
-            log.warning(
+            log.debug(
                 "found FaultyCat CDC at %s but could not determine its "
-                "interface number (hwid=%r, location=%r) — skipping",
+                "interface number (hwid=%r, location=%r) — deferring to positional fallback",
                 port.device,
                 port.hwid,
                 port.location,
             )
+            unresolved.append(port)
             continue
         found.append(FaultyCatPort(interface=iface, device=port.device))
+
+    # Positional fallback: Windows typically assigns COM numbers in ascending
+    # order of USB interface index for a composite device, so sorting by device
+    # name gives the right interface ordering. Assign only the interface slots
+    # not already claimed by ports that resolved cleanly.
+    if unresolved:
+        claimed = {p.interface for p in found}
+        remaining_ifaces = [n for n in sorted(INTERFACE_NUMBERS.values()) if n not in claimed]
+        for port, iface in zip(
+            sorted(unresolved, key=lambda p: p.device), remaining_ifaces, strict=False
+        ):
+            log.warning(
+                "assigning FaultyCat CDC at %s to interface 0x%02X by COM-port position "
+                "(hwid=%r, location=%r) — cross-check the role if behaviour seems wrong",
+                port.device,
+                iface,
+                port.hwid,
+                port.location,
+            )
+            found.append(FaultyCatPort(interface=iface, device=port.device))
+
     found.sort(key=lambda p: p.interface)
     return found
 
