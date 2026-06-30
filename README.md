@@ -1,10 +1,15 @@
 # Faulty Cat
 
-> ## Firmware v3 — rewritten from scratch
+> ## Firmware and host tools have moved
 >
-> This repository ships **firmware v3** for the existing FaultyCat
-> v2.x hardware. It is a from-scratch rewrite of the original v2.x
-> firmware, not an evolution of it — same board, new stack.
+> This repository now holds the **hardware design** only. The
+> firmware (v2, a from-scratch rewrite for the existing FaultyCat
+> v2.x hardware) has moved to
+> [FaultyCat-Firmware](https://github.com/ElectronicCats/FaultyCat-Firmware),
+> and the Python host CLI/TUI (`faultycmd`) has moved to
+> [faultycat-TUI](https://github.com/ElectronicCats/faultycat-TUI/).
+> See the **Firmware Repository** and **Python Tools Repository**
+> sections below.
 
 Faulty Cat is a low-cost Electromagnetic Fault Injection (EMFI) tool, designed specifically for self-study and hobbiest research.
 
@@ -41,8 +46,8 @@ Faulty Cat is a high-end Electromagnetic Fault Injection (EMFI) tool a remix of 
 > single-shot fires or as parameter-swept **Campaigns**. For the
 > full breakdown of what each engine does, the parameter matrix
 > that differentiates them, and how the four combinations are
-> driven from the host tool, see
-> [`docs/GLITCHING.md`](docs/GLITCHING.md).
+> driven from the host tool, see `docs/GLITCHING.md` in the
+> [firmware repository](https://github.com/ElectronicCats/FaultyCat-Firmware).
 
 We have created this project in KiCad and looking for alternatives to some components, we have left aside the Raspberry Pico board to use the RP2040 directly in the design. Tested in our laboratory before going on sale, even so, it is a product that must be handled with care, read the instructions for use.
 
@@ -62,8 +67,9 @@ As an open-source project and as a remix of the project [ChipSHOUTER PicoEMP](ht
 - JTAG/SWD scanner. **(Firmware v3.0 status: `scan swd` is the only
   scanner verb publicly exposed. JTAG scan, direct JTAG verbs, and
   direct SWD verbs are gated as WIP for v3.1 — see
-  [`docs/JTAG_INTERNALS.md`](docs/JTAG_INTERNALS.md) for the
-  details.)**
+  `docs/JTAG_INTERNALS.md` in the
+  [firmware repository](https://github.com/ElectronicCats/FaultyCat-Firmware)
+  for the details.)**
 
 ### Two attack engines (EMFI and Crowbar)
 
@@ -72,7 +78,8 @@ and Crowbar voltage glitching) and two operational modes (direct
 single-shot fires and Campaign parameter sweeps over delay/width/
 power). They compose freely — both engines work in both modes.
 The full matrix, wire-protocol routing, and host-CLI map live in
-[`docs/GLITCHING.md`](docs/GLITCHING.md).
+`docs/GLITCHING.md` in the
+[firmware repository](https://github.com/ElectronicCats/FaultyCat-Firmware).
 
 
 ## Thanks / Contributors
@@ -84,93 +91,31 @@ Faulty Cat based in PicoEMP is a community-focused project, with major contribut
 * [@nilswiersma](https://github.com/nilswiersma) (Triggering/C improvements)
 
 
-### Programming the Faulty Cat
+## Firmware Repository
 
-Two flashing paths are supported on firmware **v3**:
+The FaultyCat firmware has been moved to a different repository, to
+have a better version control, and issue tracking you will find it
+here:
 
-1. **Physical BOOTSEL button.** Hold the BOOTSEL button while plugging
-   the USB cable; the RP2040 enumerates as a USB mass-storage device
-   (`RPI-RP2`). Drag the `.uf2` onto it, or run `tools/flash.sh` which
-   handles the copy automatically.
-2. **Magic baud 1200 — remote BOOTSEL.** Open any of the four CDC ports
-   exposed by the v3 firmware at **1200 baud** and the device reboots
-   into the bootrom mass-storage mode without touching the button.
-   `tools/flash.sh` uses this when the device is already enumerated.
-   From `faultycmd` the equivalent is `faultycmd reflash <path-to.uf2>`
-   (F11-0f).
+https://github.com/ElectronicCats/FaultyCat-Firmware
 
-Background on the bootrom mode and the button location lives in the
-legacy
-[Bootloader mode section](https://github.com/ElectronicCats/faultycat/wiki/1.-Understanding-Faulty-Cat#bootloader-mode)
-of the wiki (the **mechanism** is the same in v3 — only the firmware
-on top changed).
+That repository covers building and flashing the firmware (BOOTSEL
+button and magic-baud remote BOOTSEL paths), the release scheme, and
+the full architecture / safety / glitching-engine documentation
+(`docs/ARCHITECTURE.md`, `docs/SAFETY.md`, `docs/GLITCHING.md`,
+`docs/JTAG_INTERNALS.md`, `docs/RELEASES.md`, etc.).
 
-The firmware UF2 and the host `faultycmd` CLI/TUI are versioned
-together as `vMAJOR.MINOR.PATCH.TWEAK` and are released as a paired
-set on the [GitHub Releases](https://github.com/ElectronicCats/faultycat/releases)
-page. Each release ships four files:
+## Python Tools Repository
 
-  - `faultycat_vX.Y.Z.W.uf2` — firmware (drag onto BOOTSEL).
-  - `faultycmd_vX.Y.Z.W.exe` — Windows standalone CLI/TUI; no Python
-    install needed, just drop the `.exe` anywhere and run it.
-  - `faultycmd-X.Y.Z.W-py3-none-any.whl` — host package for
-    Linux/macOS or Windows-with-Python (`pip install`).
-  - `faultycmd-X.Y.Z.W.tar.gz` — source distribution of the same.
+The `faultycmd` host CLI/TUI has been moved to a different
+repository, to have a better version control, and issue tracking you
+will find it here:
 
-The host package validates parity on every connect — a mismatched
-firmware/host pairing refuses to operate with a clear "re-flash the
-matching UF2 or re-install the matching wheel" message. See
-[`docs/RELEASES.md`](docs/RELEASES.md) for the full release scheme,
-how to cut a release as a maintainer, and how to flash + install a
-specific release as a user.
+https://github.com/ElectronicCats/faultycat-TUI/
 
-### Building the firmware
-
-The fastest way to build the firmware from source is the official
-**Raspberry Pi Pico** extension for VS Code — it installs the
-toolchain (cmake, ninja, arm-none-eabi-gcc) and the pico-sdk for
-you, and runs the cmake configure/build steps from the editor.
-
-1. Install the
-   [Raspberry Pi Pico](https://marketplace.visualstudio.com/items?itemName=raspberry-pi.raspberry-pi-pico)
-   extension from the VS Code Marketplace.
-2. Clone this repository **with submodules**:
-   `git clone --recursive <repo-url>`
-   (or, after a plain clone, run
-   `git submodule update --init --recursive`).
-3. Open the cloned folder in VS Code, then run
-   **Raspberry Pi Pico: Import Project** from the command palette
-   (Ctrl+Shift+P) and point it at this folder.
-4. Hit **Compile** in the status bar. The resulting `.uf2` lands
-   under `build/.../apps/faultycat_fw/faultycat.uf2`.
-
-Flash that `.uf2` using one of the paths in **Programming the
-Faulty Cat** above.
-
-### Documentation
-
-Everything that explains how the project is built, how to install
-the host tool, and the safety/operational contracts is collected
-here. Click through for the full document:
-
-| Document | What it covers |
-|---|---|
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Layering (HAL → drivers → services → apps), tree map, USB composite layout, `faultycmd` host-side module map. |
-| [`docs/HARDWARE_V2.md`](docs/HARDWARE_V2.md) | GPIO → function map for the v2.1 / v2.2 board the v3 firmware runs on. |
-| [`docs/PORTING.md`](docs/PORTING.md) | Per-file legacy→rewrite migration table (what was rewritten, what was discarded, what survives as reference). |
-| [`docs/SAFETY.md`](docs/SAFETY.md) | High-voltage safety contract for the EMFI / crowbar drivers (signed by maintainer before each HV-touching commit). |
-| [`docs/MUTEX_INTERNALS.md`](docs/MUTEX_INTERNALS.md) | SWD bus cooperative mutex + Campaign manager wire stack (F9). |
-| [`docs/GLITCHING.md`](docs/GLITCHING.md) | The two glitching techniques (EMFI vs Crowbar) and the two operational modes (Direct single-shot vs Campaign sweep) — wire-protocol routing, host-CLI map, and the 2×2 of how they compose. |
-| [`docs/JTAG_INTERNALS.md`](docs/JTAG_INTERNALS.md) | JTAG/SWD scanner, BusPirate-compat shell, flashrom serprog (F8). **In v3.0 the JTAG verbs + `scan jtag` are WIP-gated** — only `scan swd`, `buspirate enter`, and `serprog enter` are publicly exposed. The service-layer code is still compiled in; the gate is purely at the dispatcher / CLI / TUI surface. |
-| [`docs/RELEASES.md`](docs/RELEASES.md) | Tag-driven release flow (`v*.*.*.*`), where the version lives in the tree, how firmware advertises it to the host, host-side parity check + `--ignore-version-mismatch`. |
-| [`host/faultycmd-py/README.md`](host/faultycmd-py/README.md) | **Install + usage of the `faultycmd` CLI and TUI** — venv setup on Linux, Windows (PowerShell / CMD / Git Bash), macOS. Hotkeys, trigger polarity, trigger timeout. |
-| [`LICENSES/README.md`](LICENSES/README.md) | License overview for vendored code (pico-sdk, debugprobe, free-dap, Unity, CMSIS-DAP headers). |
-
-If you only want to flash a board and drive it from the host tool,
-the path is: this README → `host/faultycmd-py/README.md` (install
-+ quickstart) → `docs/SAFETY.md` (read once before the first HV
-fire).
-
+That repository covers installing and using `faultycmd` (venv setup
+on Linux, Windows, macOS, hotkeys, trigger polarity, trigger
+timeout).
 
 ### Useful References
 
