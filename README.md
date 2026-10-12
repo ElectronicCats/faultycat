@@ -19,6 +19,7 @@ Faulty Cat is a low-cost Electromagnetic Fault Injection (EMFI) tool, designed s
     </p>
 </a>
 
+<p align=center><b>Where to buy and learn more</b></p>
 <p align=center>
 <a href="https://electroniccats.com/store/faulty-cat/">
   <img src="https://github.com/user-attachments/assets/f6414773-c8fa-4c99-9c8b-05a1dc297fb3" width="200" height="104" />
@@ -30,11 +31,8 @@ Faulty Cat is a low-cost Electromagnetic Fault Injection (EMFI) tool, designed s
 </p>
 
 <p align=center>
-  Also available at distributors:
-</p>
-<p align=center>
-  <a href="https://labs.ksec.co.uk/product-category/electronic-cat/">
-    <img src="https://cdn.ksec.co.uk/ksec-solutions/ksec-W-BW-MV-small-clipped.png" width="200" />
+  <a href="https://electroniccats.com/distributors/">
+    <img src="https://electroniccats.com/wp-content/uploads/2026/10/official-distributors-button-v2.png" width="200" alt="Official distributors" />
   </a>
 </p>
 
